@@ -248,70 +248,79 @@
             <div class="card p-6">
               <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-semibold text-gray-900">Personal Credentials</h2>
-                <button
-                  @click="addCredential"
-                  class="btn-secondary text-sm"
-                >
-                  <i class="fas fa-plus mr-2"></i>
-                  Add Credential
-                </button>
+                <div class="flex items-center space-x-2">
+                  <button
+                    @click="addCredential"
+                    class="w-8 h-8 bg-green-600 hover:bg-green-700 text-white rounded-full flex items-center justify-center transition-colors font-bold text-lg"
+                    title="Add credential"
+                  >
+                    +
+                  </button>
+                  <button
+                    @click="removeLastCredential"
+                    :disabled="settings.credentials.length === 0"
+                    class="w-8 h-8 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition-colors font-bold text-lg"
+                    title="Remove last credential"
+                  >
+                    −
+                  </button>
+                </div>
               </div>
-              <div class="space-y-4">
+              <div class="space-y-3">
                 <div
                   v-for="(credential, index) in settings.credentials"
                   :key="index"
-                  class="border border-gray-200 rounded-lg p-4"
+                  class="border border-gray-200 rounded-lg p-3 bg-gray-50"
                 >
-                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="text-sm font-medium text-gray-600">Credential {{ index + 1 }}</span>
+                    <button
+                      @click="removeCredential(index)"
+                      class="w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors font-bold text-sm"
+                      title="Remove this credential"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-2">
+                      <label class="block text-xs font-medium text-gray-700 mb-1">
                         Name
                       </label>
                       <input
                         v-model="credential.name"
                         type="text"
                         placeholder="Credential name"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                       />
                     </div>
                     <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-2">
+                      <label class="block text-xs font-medium text-gray-700 mb-1">
                         Username
                       </label>
                       <input
                         v-model="credential.username"
                         type="text"
                         placeholder="Username"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                       />
                     </div>
-                    <div class="flex space-x-2">
-                      <div class="flex-1">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">
-                          Password
-                        </label>
-                        <input
-                          v-model="credential.password"
-                          type="password"
-                          placeholder="Password"
-                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                        />
-                      </div>
-                      <div class="flex items-end">
-                        <button
-                          @click="removeCredential(index)"
-                          class="px-3 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
-                          title="Remove credential"
-                        >
-                          <i class="fas fa-trash"></i>
-                        </button>
-                      </div>
+                    <div>
+                      <label class="block text-xs font-medium text-gray-700 mb-1">
+                        Password
+                      </label>
+                      <input
+                        v-model="credential.password"
+                        type="password"
+                        placeholder="Password"
+                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                      />
                     </div>
                   </div>
                 </div>
-                <div v-if="settings.credentials.length === 0" class="text-center py-8 text-gray-500">
-                  <i class="fas fa-key text-4xl mb-4 opacity-50"></i>
-                  <p>No credentials added yet. Click "Add Credential" to get started.</p>
+                <div v-if="settings.credentials.length === 0" class="text-center py-6 text-gray-500">
+                  <i class="fas fa-key text-3xl mb-3 opacity-50"></i>
+                  <p class="text-sm">No credentials added yet. Click the "+" button to add one.</p>
                 </div>
               </div>
             </div>
@@ -470,6 +479,12 @@ const addCredential = () => {
 
 const removeCredential = (index: number) => {
   settings.credentials.splice(index, 1)
+}
+
+const removeLastCredential = () => {
+  if (settings.credentials.length > 0) {
+    settings.credentials.pop()
+  }
 }
 
 const testConnection = async (service: 'nautobot' | 'checkmk') => {

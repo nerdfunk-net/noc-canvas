@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from .core.database import engine, Base
 from .core.config import settings
 from .core.cache import cache_service
-from .api import auth, devices, nautobot, checkmk, settings as settings_api, jobs
+from .api import auth, devices, nautobot, checkmk, settings_local as settings_api, jobs
 
 # Create database tables
 Base.metadata.create_all(bind=engine)

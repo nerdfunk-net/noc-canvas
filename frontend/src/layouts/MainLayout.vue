@@ -89,7 +89,7 @@
               <input
                 type="range"
                 :value="currentZoom"
-                @input="setZoom(parseFloat($event.target.value))"
+                @input="handleZoomSlider($event)"
                 min="0.1"
                 max="3"
                 step="0.1"
@@ -109,7 +109,7 @@
       </nav>
 
       <!-- Main Canvas Area -->
-      <div class="flex-1 overflow-hidden">
+      <div class="flex-1 overflow-auto">
         <slot />
       </div>
     </div>
@@ -150,6 +150,11 @@ const handleCustomZoom = (event: Event) => {
   if (!isNaN(zoomPercent) && zoomPercent >= 10 && zoomPercent <= 300) {
     setZoom(zoomPercent / 100)
   }
+}
+
+const handleZoomSlider = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  setZoom(parseFloat(target.value))
 }
 
 const validateCustomZoom = (event: Event) => {

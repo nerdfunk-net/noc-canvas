@@ -14,7 +14,22 @@
     @contextmenu.prevent="onRightClick"
     @mouseup="onCanvasMouseUp"
   >
+    <!-- Loading state while canvas initializes -->
+    <div 
+      v-if="canvasSize.width === 0 || canvasSize.height === 0" 
+      class="absolute inset-0 flex items-center justify-center bg-gray-50"
+    >
+      <div class="text-gray-500">
+        <svg class="animate-spin h-8 w-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="text-sm">Initializing canvas...</p>
+      </div>
+    </div>
+
     <v-stage
+      v-if="canvasSize.width > 0 && canvasSize.height > 0"
       ref="stage"
       :config="{
         width: canvasSize.width,
@@ -750,8 +765,21 @@ const handleResize = () => {
     const newWidth = canvasContainer.value.clientWidth
     const newHeight = canvasContainer.value.clientHeight
     console.log('🔄 Resizing canvas to:', { newWidth, newHeight })
-    canvasSize.width = newWidth
-    canvasSize.height = newHeight
+    
+    // Only update if dimensions are valid, with minimum fallback
+    if (newWidth > 0 && newHeight > 0) {
+      canvasSize.width = newWidth
+      canvasSize.height = newHeight
+    } else if (canvasContainer.value.parentElement) {
+      // Fallback to parent element dimensions
+      const parentWidth = canvasContainer.value.parentElement.clientWidth
+      const parentHeight = canvasContainer.value.parentElement.clientHeight
+      if (parentWidth > 0 && parentHeight > 0) {
+        canvasSize.width = parentWidth
+        canvasSize.height = parentHeight
+        console.log('🔄 Using parent dimensions:', { width: parentWidth, height: parentHeight })
+      }
+    }
   }
 }
 
@@ -780,7 +808,22 @@ const handleGlobalClick = (event: MouseEvent) => {
 
 onMounted(async () => {
   await nextTick()
-  handleResize()
+  
+  // Ensure canvas container is available before initializing
+  if (canvasContainer.value) {
+    // Wait a bit more for the DOM to be fully rendered
+    setTimeout(() => {
+      handleResize()
+      
+      // If still no dimensions after first resize, try again
+      if (canvasSize.width === 0 || canvasSize.height === 0) {
+        setTimeout(() => {
+          handleResize()
+        }, 200)
+      }
+    }, 100)
+  }
+  
   window.addEventListener('resize', handleResize)
   document.addEventListener('click', handleGlobalClick)
 })

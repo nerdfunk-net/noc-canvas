@@ -137,13 +137,39 @@ def get_user_settings(owner: str, category: str = None):
             if setting.category not in result:
                 result[setting.category] = {}
             
+            # Handle encrypted values
+            value = setting.value
+            if setting.is_encrypted and value:
+                try:
+                    from .credential import decrypt_password
+                    value = decrypt_password(value)
+                except Exception as e:
+                    # If decryption fails, return None or empty string
+                    print(f"Failed to decrypt setting {setting.category}.{setting.key}: {e}")
+                    value = ""
+            
             # Try to parse JSON, fallback to string
             try:
-                value = json.loads(setting.value) if setting.value else None
+                if value:
+                    # First try to parse as JSON
+                    parsed_value = json.loads(value)
+                else:
+                    parsed_value = value
             except (json.JSONDecodeError, TypeError):
-                value = setting.value
+                # If JSON parsing fails, handle boolean strings
+                if isinstance(value, str):
+                    if value.lower() == "true":
+                        parsed_value = True
+                    elif value.lower() == "false":
+                        parsed_value = False
+                    elif value.isdigit():
+                        parsed_value = int(value)
+                    else:
+                        parsed_value = value
+                else:
+                    parsed_value = value
             
-            result[setting.category][setting.key] = value
+            result[setting.category][setting.key] = parsed_value
         
         return result
     finally:

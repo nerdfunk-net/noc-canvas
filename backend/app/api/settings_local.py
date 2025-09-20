@@ -240,30 +240,46 @@ async def get_unified_settings(
     """Get all user settings from local database."""
     try:
         settings = get_user_settings(current_user.username)
+        logger.info(f"Retrieved settings for user {current_user.username}: {settings}")
+        
+        # Helper function to convert string values to appropriate types
+        def convert_value(value, default_value):
+            if value is None or value == "":
+                return default_value
+            if isinstance(default_value, bool):
+                return value.lower() == "true" if isinstance(value, str) else bool(value)
+            if isinstance(default_value, int):
+                return int(value) if str(value).isdigit() else default_value
+            return value
         
         # Structure the response to match expected format
+        nautobot_settings = settings.get("nautobot", {})
+        checkmk_settings = settings.get("checkmk", {})
+        canvas_settings = settings.get("canvas", {})
+        
         unified = {
-            "nautobot": settings.get("nautobot", {
-                "enabled": False,
-                "url": "",
-                "token": "",
-                "verifyTls": True,
-                "timeout": 30
-            }),
-            "checkmk": settings.get("checkmk", {
-                "enabled": False,
-                "url": "",
-                "site": "cmk",
-                "username": "",
-                "password": "",
-                "verifyTls": True
-            }),
-            "canvas": settings.get("canvas", {
-                "autoSaveInterval": 60,
-                "gridEnabled": True
-            })
+            "nautobot": {
+                "enabled": convert_value(nautobot_settings.get("enabled"), False),
+                "url": nautobot_settings.get("url", ""),
+                "token": nautobot_settings.get("token", ""),
+                "verifyTls": convert_value(nautobot_settings.get("verifyTls"), True),
+                "timeout": convert_value(nautobot_settings.get("timeout"), 30)
+            },
+            "checkmk": {
+                "enabled": convert_value(checkmk_settings.get("enabled"), False),
+                "url": checkmk_settings.get("url", ""),
+                "site": checkmk_settings.get("site", "cmk"),
+                "username": checkmk_settings.get("username", ""),
+                "password": checkmk_settings.get("password", ""),
+                "verifyTls": convert_value(checkmk_settings.get("verifyTls"), True)
+            },
+            "canvas": {
+                "autoSaveInterval": convert_value(canvas_settings.get("autoSaveInterval"), 60),
+                "gridEnabled": convert_value(canvas_settings.get("gridEnabled"), True)
+            }
         }
         
+        logger.info(f"Returning unified settings: {unified}")
         return unified
         
     except Exception as e:
@@ -299,20 +315,31 @@ async def save_unified_settings(
 ):
     """Save unified settings to local database."""
     try:
+        logger.info(f"Saving settings for user {current_user.username}: {settings_data}")
+        
         # Save each category of settings
         for category, settings in settings_data.items():
             if category in ["nautobot", "checkmk", "canvas"]:
                 for key, value in settings.items():
                     # Encrypt sensitive fields
                     is_encrypted = key in ["token", "password"]
-                    if is_encrypted and value:
-                        value = encrypt_password(str(value))
+                    
+                    # Convert value to appropriate format for storage
+                    if isinstance(value, bool):
+                        store_value = "true" if value else "false"
+                    else:
+                        store_value = str(value) if value is not None else ""
+                    
+                    if is_encrypted and store_value:
+                        store_value = encrypt_password(store_value)
+                    
+                    logger.info(f"Storing {category}.{key} = {store_value} (encrypted: {is_encrypted})")
                     
                     store_setting(
                         owner=current_user.username,
                         category=category,
                         key=key,
-                        value=value,
+                        value=store_value,
                         is_encrypted=is_encrypted
                     )
         
@@ -326,7 +353,7 @@ async def save_unified_settings(
         )
 
 
-# Test connection endpoints (unchanged)
+# Test connection endpoints
 @router.post("/test-nautobot")
 async def test_nautobot_connection(
     test_request: NautobotTestRequest,
@@ -334,15 +361,20 @@ async def test_nautobot_connection(
 ):
     """Test Nautobot connection."""
     try:
-        await nautobot_service.test_connection(
+        logger.info(f"Testing Nautobot connection for user {current_user.username}")
+        logger.info(f"URL: {test_request.url}, timeout: {test_request.timeout}, verify_ssl: {test_request.verify_ssl}")
+        
+        success, message = await nautobot_service.test_connection(
             url=test_request.url,
             token=test_request.token,
             verify_ssl=test_request.verify_ssl,
             timeout=test_request.timeout,
         )
-        message = "Successfully connected to Nautobot"
+        
+        logger.info(f"Nautobot test result: success={success}, message={message}")
+        
         return {
-            "success": True,
+            "success": success,
             "message": message
         }
     except Exception as e:
@@ -360,6 +392,9 @@ async def test_checkmk_connection(
 ):
     """Test CheckMK connection."""
     try:
+        logger.info(f"Testing CheckMK connection for user {current_user.username}")
+        logger.info(f"URL: {test_request.url}, site: {test_request.site}, username: {test_request.username}, verify_ssl: {test_request.verify_ssl}")
+        
         success, message = await checkmk_service.test_connection(
             url=test_request.url,
             site=test_request.site,
@@ -367,6 +402,9 @@ async def test_checkmk_connection(
             password=test_request.password,
             verify_ssl=test_request.verify_ssl,
         )
+        
+        logger.info(f"CheckMK test result: success={success}, message={message}")
+        
         return {
             "success": success,
             "message": message

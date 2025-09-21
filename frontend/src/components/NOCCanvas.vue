@@ -198,12 +198,12 @@
           top: contextMenu.y + 'px',
           zIndex: 1000
         }"
-        class="bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-44 overflow-hidden"
+        class="bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-44"
       >
         <div
           v-for="item in contextMenuItems"
           :key="item.label"
-          class="relative group"
+          class="relative context-menu-item"
         >
           <button
             @click="item.submenu ? null : item.action()"
@@ -214,10 +214,10 @@
             }"
           >
             <div class="flex items-center space-x-2">
-              <span class="text-sm opacity-70 group-hover:opacity-100 transition-opacity">{{ item.icon }}</span>
+              <span class="text-sm opacity-70 transition-opacity">{{ item.icon }}</span>
               <span class="font-medium">{{ item.label }}</span>
             </div>
-            <span v-if="item.submenu" class="text-gray-400 group-hover:text-blue-600 transition-colors">
+            <span v-if="item.submenu" class="text-gray-400 transition-colors">
               <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
               </svg>
@@ -227,7 +227,7 @@
           <!-- Submenu -->
           <div
             v-if="item.submenu"
-            class="absolute left-full top-0 ml-1 bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-36 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out transform group-hover:translate-x-0 translate-x-1 overflow-hidden"
+            class="submenu absolute left-full top-0 bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-36 z-10"
           >
             <button
               v-for="subItem in item.submenu"
@@ -382,7 +382,7 @@ const renderConnections = computed(() => {
 const contextMenuItems = computed(() => {
   if (!contextMenu.target) {
     if (contextMenu.targetType === 'canvas') {
-      return [
+      const items = [
         { icon: '🖼️', label: 'Fit to Screen', action: fitToScreen },
         { icon: '🏠', label: 'Reset View', action: resetView },
         {
@@ -395,12 +395,15 @@ const contextMenuItems = computed(() => {
           ]
         }
       ]
+      console.log('🐛 Canvas context menu items:', items)
+      console.log('🐛 Canvas item with submenu:', items.find(item => item.submenu))
+      return items
     }
     return []
   }
 
   // Device context menu
-  return [
+  const items = [
     { icon: '📊', label: 'Overview', action: () => showDeviceOverview(contextMenu.target!) },
     {
       icon: '⚙️',
@@ -414,6 +417,9 @@ const contextMenuItems = computed(() => {
     { icon: '🔗', label: 'Neighbors', action: () => showDeviceNeighbors(contextMenu.target!) },
     { icon: '🔍', label: 'Analyze', action: () => analyzeDevice(contextMenu.target!) }
   ]
+  console.log('🐛 Device context menu items:', items)
+  console.log('🐛 Device item with submenu:', items.find(item => item.submenu))
+  return items
 })
 
 // Device helpers
@@ -1092,5 +1098,41 @@ onUnmounted(() => {
 
 .canvas-container:active {
   cursor: grabbing;
+}
+
+/* Context Menu Submenu Hover Effects */
+.context-menu-item {
+  position: relative;
+}
+
+.context-menu-item .submenu {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-10px);
+  transition: opacity 0.2s ease-out, visibility 0.2s ease-out, transform 0.2s ease-out;
+}
+
+.context-menu-item:hover .submenu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+/* Keep submenu visible when hovering over it */
+.context-menu-item:hover .submenu,
+.submenu:hover {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Extend hover area slightly to prevent flickering */
+.context-menu-item:hover::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -5px;
+  width: 5px;
+  height: 100%;
+  z-index: 1;
 }
 </style>

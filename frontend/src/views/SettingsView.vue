@@ -492,7 +492,7 @@
           </div>
 
           <!-- Save Button (for General and Plugins tabs) -->
-          <div v-if="activeTab !== 'profile'" class="flex justify-end">
+          <div v-if="activeTab !== 'profile' && activeTab !== 'canvas'" class="flex justify-end">
             <button
               @click="saveSettings"
               class="btn-primary"

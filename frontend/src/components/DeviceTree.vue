@@ -187,6 +187,8 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { nautobotApi, type NautobotDevice } from '@/services/api'
 import { useSettingsStore } from '@/stores/settings'
+import { useDevicesStore, type Device } from '@/stores/devices'
+import { useCanvasStore } from '@/stores/canvas'
 
 // Debounce function for search
 function debounce<T extends (...args: any[]) => any>(
@@ -201,6 +203,8 @@ function debounce<T extends (...args: any[]) => any>(
 }
 
 const settingsStore = useSettingsStore()
+const deviceStore = useDevicesStore()
+const canvasStore = useCanvasStore()
 
 // Props
 interface Props {
@@ -404,12 +408,121 @@ const selectDevice = (device: NautobotDevice) => {
 }
 
 const viewDevice = (device: NautobotDevice) => {
-  // TODO: Implement device details view
-  console.log('View device:', device)
+  console.log('👁️ Eye icon clicked - viewing device:', device.name)
+  
+  // Find the device on the canvas by Nautobot ID
+  const canvasDevice = deviceStore.findDeviceByNautobotId(device.id)
+  
+  if (canvasDevice) {
+    console.log('✅ Device found on canvas:', canvasDevice.name)
+    
+    // Use viewport dimensions to center the device
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    
+    // Calculate center position for the device
+    canvasStore.setPosition({
+      x: viewportWidth / 2 - (canvasDevice.position_x + 40) * canvasStore.scale,
+      y: viewportHeight / 2 - (canvasDevice.position_y + 40) * canvasStore.scale
+    })
+    
+    // Also select the device on canvas
+    deviceStore.setSelectedDevice(canvasDevice)
+    
+    console.log('✅ Device centered on canvas')
+  } else {
+    console.log('❌ Device not found on canvas:', device.name)
+    // Optional: Show a notification that the device is not on the canvas
+  }
 }
 
-const addToCanvas = (device: NautobotDevice) => {
-  emit('deviceAddedToCanvas', device)
+const addToCanvas = async (device: NautobotDevice) => {
+  console.log('➕ Plus icon clicked - adding device to canvas:', device.name)
+  
+  // Check for duplicate by name first (same logic as drag/drop)
+  let existingDevice = deviceStore.findDeviceByName(device.name)
+  
+  // If not found by name, check by nautobot_id
+  if (!existingDevice) {
+    existingDevice = deviceStore.findDeviceByNautobotId(device.id)
+  }
+
+  if (existingDevice) {
+    console.log('⚠️ Device already exists on canvas:', device.name)
+    
+    // Center on existing device instead (same as eye icon functionality)
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+
+    canvasStore.setPosition({
+      x: viewportWidth / 2 - (existingDevice.position_x + 40) * canvasStore.scale,
+      y: viewportHeight / 2 - (existingDevice.position_y + 40) * canvasStore.scale
+    })
+    
+    // Select the existing device on canvas
+    deviceStore.setSelectedDevice(existingDevice)
+    
+    console.log('✅ Centered on existing device:', existingDevice.name)
+    return
+  }
+
+  try {
+    // Map Nautobot device type to canvas device type (same logic as drag/drop)
+    const mapNautobotDeviceType = (nautobotDevice: NautobotDevice): 'router' | 'switch' | 'firewall' | 'vpn_gateway' => {
+      const role = nautobotDevice.role?.name?.toLowerCase() || ''
+      const deviceType = nautobotDevice.device_type?.model?.toLowerCase() || ''
+
+      // Map based on role first, then device type
+      if (role.includes('router') || deviceType.includes('router')) {
+        return 'router'
+      }
+      if (role.includes('switch') || deviceType.includes('switch')) {
+        return 'switch'
+      }
+      if (role.includes('firewall') || deviceType.includes('firewall')) {
+        return 'firewall'
+      }
+      if (role.includes('vpn') || deviceType.includes('vpn')) {
+        return 'vpn_gateway'
+      }
+
+      // Default to router for network devices
+      return 'router'
+    }
+
+    // Place the device in center of current view
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    
+    // Calculate center position in canvas coordinates
+    const centerX = (viewportWidth / 2 - canvasStore.position.x) / canvasStore.scale
+    const centerY = (viewportHeight / 2 - canvasStore.position.y) / canvasStore.scale
+
+    // Create the device (same as drag/drop logic)
+    const newDevice = await deviceStore.createDevice({
+      name: device.name,
+      device_type: mapNautobotDeviceType(device),
+      ip_address: device.primary_ip4?.address?.split('/')[0], // Remove CIDR notation
+      position_x: centerX - 40, // Center the device
+      position_y: centerY - 40,
+      properties: JSON.stringify({
+        nautobot_id: device.id,
+        location: device.location?.name,
+        role: device.role?.name,
+        status: device.status?.name,
+        device_model: device.device_type?.model,
+        last_backup: device.cf_last_backup
+      })
+    })
+    
+    console.log('✅ Device added to canvas successfully:', newDevice.name)
+    
+    // Also emit the event for backward compatibility
+    emit('deviceAddedToCanvas', device)
+    
+  } catch (error) {
+    console.error('❌ Failed to add device to canvas:', error)
+  }
 }
 
 const startDeviceDrag = (event: DragEvent, device: NautobotDevice) => {

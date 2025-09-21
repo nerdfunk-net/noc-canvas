@@ -305,6 +305,24 @@
       @confirm="handleClearConfirm"
       @cancel="handleClearCancel"
     />
+
+    <!-- Load Canvas Modal -->
+    <LoadCanvasModal
+      :show="showLoadModal"
+      @close="closeLoadModal"
+      @load="handleCanvasLoad"
+    />
+
+    <!-- Load Canvas Confirmation Dialog -->
+    <ConfirmDialog
+      :show="showLoadConfirmDialog"
+      title="Load Canvas"
+      message="The current canvas is not empty. Loading a new canvas will replace all current devices and connections. Do you want to continue?"
+      confirm-text="Load Canvas"
+      cancel-text="Cancel"
+      @confirm="handleLoadConfirm"
+      @cancel="handleLoadCancel"
+    />
   </div>
 </template>
 
@@ -312,9 +330,10 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useDevicesStore, type Device, type DeviceTemplate } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
-import { type NautobotDevice } from '@/services/api'
+import { type NautobotDevice, canvasApi } from '@/services/api'
 import SaveCanvasModal from './SaveCanvasModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
+import LoadCanvasModal from './LoadCanvasModal.vue'
 
 const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
@@ -361,6 +380,13 @@ const saveModalRef = ref()
 
 // Clear Canvas Confirmation Dialog state
 const showClearDialog = ref(false)
+
+// Load Canvas Modal state
+const showLoadModal = ref(false)
+
+// Load Canvas Confirmation state
+const showLoadConfirmDialog = ref(false)
+const pendingCanvasId = ref<number | null>(null)
 
 // Mouse state
 const mouseState = reactive({
@@ -475,7 +501,95 @@ const getDeviceColor = (type: string) => {
 
 // Context menu functions
 const loadCanvas = () => {
-  console.log('Load Canvas')
+  console.log('Load Canvas - showing modal')
+  showLoadModal.value = true
+}
+
+// Load Canvas Modal functions
+const closeLoadModal = () => {
+  showLoadModal.value = false
+}
+
+const handleCanvasLoad = (canvasId: number) => {
+  console.log('🔄 Canvas load requested for ID:', canvasId)
+  
+  // Check if current canvas has devices
+  if (deviceStore.devices.length > 0) {
+    // Show confirmation dialog
+    pendingCanvasId.value = canvasId
+    showLoadModal.value = false
+    showLoadConfirmDialog.value = true
+  } else {
+    // Load directly if canvas is empty
+    loadCanvasById(canvasId)
+  }
+}
+
+const handleLoadConfirm = () => {
+  console.log('✅ User confirmed canvas load')
+  showLoadConfirmDialog.value = false
+  if (pendingCanvasId.value) {
+    loadCanvasById(pendingCanvasId.value)
+    pendingCanvasId.value = null
+  }
+}
+
+const handleLoadCancel = () => {
+  console.log('❌ User cancelled canvas load')
+  showLoadConfirmDialog.value = false
+  pendingCanvasId.value = null
+  // Reopen the load modal
+  showLoadModal.value = true
+}
+
+const loadCanvasById = async (canvasId: number) => {
+  try {
+    console.log('🔄 Loading canvas from database...', canvasId)
+    
+    // Clear current canvas first if it has devices
+    if (deviceStore.devices.length > 0) {
+      await deviceStore.clearDevices()
+      console.log('✅ Current canvas cleared')
+    }
+    
+    // Fetch canvas data
+    const canvas = await canvasApi.getCanvas(canvasId)
+    console.log('✅ Canvas data loaded:', canvas)
+    
+    // Load devices from canvas data
+    for (const deviceData of canvas.canvas_data.devices) {
+      const device = await deviceStore.createDevice({
+        name: deviceData.name,
+        device_type: deviceData.device_type as Device['device_type'],
+        ip_address: deviceData.ip_address,
+        position_x: deviceData.position_x,
+        position_y: deviceData.position_y,
+        properties: deviceData.properties
+      })
+      console.log('✅ Device created:', device)
+    }
+    
+    // Load connections from canvas data
+    for (const connectionData of canvas.canvas_data.connections) {
+      const connection = await deviceStore.createConnection({
+        source_device_id: connectionData.source_device_id,
+        target_device_id: connectionData.target_device_id,
+        connection_type: connectionData.connection_type,
+        properties: connectionData.properties
+      })
+      console.log('✅ Connection created:', connection)
+    }
+    
+    console.log('✅ Canvas loaded successfully')
+    // notificationStore.showSuccess(`Canvas "${canvas.name}" loaded successfully`)
+    
+    // Close the load modal after successful loading
+    showLoadModal.value = false
+    
+  } catch (error) {
+    console.error('❌ Failed to load canvas:', error)
+    // notificationStore.showError('Failed to load canvas')
+  }
 }
 
 const saveCanvas = () => {

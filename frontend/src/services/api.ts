@@ -41,6 +41,17 @@ export interface CanvasResponse {
   updated_at: string
 }
 
+export interface CanvasListItem {
+  id: number
+  name: string
+  owner_id: number
+  owner_username: string
+  sharable: boolean
+  is_own: boolean
+  created_at: string
+  updated_at: string
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 class ApiClient {
@@ -222,6 +233,10 @@ export const canvasApi = {
 
   async getCanvases() {
     return apiClient.get<CanvasResponse[]>('/api/canvas')
+  },
+
+  async getCanvasList() {
+    return apiClient.get<CanvasListItem[]>('/api/canvas/list')
   },
 
   async getCanvas(canvasId: number) {

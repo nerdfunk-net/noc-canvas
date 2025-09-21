@@ -60,6 +60,21 @@ class CanvasResponse(BaseModel):
         from_attributes = True
 
 
+class CanvasListItem(BaseModel):
+    """Canvas list item with owner info for the load canvas modal"""
+    id: int
+    name: str
+    owner_id: int
+    owner_username: str
+    sharable: bool
+    is_own: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 @router.get("/", response_model=List[CanvasResponse])
 async def get_canvases(
     db: Session = Depends(get_db),
@@ -83,6 +98,37 @@ async def get_canvases(
             "updated_at": canvas.updated_at
         }
         result.append(canvas_dict)
+    
+    return result
+
+
+@router.get("/list", response_model=List[CanvasListItem])
+async def get_canvas_list(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get list of canvases for the load canvas modal"""
+    from sqlalchemy.orm import joinedload
+    
+    canvases = db.query(Canvas).options(
+        joinedload(Canvas.owner)
+    ).filter(
+        (Canvas.owner_id == current_user.id) | (Canvas.sharable == True)
+    ).all()
+    
+    result = []
+    for canvas in canvases:
+        canvas_item = CanvasListItem(
+            id=canvas.id,
+            name=canvas.name,
+            owner_id=canvas.owner_id,
+            owner_username=canvas.owner.username,
+            sharable=canvas.sharable,
+            is_own=(canvas.owner_id == current_user.id),
+            created_at=canvas.created_at,
+            updated_at=canvas.updated_at
+        )
+        result.append(canvas_item)
     
     return result
 

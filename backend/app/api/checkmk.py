@@ -5,7 +5,7 @@ CheckMK API router for host management and monitoring.
 import logging
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
-from ..core.security import get_current_user, verify_admin_user
+from ..core.security import get_current_user
 from ..models.checkmk import (
     CheckMKTestConnectionRequest,
     CheckMKTestConnectionResponse,
@@ -52,7 +52,7 @@ router = APIRouter()
 @router.post("/test", response_model=CheckMKTestConnectionResponse)
 async def test_checkmk_connection(
     request: CheckMKTestConnectionRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Test CheckMK connection with provided settings."""
     try:
@@ -80,7 +80,7 @@ async def test_checkmk_connection(
 
 @router.get("/test")
 async def test_current_checkmk_connection(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Test current CheckMK connection using configured settings."""
     try:
@@ -117,7 +117,7 @@ async def test_current_checkmk_connection(
 
 
 @router.get("/stats", response_model=CheckMKStats)
-async def get_checkmk_stats(current_user: dict = Depends(verify_admin_user)):
+async def get_checkmk_stats(current_user: dict = Depends(get_current_user)):
     """Get CheckMK statistics."""
     try:
         stats = await checkmk_service.get_stats()
@@ -131,7 +131,7 @@ async def get_checkmk_stats(current_user: dict = Depends(verify_admin_user)):
 
 
 @router.get("/version", response_model=CheckMKVersionResponse)
-async def get_version(current_user: dict = Depends(verify_admin_user)):
+async def get_version(current_user: dict = Depends(get_current_user)):
     """Get CheckMK version information."""
     try:
         version_data = await checkmk_service.get_version()
@@ -157,7 +157,7 @@ async def get_all_hosts(
     effective_attributes: bool = False,
     include_links: bool = False,
     site: Optional[str] = None,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get all hosts from CheckMK."""
     try:
@@ -197,7 +197,7 @@ async def get_all_hosts(
 async def get_host(
     hostname: str,
     effective_attributes: bool = False,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get specific host configuration."""
     try:
@@ -233,7 +233,7 @@ async def get_host(
 @router.post("/hosts", response_model=CheckMKOperationResponse)
 async def create_host(
     request: CheckMKHostCreateRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Create new host in CheckMK."""
     try:
@@ -263,7 +263,7 @@ async def create_host(
 async def update_host(
     hostname: str,
     request: CheckMKHostUpdateRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Update existing host configuration."""
     try:
@@ -284,7 +284,7 @@ async def update_host(
 @router.delete("/hosts/{hostname}", response_model=CheckMKOperationResponse)
 async def delete_host(
     hostname: str,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Delete host from CheckMK."""
     try:
@@ -306,7 +306,7 @@ async def delete_host(
 async def move_host(
     hostname: str,
     request: CheckMKHostMoveRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Move host to different folder."""
     try:
@@ -343,7 +343,7 @@ async def move_host(
 async def rename_host(
     hostname: str,
     request: CheckMKHostRenameRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Rename host."""
     try:
@@ -368,7 +368,7 @@ async def rename_host(
 @router.post("/hosts/bulk-create", response_model=CheckMKOperationResponse)
 async def bulk_create_hosts(
     request: CheckMKBulkHostCreateRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Create multiple hosts in one request."""
     try:
@@ -402,7 +402,7 @@ async def bulk_create_hosts(
 @router.post("/hosts/bulk-update", response_model=CheckMKOperationResponse)
 async def bulk_update_hosts(
     request: CheckMKBulkHostUpdateRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Update multiple hosts in one request."""
     try:
@@ -430,7 +430,7 @@ async def bulk_update_hosts(
 @router.post("/hosts/bulk-delete", response_model=CheckMKOperationResponse)
 async def bulk_delete_hosts(
     request: CheckMKBulkHostDeleteRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Delete multiple hosts in one request."""
     try:
@@ -455,7 +455,7 @@ async def bulk_delete_hosts(
 @router.get("/monitoring/hosts", response_model=CheckMKOperationResponse)
 async def get_all_monitored_hosts(
     request: CheckMKServiceQueryRequest = None,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get all monitored hosts with status information."""
     try:
@@ -480,7 +480,7 @@ async def get_all_monitored_hosts(
 async def get_monitored_host(
     hostname: str,
     request: CheckMKServiceQueryRequest = None,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get monitored host with status information."""
     try:
@@ -506,7 +506,7 @@ async def get_monitored_host(
 async def get_host_services(
     hostname: str,
     request: CheckMKServiceQueryRequest = None,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get services for a specific host."""
     try:
@@ -534,7 +534,7 @@ async def get_host_services(
 @router.get("/hosts/{hostname}/discovery", response_model=CheckMKOperationResponse)
 async def get_service_discovery(
     hostname: str,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get service discovery status for a host."""
     try:
@@ -558,7 +558,7 @@ async def get_service_discovery(
 async def start_service_discovery(
     hostname: str,
     request: CheckMKServiceDiscoveryRequest = CheckMKServiceDiscoveryRequest(),
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Start service discovery for a host."""
     try:
@@ -582,7 +582,7 @@ async def start_service_discovery(
 
 @router.get("/changes/pending", response_model=CheckMKOperationResponse)
 async def get_pending_changes(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get pending configuration changes."""
     try:
@@ -603,7 +603,7 @@ async def get_pending_changes(
 @router.post("/changes/activate", response_model=CheckMKOperationResponse)
 async def activate_changes(
     request: CheckMKActivateChangesRequest = CheckMKActivateChangesRequest(),
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Activate pending configuration changes."""
     try:
@@ -635,7 +635,7 @@ async def get_all_folders(
     parent: Optional[str] = None,
     recursive: bool = False,
     show_hosts: bool = False,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get all folders."""
     try:
@@ -706,7 +706,7 @@ async def get_all_folders(
 async def get_folder(
     folder_path: str,
     show_hosts: bool = False,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get specific folder."""
     try:
@@ -740,7 +740,7 @@ async def get_folder(
 @router.post("/folders", response_model=CheckMKOperationResponse)
 async def create_folder(
     request: CheckMKFolderCreateRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Create new folder."""
     try:

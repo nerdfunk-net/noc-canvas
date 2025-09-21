@@ -1,166 +1,72 @@
 <template>
   <div class="h-full flex flex-col" style="background-color: #fef3c7; border: 2px solid #f59e0b;">
-    <!-- Plugin Sources -->
-    <div class="p-4">
-      <h3 class="text-sm font-medium text-gray-700 mb-3">Sources</h3>
-      <div class="space-y-2">
-        <div
-          v-for="plugin in pluginSources"
-          :key="plugin.name"
-          class="flex items-center justify-between p-2 rounded border"
-          :class="plugin.enabled ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'"
-        >
-          <div class="flex items-center space-x-2">
-            <div
-              class="w-2 h-2 rounded-full"
-              :class="plugin.connected ? 'bg-green-500' : 'bg-red-500'"
-            ></div>
-            <span class="text-sm font-medium">{{ plugin.name }}</span>
-          </div>
-          <button
-            @click="togglePlugin(plugin)"
-            class="text-xs px-2 py-1 rounded"
-            :class="plugin.enabled ? 'bg-green-600 text-white' : 'bg-gray-400 text-white'"
-          >
-            {{ plugin.enabled ? 'On' : 'Off' }}
-          </button>
-        </div>
+    <!-- Nautobot Section (shown when nautobot plugin is enabled) -->
+    <div v-if="settingsStore.settings.nautobot.enabled" class="p-4 flex-1 flex flex-col">
+      <h3 class="text-sm font-medium text-gray-700 mb-3 flex items-center">
+        <i class="fas fa-network-wired mr-2 text-primary-600"></i>
+        Nautobot Devices
+      </h3>
+
+      <!-- Device Tree Component -->
+      <div class="flex-1 min-h-0">
+        <DeviceTree
+          ref="deviceTreeRef"
+          @device-selected="onDeviceSelected"
+          @device-added-to-canvas="onDeviceAddedToCanvas"
+        />
       </div>
     </div>
 
-    <div class="border-t border-gray-200"></div>
-
-    <!-- Device Templates -->
-    <div class="flex-1 p-4 overflow-y-auto">
-      <h3 class="text-sm font-medium text-gray-700 mb-3">Device Types ({{ deviceStore.deviceTemplates.length }} available)</h3>
-      <div class="space-y-2">
-        <div
-          v-for="template in deviceStore.deviceTemplates"
-          :key="template.type"
-          :draggable="true"
-          @dragstart="startDrag($event, template)"
-          class="device-template p-3 bg-white border border-gray-200 rounded-lg cursor-move hover:border-primary-300 hover:shadow-sm transition-all"
-        >
-          <div class="flex items-center space-x-3">
-            <div class="text-2xl">{{ template.icon }}</div>
-            <div>
-              <div class="font-medium text-gray-900">{{ template.name }}</div>
-              <div class="text-xs text-gray-500">{{ template.type }}</div>
-            </div>
-          </div>
-          <div class="mt-2 text-xs text-gray-600">
-            <div v-for="(value, key) in template.defaultProperties" :key="key">
-              {{ key }}: {{ Array.isArray(value) ? value.join(', ') : value }}
-            </div>
-          </div>
-        </div>
+    <!-- Nautobot Not Enabled Message -->
+    <div v-else-if="!settingsStore.settings.nautobot.enabled && settingsStore.settings.nautobot.url" class="p-4 border-b border-gray-200">
+      <div class="text-center py-4 text-gray-500">
+        <i class="fas fa-network-wired text-2xl mb-2 opacity-50"></i>
+        <p class="text-xs">Nautobot plugin is disabled</p>
+        <router-link to="/settings" class="text-xs text-primary-600 hover:text-primary-800">
+          Enable in Settings
+        </router-link>
       </div>
     </div>
 
-    <!-- Quick Actions -->
-    <div class="border-t border-gray-200 p-4">
-      <h3 class="text-sm font-medium text-gray-700 mb-3">Quick Actions</h3>
-      <div class="space-y-2">
-        <button
-          @click="refreshInventory"
-          class="w-full btn-secondary text-sm"
-          :disabled="loading"
-        >
-          {{ loading ? 'Refreshing...' : 'Refresh Inventory' }}
-        </button>
-        <button
-          @click="clearCanvas"
-          class="w-full btn-secondary text-sm"
-        >
-          Clear Canvas
-        </button>
+    <!-- Nautobot Not Configured Message -->
+    <div v-else-if="!settingsStore.settings.nautobot.url" class="p-4 border-b border-gray-200">
+      <div class="text-center py-4 text-gray-500">
+        <i class="fas fa-cog text-2xl mb-2 opacity-50"></i>
+        <p class="text-xs">Nautobot not configured</p>
+        <router-link to="/settings" class="text-xs text-primary-600 hover:text-primary-800">
+          Configure in Settings
+        </router-link>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useDevicesStore, type DeviceTemplate } from '@/stores/devices'
+import { ref, onMounted } from 'vue'
+import { useSettingsStore } from '@/stores/settings'
+import { type NautobotDevice } from '@/services/api'
+import DeviceTree from './DeviceTree.vue'
 
-const deviceStore = useDevicesStore()
+const settingsStore = useSettingsStore()
 
-interface PluginSource {
-  name: string
-  enabled: boolean
-  connected: boolean
-  type: 'nautobot' | 'checkmk' | 'manual'
+const deviceTreeRef = ref<InstanceType<typeof DeviceTree> | null>(null)
+
+// Event handlers for DeviceTree
+const onDeviceSelected = (device: NautobotDevice) => {
+  console.log('Selected nautobot device:', device)
+  // TODO: Implement device selection logic (e.g., show device details)
 }
 
-const loading = ref(false)
-
-// Mock plugin sources
-const pluginSources = ref<PluginSource[]>([
-  {
-    name: 'Nautobot',
-    enabled: false,
-    connected: false,
-    type: 'nautobot'
-  },
-  {
-    name: 'CheckMK',
-    enabled: false,
-    connected: false,
-    type: 'checkmk'
-  },
-  {
-    name: 'Manual Entry',
-    enabled: true,
-    connected: true,
-    type: 'manual'
-  }
-])
-
-const startDrag = (event: DragEvent, template: DeviceTemplate) => {
-  console.log('🎯 Starting drag for template:', template.name)
-  if (event.dataTransfer) {
-    const dragData = {
-      type: 'device-template',
-      template
-    }
-    event.dataTransfer.setData('application/json', JSON.stringify(dragData))
-    event.dataTransfer.effectAllowed = 'copy'
-    console.log('✅ Drag data set:', dragData)
-  }
+const onDeviceAddedToCanvas = (device: NautobotDevice) => {
+  console.log('Adding device to canvas:', device)
+  // TODO: Implement adding device to canvas
+  // This could emit an event to the parent component or use a canvas store
 }
 
-const togglePlugin = (plugin: PluginSource) => {
-  plugin.enabled = !plugin.enabled
-
-  // Simulate connection status
-  if (plugin.enabled && plugin.type === 'manual') {
-    plugin.connected = true
-  } else if (plugin.enabled) {
-    // Mock connection attempt for external plugins
-    setTimeout(() => {
-      plugin.connected = Math.random() > 0.5 // 50% chance of connection
-    }, 1000)
-  } else {
-    plugin.connected = false
-  }
-}
-
-const refreshInventory = async () => {
-  loading.value = true
-  try {
-    await deviceStore.fetchDevices()
-    await deviceStore.fetchConnections()
-  } finally {
-    setTimeout(() => {
-      loading.value = false
-    }, 500)
-  }
-}
-
-const clearCanvas = () => {
-  // This will be implemented when we have the canvas component
-  console.log('Clear canvas functionality will be implemented with the canvas component')
-}
+// Load stores when component mounts
+onMounted(async () => {
+  await settingsStore.loadSettings()
+})
 </script>
 
 <style scoped>

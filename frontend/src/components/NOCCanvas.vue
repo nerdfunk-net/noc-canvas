@@ -98,7 +98,7 @@
           @dragend="onDeviceDragEnd(device, $event)"
           @click="onDeviceClick(device)"
           @dblclick="onDeviceDoubleClick(device)"
-          @contextmenu="onDeviceRightClick(device, $event)"
+          @mousedown="onDeviceMouseDown(device, $event)"
         >
           <!-- Device Background -->
           <v-rect
@@ -192,15 +192,39 @@
       }"
       class="bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-48"
     >
-      <button
+      <div
         v-for="item in contextMenuItems"
         :key="item.label"
-        @click="item.action()"
-        class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+        class="relative group"
       >
-        <span>{{ item.icon }}</span>
-        <span>{{ item.label }}</span>
-      </button>
+        <button
+          @click="item.submenu ? null : item.action()"
+          class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center justify-between"
+          :class="{ 'cursor-default': item.submenu }"
+        >
+          <div class="flex items-center space-x-2">
+            <span>{{ item.icon }}</span>
+            <span>{{ item.label }}</span>
+          </div>
+          <span v-if="item.submenu" class="text-gray-400">▶</span>
+        </button>
+        
+        <!-- Submenu -->
+        <div
+          v-if="item.submenu"
+          class="absolute left-full top-0 ml-1 bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-40 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200"
+        >
+          <button
+            v-for="subItem in item.submenu"
+            :key="subItem.label"
+            @click="subItem.action()"
+            class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+          >
+            <span>{{ subItem.icon }}</span>
+            <span>{{ subItem.label }}</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Canvas Controls -->
@@ -281,7 +305,8 @@ const contextMenu = reactive({
   show: false,
   x: 0,
   y: 0,
-  target: null as Device | null
+  target: null as Device | null,
+  targetType: 'canvas' as 'canvas' | 'device'
 })
 
 // Connection state
@@ -338,25 +363,40 @@ const renderConnections = computed(() => {
 
 // Context menu items
 const contextMenuItems = computed(() => {
-  const items = []
-
-  if (contextMenu.target) {
-    items.push(
-      { icon: '✏️', label: 'Edit Device', action: () => editDevice(contextMenu.target!) },
-      { icon: '📋', label: 'Properties', action: () => showProperties(contextMenu.target!) },
-      { icon: '🔗', label: 'Connect', action: () => startConnection(contextMenu.target!) },
-      { icon: '📍', label: 'Center View', action: () => centerOnDevice(contextMenu.target!) },
-      { icon: '🗑️', label: 'Delete', action: () => deleteDevice(contextMenu.target!) }
-    )
-  } else {
-    items.push(
-      { icon: '📐', label: 'Toggle Grid', action: toggleGrid },
-      { icon: '🔍', label: 'Fit to Screen', action: fitToScreen },
-      { icon: '🏠', label: 'Reset View', action: resetView }
-    )
+  if (!contextMenu.target) {
+    if (contextMenu.targetType === 'canvas') {
+      return [
+        { icon: '▫', label: 'Fit to Screen', action: fitToScreen },
+        { icon: '↻', label: 'Reset View', action: resetView },
+        { 
+          icon: '■', 
+          label: 'Canvas',
+          submenu: [
+            { icon: '↑', label: 'Load', action: loadCanvas },
+            { icon: '↓', label: 'Save', action: saveCanvas },
+            { icon: '×', label: 'Clear', action: clearCanvas }
+          ]
+        }
+      ]
+    }
+    return []
   }
 
-  return items
+  // Device context menu
+  return [
+    { icon: '○', label: 'Overview', action: () => showDeviceOverview(contextMenu.target!) },
+    {
+      icon: '⚙',
+      label: 'Config',
+      submenu: [
+        { icon: '□', label: 'Show', action: () => showDeviceConfig(contextMenu.target!) },
+        { icon: '≡', label: 'Show Changes', action: () => showDeviceChanges(contextMenu.target!) }
+      ]
+    },
+    { icon: '‣', label: 'Commands', action: () => showDeviceCommands(contextMenu.target!) },
+    { icon: '◊', label: 'Neighbors', action: () => showDeviceNeighbors(contextMenu.target!) },
+    { icon: '◉', label: 'Analyze', action: () => analyzeDevice(contextMenu.target!) }
+  ]
 })
 
 // Device helpers
@@ -378,6 +418,44 @@ const getDeviceColor = (type: string) => {
     vpn_gateway: '#e0e7ff'
   }
   return colors[type as keyof typeof colors] || '#f3f4f6'
+}
+
+// Context menu functions
+const loadCanvas = () => {
+  console.log('Load Canvas')
+}
+
+const saveCanvas = () => {
+  console.log('Save Canvas')  
+}
+
+const clearCanvas = () => {
+  console.log('Clear Canvas')
+  // deviceStore.clearDevices() // TODO: Implement clearDevices method in store
+}
+
+const showDeviceOverview = (device: Device) => {
+  console.log('Show Device Overview:', device.name)
+}
+
+const showDeviceConfig = (device: Device) => {
+  console.log('Show Device Config:', device.name)
+}
+
+const showDeviceChanges = (device: Device) => {
+  console.log('Show Device Changes:', device.name)
+}
+
+const showDeviceCommands = (device: Device) => {
+  console.log('Show Device Commands:', device.name)
+}
+
+const showDeviceNeighbors = (device: Device) => {
+  console.log('Show Device Neighbors:', device.name)
+}
+
+const analyzeDevice = (device: Device) => {
+  console.log('Analyze Device:', device.name)
 }
 
 const getConnectionPoints = (device: Device) => {
@@ -475,10 +553,27 @@ const onWheel = (event: any) => {
 }
 
 const onStageMouseDown = (event: any) => {
-  // Don't handle right-clicks here - they are handled by onRightClick
-  if (event.evt.button === 2) return
+  console.log('🎭 Stage mouse down:', {
+    button: event.evt.button,
+    target: event.target?.constructor?.name,
+    isStage: event.target === event.target.getStage()
+  })
+
+  // Don't handle right-clicks here - they are handled by onRightClick and onDeviceMouseDown
+  if (event.evt.button === 2) {
+    console.log('🔴 Stage right-click detected, skipping stage handler')
+    return
+  }
+
+  // Check if clicking on a device - don't handle canvas operations if so
+  if (event.target !== event.target.getStage()) {
+    console.log('🎯 Clicking on non-stage element:', event.target?.constructor?.name)
+    // Clicking on a device or device element, let device handlers take care of it
+    return
+  }
 
   if (event.target === event.target.getStage()) {
+    console.log('📍 Clicking on stage background')
     mouseState.isDown = true
     const pos = event.target.getStage().getPointerPosition()
     mouseState.startX = pos.x
@@ -550,12 +645,31 @@ const onStageMouseUp = () => {
 
 const onCanvasMouseUp = (event: MouseEvent) => {
   console.log('🖱️ Canvas mouse up, button:', event.button)
-  // Only handle right-click releases that should show context menu
-  // Left clicks (button 0) should be handled normally
+
+  // Don't hide context menu on right-click release
+  if (event.button === 2) {
+    console.log('🔴 Canvas right-click mouseup, keeping context menu visible')
+    return
+  }
+
+  // Only handle other mouse button releases normally
 }
 
 const onRightClick = (event: MouseEvent) => {
+  console.log('🎭 Canvas right-click handler triggered', {
+    target: (event.target as Element)?.tagName,
+    currentTarget: (event.currentTarget as Element)?.tagName,
+    contextMenuAlreadyShowing: contextMenu.show,
+    contextMenuTargetType: contextMenu.targetType
+  })
+
   event.preventDefault()
+
+  // If we already have a device context menu showing, don't override it
+  if (contextMenu.show && contextMenu.targetType === 'device') {
+    console.log('🚫 Device context menu already showing, ignoring canvas right-click')
+    return
+  }
 
   // Get the canvas container's bounding rect to calculate relative position
   const rect = canvasContainer.value?.getBoundingClientRect()
@@ -585,13 +699,24 @@ const onRightClick = (event: MouseEvent) => {
   contextMenu.x = menuX
   contextMenu.y = menuY
   contextMenu.target = null
+  contextMenu.targetType = 'canvas'
 
-  console.log('✅ Context menu shown at:', { x: menuX, y: menuY })
+  console.log('✅ Canvas context menu shown at:', { x: menuX, y: menuY })
 }
 
 const onDeviceClick = (device: Device) => {
+  console.log('🖱️ Device click detected for:', device.name, 'context menu showing:', contextMenu.show, 'target type:', contextMenu.targetType)
+
   selectedDevice.value = device
   deviceStore.setSelectedDevice(device)
+
+  // Don't hide context menu if it's showing a device context menu for this device
+  if (contextMenu.show && contextMenu.targetType === 'device' && contextMenu.target?.id === device.id) {
+    console.log('🔒 Keeping device context menu visible for:', device.name)
+    return
+  }
+
+  // Hide context menu for other cases (canvas menu, or clicking different device)
   hideContextMenu()
 }
 
@@ -599,40 +724,69 @@ const onDeviceDoubleClick = (device: Device) => {
   editDevice(device)
 }
 
-const onDeviceRightClick = (device: Device, event: any) => {
-  event.evt.preventDefault()
-  event.cancelBubble = true // Prevent canvas right-click
+const onDeviceMouseDown = (device: Device, event: any) => {
+  console.log('🖱️ Device mouse down event:', {
+    deviceName: device.name,
+    button: event.evt.button,
+    eventType: event.type,
+    target: event.target?.constructor?.name
+  })
 
-  // Get the canvas container's bounding rect to calculate relative position
-  const rect = canvasContainer.value?.getBoundingClientRect()
-  if (!rect) return
+  // Check if it's a right-click (button 2)
+  if (event.evt.button === 2) {
+    console.log('🎯 Right-click detected on device:', device.name)
 
-  // Calculate position relative to the canvas container
-  let menuX = event.evt.clientX - rect.left
-  let menuY = event.evt.clientY - rect.top
+    // Prevent all event propagation
+    event.evt.preventDefault()
+    event.evt.stopPropagation()
+    event.cancelBubble = true
 
-  // Menu dimensions (approximate)
-  const menuWidth = 200
-  const menuHeight = 200
+    // Also stop immediate propagation to prevent other handlers
+    if (event.evt.stopImmediatePropagation) {
+      event.evt.stopImmediatePropagation()
+    }
 
-  // Ensure menu doesn't go outside the canvas bounds
-  if (menuX + menuWidth > rect.width) {
-    menuX = rect.width - menuWidth
+    // Get the canvas container's bounding rect to calculate relative position
+    const rect = canvasContainer.value?.getBoundingClientRect()
+    if (!rect) {
+      console.log('❌ No canvas container rect found')
+      return
+    }
+
+    // Calculate position relative to the canvas container
+    let menuX = event.evt.clientX - rect.left
+    let menuY = event.evt.clientY - rect.top
+
+    // Menu dimensions (approximate)
+    const menuWidth = 200
+    const menuHeight = 200
+
+    // Ensure menu doesn't go outside the canvas bounds
+    if (menuX + menuWidth > rect.width) {
+      menuX = rect.width - menuWidth
+    }
+    if (menuY + menuHeight > rect.height) {
+      menuY = rect.height - menuHeight
+    }
+
+    // Ensure menu doesn't go negative
+    menuX = Math.max(0, menuX)
+    menuY = Math.max(0, menuY)
+
+    contextMenu.show = true
+    contextMenu.x = menuX
+    contextMenu.y = menuY
+    contextMenu.target = device
+    contextMenu.targetType = 'device'
+
+    console.log('✅ Device context menu shown for:', device.name, {
+      x: menuX,
+      y: menuY,
+      contextMenuState: contextMenu
+    })
+  } else {
+    console.log('🔘 Non-right-click on device:', device.name, 'button:', event.evt.button)
   }
-  if (menuY + menuHeight > rect.height) {
-    menuY = rect.height - menuHeight
-  }
-
-  // Ensure menu doesn't go negative
-  menuX = Math.max(0, menuX)
-  menuY = Math.max(0, menuY)
-
-  contextMenu.show = true
-  contextMenu.x = menuX
-  contextMenu.y = menuY
-  contextMenu.target = device
-
-  console.log('✅ Device context menu shown for:', device.name, { x: menuX, y: menuY })
 }
 
 const onDeviceDragEnd = async (device: Device, event: any) => {
@@ -719,6 +873,7 @@ const resetView = () => {
 
 const hideContextMenu = () => {
   console.log('🚫 Hiding context menu')
+  console.trace('🔍 hideContextMenu called from:')
   contextMenu.show = false
 }
 
@@ -743,8 +898,10 @@ const centerOnDevice = (device: Device) => {
   const containerRect = canvasContainer.value?.getBoundingClientRect()
   if (!containerRect) return
 
-  position.x = containerRect.width / 2 - (device.position_x + 40) * scale.value
-  position.y = containerRect.height / 2 - (device.position_y + 40) * scale.value
+  canvasStore.setPosition({
+    x: containerRect.width / 2 - (device.position_x + 40) * scale.value,
+    y: containerRect.height / 2 - (device.position_y + 40) * scale.value
+  })
   hideContextMenu()
 }
 
@@ -785,18 +942,20 @@ const handleResize = () => {
 
 // Global click handler to hide context menu
 const handleGlobalClick = (event: MouseEvent) => {
+  // Don't handle right-clicks - they should show context menus, not hide them
+  if (event.button === 2) {
+    console.log('🔴 Global click handler ignoring right-click')
+    return
+  }
+
   console.log('🖱️ Global click detected, context menu visible:', contextMenu.show)
   if (contextMenu.show) {
     // Find the context menu element
     const contextMenuElement = document.querySelector('.bg-white.border.border-gray-200.rounded-lg.shadow-lg')
     const clickedInsideMenu = contextMenuElement?.contains(event.target as Node)
 
-    // Also check if clicked inside the canvas container but outside the menu
-    const clickedInsideCanvas = canvasContainer.value?.contains(event.target as Node)
-
     console.log('📍 Click details:', {
       clickedInsideMenu,
-      clickedInsideCanvas,
       targetElement: (event.target as Element)?.tagName
     })
 
@@ -806,15 +965,41 @@ const handleGlobalClick = (event: MouseEvent) => {
   }
 }
 
+// Global mouseup handler to hide context menu on left-click release only
+const handleGlobalMouseUp = (event: MouseEvent) => {
+  console.log('🖱️ Global mouseup detected, button:', event.button, 'context menu visible:', contextMenu.show)
+
+  // Only hide context menu on left-click mouseup, never on right-click
+  if (event.button === 0 && contextMenu.show) {
+    // Find the context menu element
+    const contextMenuElement = document.querySelector('.bg-white.border.border-gray-200.rounded-lg.shadow-lg')
+    const clickedInsideMenu = contextMenuElement?.contains(event.target as Node)
+
+    console.log('📍 Left MouseUp details:', {
+      clickedInsideMenu,
+      targetElement: (event.target as Element)?.tagName
+    })
+
+    if (!clickedInsideMenu) {
+      hideContextMenu()
+    }
+  } else if (event.button === 2) {
+    console.log('🔴 Right-click mouseup detected, keeping context menu visible')
+  }
+}
+
 onMounted(async () => {
   await nextTick()
-  
+
+  // Debug: Check device count
+  console.log('🎯 Devices loaded:', deviceStore.devices.length)
+
   // Ensure canvas container is available before initializing
   if (canvasContainer.value) {
     // Wait a bit more for the DOM to be fully rendered
     setTimeout(() => {
       handleResize()
-      
+
       // If still no dimensions after first resize, try again
       if (canvasSize.width === 0 || canvasSize.height === 0) {
         setTimeout(() => {
@@ -823,14 +1008,16 @@ onMounted(async () => {
       }
     }, 100)
   }
-  
+
   window.addEventListener('resize', handleResize)
   document.addEventListener('click', handleGlobalClick)
+  document.addEventListener('mouseup', handleGlobalMouseUp)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   document.removeEventListener('click', handleGlobalClick)
+  document.removeEventListener('mouseup', handleGlobalMouseUp)
 })
 </script>
 

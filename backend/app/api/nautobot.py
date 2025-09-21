@@ -5,7 +5,7 @@ Nautobot API router for device management and API interactions.
 import logging
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
-from ..core.security import get_current_user, verify_admin_user
+from ..core.security import get_current_user
 from ..models.nautobot import (
     DeviceFilter,
     DeviceListResponse,
@@ -36,14 +36,73 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/debug/config")
+async def debug_nautobot_config(
+    current_user: dict = Depends(get_current_user),
+):
+    """Debug endpoint to check Nautobot configuration."""
+    try:
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        config = nautobot_service._get_config(username)
+
+        # Return sanitized config for debugging
+        return {
+            "username": username,
+            "config_source": config.get("_source"),
+            "url_present": bool(config.get("url")),
+            "token_present": bool(config.get("token")),
+            "url": config.get("url") if config.get("url") else None,
+            "timeout": config.get("timeout"),
+            "verify_ssl": config.get("verify_ssl")
+        }
+    except Exception as e:
+        logger.error(f"Error getting debug config: {str(e)}")
+        return {"error": str(e)}
+
+
 @router.get("/test", response_model=ConnectionTestResponse)
 async def test_nautobot_connection(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Test current Nautobot connection using configured settings."""
     try:
         from ..core.config import settings
+        from ..models.local_settings import get_user_settings
 
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+
+        # Try to get settings from local database first
+        try:
+            settings_data = get_user_settings(username, "nautobot")
+            nautobot_settings = settings_data.get("nautobot", {})
+
+            if nautobot_settings.get("url") and nautobot_settings.get("token"):
+                # Use local database settings
+                verify_ssl = nautobot_settings.get("verifyTls", True)
+                if isinstance(verify_ssl, str):
+                    verify_ssl = verify_ssl.lower() == "true"
+
+                timeout = nautobot_settings.get("timeout", 30)
+                if isinstance(timeout, str):
+                    timeout = int(timeout) if timeout.isdigit() else 30
+
+                success, message = await nautobot_service.test_connection(
+                    nautobot_settings.get("url"),
+                    nautobot_settings.get("token"),
+                    timeout,
+                    verify_ssl,
+                )
+
+                return ConnectionTestResponse(
+                    success=success,
+                    message=message,
+                    nautobot_url=nautobot_settings.get("url"),
+                    connection_source="local_database",
+                )
+        except Exception as e:
+            logger.warning(f"Failed to get settings from local database: {e}")
+
+        # Fallback to environment settings
         if not settings.nautobot_url or not settings.nautobot_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -77,19 +136,22 @@ async def get_devices(
     offset: Optional[int] = None,
     filter_type: Optional[str] = None,
     filter_value: Optional[str] = None,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get list of devices from Nautobot with optional filtering and pagination."""
     try:
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        logger.info(f"Fetching devices for user: {username}")
         result = await nautobot_service.get_devices(
             limit=limit,
             offset=offset,
             filter_type=filter_type,
             filter_value=filter_value,
+            username=username,
         )
         return DeviceListResponse(**result)
     except Exception as e:
-        logger.error(f"Error fetching devices: {str(e)}")
+        logger.error(f"Error fetching devices for user {username}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch devices: {str(e)}",
@@ -99,11 +161,12 @@ async def get_devices(
 @router.get("/devices/{device_id}", response_model=Device)
 async def get_device(
     device_id: str,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get specific device details from Nautobot."""
     try:
-        device = await nautobot_service.get_device(device_id)
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        device = await nautobot_service.get_device(device_id, username=username)
         if not device:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -123,15 +186,17 @@ async def get_device(
 @router.post("/devices/search", response_model=DeviceListResponse)
 async def search_devices(
     filters: DeviceFilter,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Search devices with filters."""
     try:
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
         result = await nautobot_service.get_devices(
             limit=filters.limit,
             offset=filters.offset,
             filter_type=filters.filter_type,
             filter_value=filters.filter_value,
+            username=username,
         )
         return DeviceListResponse(**result)
     except Exception as e:
@@ -145,11 +210,12 @@ async def search_devices(
 @router.post("/check-ip", response_model=IPAddressCheck)
 async def check_ip_address(
     request: CheckIPRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Check if an IP address is available in Nautobot."""
     try:
-        result = await nautobot_service.check_ip_address(request.ip_address)
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        result = await nautobot_service.check_ip_address(request.ip_address, username=username)
         return IPAddressCheck(**result)
     except Exception as e:
         logger.error(f"Error checking IP address {request.ip_address}: {str(e)}")
@@ -162,7 +228,7 @@ async def check_ip_address(
 @router.post("/devices/onboard", response_model=OnboardingResponse)
 async def onboard_device(
     request: DeviceOnboardRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Onboard a new device to Nautobot."""
     try:
@@ -194,7 +260,8 @@ async def onboard_device(
 
         # Make job API call via REST
         job_url = f"extras/jobs/Sync%20Devices%20From%20Network/run/"
-        result = await nautobot_service.rest_request(job_url, method="POST", data=job_data)
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        result = await nautobot_service.rest_request(job_url, method="POST", data=job_data, username=username)
 
         job_id = result.get("job_result", {}).get("id") or result.get("id")
         job_status = result.get("job_result", {}).get("status") or result.get("status", "pending")
@@ -220,7 +287,7 @@ async def onboard_device(
 @router.post("/sync-network-data", response_model=SyncResponse)
 async def sync_network_data(
     request: SyncNetworkDataRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Sync network data with Nautobot."""
     try:
@@ -249,7 +316,8 @@ async def sync_network_data(
 
         # Make job API call via REST
         job_url = f"extras/jobs/Sync%20Network%20Data%20From%20Network/run/"
-        result = await nautobot_service.rest_request(job_url, method="POST", data=job_data)
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        result = await nautobot_service.rest_request(job_url, method="POST", data=job_data, username=username)
 
         job_id = result.get("job_result", {}).get("id") or result.get("id")
         job_status = result.get("job_result", {}).get("status") or result.get("status", "pending")
@@ -272,11 +340,12 @@ async def sync_network_data(
 
 @router.get("/locations", response_model=List[Location])
 async def get_locations(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get list of locations from Nautobot."""
     try:
-        locations = await nautobot_service.get_locations()
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        locations = await nautobot_service.get_locations(username=username)
         return [Location(**location) for location in locations]
     except Exception as e:
         logger.error(f"Error fetching locations: {str(e)}")
@@ -288,11 +357,12 @@ async def get_locations(
 
 @router.get("/stats", response_model=NautobotStats)
 async def get_nautobot_stats(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get Nautobot statistics."""
     try:
-        stats = await nautobot_service.get_stats()
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        stats = await nautobot_service.get_stats(username=username)
         return NautobotStats(**stats)
     except Exception as e:
         logger.error(f"Error fetching Nautobot stats: {str(e)}")
@@ -304,7 +374,7 @@ async def get_nautobot_stats(
 
 @router.get("/namespaces", response_model=List[NautobotNamespace])
 async def get_namespaces(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get list of namespaces from Nautobot."""
     try:
@@ -317,7 +387,8 @@ async def get_namespaces(
           }
         }
         """
-        result = await nautobot_service.graphql_query(query)
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        result = await nautobot_service.graphql_query(query, username=username)
 
         if "errors" in result:
             raise Exception(f"GraphQL errors: {result['errors']}")
@@ -334,11 +405,12 @@ async def get_namespaces(
 
 @router.get("/roles", response_model=List[NautobotRole])
 async def get_nautobot_roles(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get Nautobot device roles."""
     try:
-        result = await nautobot_service.rest_request("extras/roles/")
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        result = await nautobot_service.rest_request("extras/roles/", username=username)
         roles = result.get("results", [])
         return [NautobotRole(**role) for role in roles]
     except Exception as e:
@@ -351,11 +423,12 @@ async def get_nautobot_roles(
 
 @router.get("/roles/devices", response_model=List[NautobotRole])
 async def get_nautobot_device_roles(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get Nautobot roles specifically for dcim.device content type."""
     try:
-        result = await nautobot_service.rest_request("extras/roles/?content_types=dcim.device")
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        result = await nautobot_service.rest_request("extras/roles/?content_types=dcim.device", username=username)
         roles = result.get("results", [])
         return [NautobotRole(**role) for role in roles]
     except Exception as e:
@@ -368,11 +441,12 @@ async def get_nautobot_device_roles(
 
 @router.get("/platforms", response_model=List[NautobotPlatform])
 async def get_nautobot_platforms(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get Nautobot platforms."""
     try:
-        result = await nautobot_service.rest_request("dcim/platforms/")
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        result = await nautobot_service.rest_request("dcim/platforms/", username=username)
         platforms = result.get("results", [])
         return [NautobotPlatform(**platform) for platform in platforms]
     except Exception as e:
@@ -385,11 +459,12 @@ async def get_nautobot_platforms(
 
 @router.get("/statuses", response_model=List[NautobotStatus])
 async def get_nautobot_statuses(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get all Nautobot statuses."""
     try:
-        result = await nautobot_service.rest_request("extras/statuses/")
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        result = await nautobot_service.rest_request("extras/statuses/", username=username)
         statuses = result.get("results", [])
         return [NautobotStatus(**status) for status in statuses]
     except Exception as e:
@@ -402,11 +477,12 @@ async def get_nautobot_statuses(
 
 @router.get("/statuses/device", response_model=List[NautobotStatus])
 async def get_nautobot_device_statuses(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get Nautobot device statuses."""
     try:
-        result = await nautobot_service.rest_request("extras/statuses/?content_types=dcim.device")
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        result = await nautobot_service.rest_request("extras/statuses/?content_types=dcim.device", username=username)
         statuses = result.get("results", [])
         return [NautobotStatus(**status) for status in statuses]
     except Exception as e:
@@ -419,7 +495,7 @@ async def get_nautobot_device_statuses(
 
 @router.get("/secret-groups", response_model=List[NautobotSecretGroup])
 async def get_nautobot_secret_groups(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get Nautobot secret groups."""
     try:
@@ -431,7 +507,8 @@ async def get_nautobot_secret_groups(
           }
         }
         """
-        result = await nautobot_service.graphql_query(query)
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        result = await nautobot_service.graphql_query(query, username=username)
 
         if "errors" in result:
             logger.warning(f"GraphQL errors fetching secret groups: {result['errors']}")
@@ -450,7 +527,8 @@ async def nautobot_health_check(
 ):
     """Simple health check to verify Nautobot connectivity."""
     try:
-        result = await nautobot_service.rest_request("dcim/devices/?limit=1")
+        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
+        result = await nautobot_service.rest_request("dcim/devices/?limit=1", username=username)
         return HealthCheckResponse(
             status="connected",
             message="Nautobot is accessible",

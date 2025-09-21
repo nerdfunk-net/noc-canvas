@@ -18,8 +18,44 @@ class NautobotService:
     def __init__(self):
         self.config_cache = None
 
-    def _get_config(self) -> Dict[str, Any]:
-        """Get Nautobot configuration from settings."""
+    def _get_config(self, username: Optional[str] = None) -> Dict[str, Any]:
+        """Get Nautobot configuration from local database settings or environment."""
+        # Try to get settings from local database first
+        if username:
+            try:
+                from ..models.local_settings import get_user_settings
+                settings_data = get_user_settings(username, "nautobot")
+                nautobot_settings = settings_data.get("nautobot", {})
+
+                logger.info(f"Retrieved settings for user {username}: {list(nautobot_settings.keys())}")
+                logger.info(f"URL present: {bool(nautobot_settings.get('url'))}")
+                logger.info(f"Token present: {bool(nautobot_settings.get('token'))}")
+
+                if nautobot_settings.get("url") and nautobot_settings.get("token"):
+                    # Convert string boolean values
+                    verify_ssl = nautobot_settings.get("verifyTls", True)
+                    if isinstance(verify_ssl, str):
+                        verify_ssl = verify_ssl.lower() == "true"
+
+                    timeout = nautobot_settings.get("timeout", 30)
+                    if isinstance(timeout, str):
+                        timeout = int(timeout) if timeout.isdigit() else 30
+
+                    config = {
+                        "url": nautobot_settings.get("url"),
+                        "token": nautobot_settings.get("token"),
+                        "timeout": timeout,
+                        "verify_ssl": verify_ssl,
+                        "_source": "local_database",
+                    }
+                    logger.info(f"Using Nautobot settings from local database: {config['url']}")
+                    return config
+                else:
+                    logger.warning(f"Nautobot settings incomplete for user {username}. URL: {nautobot_settings.get('url')}, Token present: {bool(nautobot_settings.get('token'))}")
+            except Exception as e:
+                logger.error(f"Failed to get Nautobot settings from local database for user {username}: {e}")
+
+        # Fallback to environment settings
         config = {
             "url": settings.nautobot_url,
             "token": settings.nautobot_token,
@@ -27,14 +63,14 @@ class NautobotService:
             "verify_ssl": settings.nautobot_verify_ssl,
             "_source": "environment",
         }
-        logger.debug(f"Using Nautobot settings: {config['url']}")
+        logger.info(f"Using Nautobot settings from environment: {config['url']}")
         return config
 
     async def graphql_query(
-        self, query: str, variables: Optional[Dict[str, Any]] = None
+        self, query: str, variables: Optional[Dict[str, Any]] = None, username: Optional[str] = None
     ) -> Dict[str, Any]:
         """Execute GraphQL query against Nautobot."""
-        config = self._get_config()
+        config = self._get_config(username)
 
         if not config["url"] or not config["token"]:
             raise Exception("Nautobot URL and token must be configured")
@@ -71,9 +107,9 @@ class NautobotService:
             logger.error(f"GraphQL query failed: {str(e)}")
             raise
 
-    async def rest_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Dict[str, Any]:
+    async def rest_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None, username: Optional[str] = None) -> Dict[str, Any]:
         """Execute REST API request against Nautobot."""
-        config = self._get_config()
+        config = self._get_config(username)
 
         if not config["url"] or not config["token"]:
             raise Exception("Nautobot URL and token must be configured")
@@ -170,6 +206,7 @@ class NautobotService:
         offset: Optional[int] = None,
         filter_type: Optional[str] = None,
         filter_value: Optional[str] = None,
+        username: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get devices with optional filtering and pagination."""
         # Check cache first
@@ -200,7 +237,7 @@ class NautobotService:
                 }
                 """
                 count_variables = {"name_filter": [filter_value]}
-                count_result = await self.graphql_query(count_query, count_variables)
+                count_result = await self.graphql_query(count_query, count_variables, username)
 
                 if "errors" in count_result:
                     raise Exception(f"GraphQL errors in count query: {count_result['errors']}")
@@ -329,7 +366,7 @@ class NautobotService:
         if offset is not None:
             variables["offset"] = offset
 
-        result = await self.graphql_query(query, variables)
+        result = await self.graphql_query(query, variables, username)
 
         if "errors" in result:
             raise Exception(f"GraphQL errors: {result['errors']}")
@@ -367,7 +404,7 @@ class NautobotService:
                       }
                     }
                     """
-                    count_result = await self.graphql_query(count_query, {})
+                    count_result = await self.graphql_query(count_query, {}, username)
                     total_count = len(count_result["data"]["devices"])
                 else:
                     total_count = len(devices)
@@ -391,7 +428,7 @@ class NautobotService:
 
         return response_data
 
-    async def get_device(self, device_id: str) -> Dict[str, Any]:
+    async def get_device(self, device_id: str, username: Optional[str] = None) -> Dict[str, Any]:
         """Get specific device details."""
         cache_key = cache_service.generate_key("nautobot", "device", device_id=device_id)
 
@@ -425,7 +462,7 @@ class NautobotService:
         """
 
         variables = {"deviceId": device_id}
-        result = await self.graphql_query(query, variables)
+        result = await self.graphql_query(query, variables, username)
 
         if "errors" in result:
             raise Exception(f"GraphQL errors: {result['errors']}")
@@ -438,7 +475,7 @@ class NautobotService:
 
         return device
 
-    async def get_locations(self) -> List[Dict[str, Any]]:
+    async def get_locations(self, username: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get list of locations."""
         cache_key = cache_service.generate_key("nautobot", "locations")
 
@@ -466,7 +503,7 @@ class NautobotService:
         }
         """
 
-        result = await self.graphql_query(query)
+        result = await self.graphql_query(query, username=username)
 
         if "errors" in result:
             raise Exception(f"GraphQL errors: {result['errors']}")
@@ -476,7 +513,7 @@ class NautobotService:
 
         return locations
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self, username: Optional[str] = None) -> Dict[str, Any]:
         """Get Nautobot statistics."""
         cache_key = cache_service.generate_key("nautobot", "stats")
 
@@ -486,19 +523,19 @@ class NautobotService:
 
         try:
             # Get device, location, and device type counts
-            devices_result = await self.rest_request("dcim/devices/")
-            locations_result = await self.rest_request("dcim/locations/")
-            device_types_result = await self.rest_request("dcim/device-types/")
+            devices_result = await self.rest_request("dcim/devices/", username=username)
+            locations_result = await self.rest_request("dcim/locations/", username=username)
+            device_types_result = await self.rest_request("dcim/device-types/", username=username)
 
             # Try to get IP addresses and prefixes (might not exist in all versions)
             try:
-                ip_addresses_result = await self.rest_request("ipam/ip-addresses/")
+                ip_addresses_result = await self.rest_request("ipam/ip-addresses/", username=username)
                 ip_addresses_count = ip_addresses_result.get("count", 0)
             except Exception:
                 ip_addresses_count = 0
 
             try:
-                prefixes_result = await self.rest_request("ipam/prefixes/")
+                prefixes_result = await self.rest_request("ipam/prefixes/", username=username)
                 prefixes_count = prefixes_result.get("count", 0)
             except Exception:
                 prefixes_count = 0
@@ -525,7 +562,7 @@ class NautobotService:
             logger.error(f"Error fetching Nautobot stats: {str(e)}")
             raise
 
-    async def check_ip_address(self, ip_address: str) -> Dict[str, Any]:
+    async def check_ip_address(self, ip_address: str, username: Optional[str] = None) -> Dict[str, Any]:
         """Check if IP address is available."""
         query = """
         query device($ip_address: [String]) {
@@ -538,7 +575,7 @@ class NautobotService:
         """
 
         variables = {"ip_address": [ip_address]}
-        result = await self.graphql_query(query, variables)
+        result = await self.graphql_query(query, variables, username)
 
         if "errors" in result:
             raise Exception(f"GraphQL errors: {result['errors']}")

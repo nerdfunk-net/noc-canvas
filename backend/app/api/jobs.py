@@ -6,7 +6,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from ..core.security import verify_admin_user
+from ..core.security import get_current_user
 from ..services.background_jobs import background_job_service
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ class BulkHostOperationRequest(BaseModel):
 @router.post("/submit", response_model=JobSubmissionResponse)
 async def submit_job(
     request: JobSubmissionRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Submit a background job."""
     try:
@@ -89,7 +89,7 @@ async def submit_job(
 @router.get("/{job_id}/status", response_model=JobStatusResponse)
 async def get_job_status(
     job_id: str,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get job status and result."""
     try:
@@ -106,7 +106,7 @@ async def get_job_status(
 @router.post("/{job_id}/cancel")
 async def cancel_job(
     job_id: str,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Cancel a running job."""
     try:
@@ -133,7 +133,7 @@ async def cancel_job(
 @router.post("/sync/nautobot-devices", response_model=JobSubmissionResponse)
 async def sync_nautobot_devices(
     request: SyncDevicesRequest = SyncDevicesRequest(),
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Start a job to sync devices from Nautobot."""
     try:
@@ -166,7 +166,7 @@ async def sync_nautobot_devices(
 @router.post("/sync/checkmk-hosts", response_model=JobSubmissionResponse)
 async def sync_checkmk_hosts(
     request: SyncHostsRequest = SyncHostsRequest(),
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Start a job to sync hosts from CheckMK."""
     try:
@@ -198,7 +198,7 @@ async def sync_checkmk_hosts(
 @router.post("/bulk/host-operations", response_model=JobSubmissionResponse)
 async def bulk_host_operations(
     request: BulkHostOperationRequest,
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Start a job for bulk host operations."""
     try:
@@ -230,7 +230,7 @@ async def bulk_host_operations(
 
 @router.post("/cache/warm-up", response_model=JobSubmissionResponse)
 async def warm_up_cache(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Start a job to warm up application caches."""
     try:
@@ -254,7 +254,7 @@ async def warm_up_cache(
 
 @router.get("/health")
 async def get_job_system_health(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get job system health status."""
     try:
@@ -283,7 +283,7 @@ async def get_job_system_health(
 
 @router.get("/workers")
 async def get_worker_info(
-    current_user: dict = Depends(verify_admin_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get information about active workers."""
     try:

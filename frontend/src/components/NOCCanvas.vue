@@ -99,6 +99,8 @@
           @click="onDeviceClick(device, $event)"
           @dblclick="onDeviceDoubleClick(device)"
           @mousedown="onDeviceMouseDown(device, $event)"
+          @mouseenter="onDeviceMouseEnter"
+          @mouseleave="onDeviceMouseLeave"
         >
           <!-- Device Background -->
           <v-rect
@@ -243,46 +245,63 @@
       </div>
     </Transition>
 
+    <!-- Device Search Input -->
+    <div 
+      v-if="showDeviceSearch" 
+      class="absolute bottom-4 right-16 z-10"
+    >
+      <div class="relative">
+        <input
+          ref="deviceSearchInput"
+          v-model="deviceSearchQuery"
+          type="text"
+          placeholder="Search device..."
+          class="w-48 px-3 py-2 pr-8 text-sm bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          @keydown.enter="searchAndCenterDevice"
+          @keydown.escape="closeDeviceSearch"
+          @blur="closeDeviceSearch"
+        />
+        <button
+          @click="closeDeviceSearch"
+          class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <!-- Canvas Controls -->
     <div class="absolute bottom-4 right-4 flex flex-col space-y-2">
       <button
         @click="toggleGrid"
-        class="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50"
+        class="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 flex-shrink-0"
         :class="{ 'bg-primary-50 border-primary-200': showGrid }"
       >
         📐
       </button>
       <button
         @click="toggleConnectionMode"
-        class="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50"
+        class="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 flex-shrink-0"
         :class="{ 'bg-green-50 border-green-200': connectionMode }"
       >
         🔗
       </button>
       <button
-        @click="fitToScreen"
-        class="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50"
+        @click="toggleDeviceSearch"
+        class="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 flex-shrink-0"
+        :class="{ 'bg-blue-50 border-blue-200': showDeviceSearch }"
+        title="Search devices"
       >
         🔍
       </button>
       <button
         @click="resetView"
-        class="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50"
+        class="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 flex-shrink-0"
       >
         🏠
       </button>
-    </div>
-
-    <!-- Controls Help -->
-    <div class="absolute bottom-4 left-4 bg-white border border-gray-200 rounded-lg shadow-sm px-3 py-2 text-xs text-gray-600 max-w-64">
-      <div class="font-medium mb-1">Canvas Controls</div>
-      <div class="space-y-1">
-        <div>• Left-click + drag: Pan canvas</div>
-        <div>• Shift + drag: Selection box</div>
-        <div>• Mouse wheel: Zoom in/out</div>
-        <div>• Right-click: Context menu</div>
-        <div>• Top menu: Zoom slider & presets</div>
-      </div>
     </div>
 
     <!-- Save Canvas Modal -->
@@ -454,6 +473,11 @@ const showDuplicateDialog = ref(false)
 const duplicateDeviceName = ref('')
 const pendingDeviceData = ref<any>(null)
 const duplicateExistingDevice = ref<Device | null>(null)
+
+// Device Search state
+const showDeviceSearch = ref(false)
+const deviceSearchQuery = ref('')
+const deviceSearchInput = ref<HTMLInputElement>()
 
 // Mouse state
 const mouseState = reactive({
@@ -1285,6 +1309,20 @@ const onDeviceDragEnd = async (device: Device, event: any) => {
   }
 }
 
+const onDeviceMouseEnter = () => {
+  // Change cursor to pointer when hovering over devices
+  if (canvasContainer.value) {
+    canvasContainer.value.style.cursor = 'pointer'
+  }
+}
+
+const onDeviceMouseLeave = () => {
+  // Restore default canvas cursor when leaving device
+  if (canvasContainer.value) {
+    canvasContainer.value.style.cursor = mouseState.isDragging ? 'grabbing' : 'grab'
+  }
+}
+
 const onConnectionPointClick = async (device: Device, point: { x: number; y: number }, event: any) => {
   event.cancelBubble = true
 
@@ -1351,6 +1389,55 @@ const fitToScreen = () => {
 
 const resetView = () => {
   canvasStore.resetView()
+}
+
+// Device search functions
+const toggleDeviceSearch = () => {
+  showDeviceSearch.value = !showDeviceSearch.value
+  if (showDeviceSearch.value) {
+    deviceSearchQuery.value = ''
+    // Focus the input after DOM updates
+    nextTick(() => {
+      deviceSearchInput.value?.focus()
+    })
+  }
+}
+
+const closeDeviceSearch = () => {
+  showDeviceSearch.value = false
+  deviceSearchQuery.value = ''
+}
+
+const searchAndCenterDevice = () => {
+  const query = deviceSearchQuery.value.trim().toLowerCase()
+  if (!query) return
+
+  // Find device by name (case-insensitive)
+  const foundDevice = deviceStore.devices.find(device => 
+    device.name.toLowerCase().includes(query)
+  )
+
+  if (foundDevice) {
+    // Center the device on screen
+    const containerRect = canvasContainer.value?.getBoundingClientRect()
+    if (containerRect) {
+      canvasStore.setPosition({
+        x: containerRect.width / 2 - (foundDevice.position_x + 40) * scale.value,
+        y: containerRect.height / 2 - (foundDevice.position_y + 40) * scale.value
+      })
+      
+      // Select the device
+      deviceStore.setSelectedDevice(foundDevice)
+      
+      // Close search
+      closeDeviceSearch()
+      
+      console.log(`✅ Found and centered device: ${foundDevice.name}`)
+    }
+  } else {
+    console.log(`❌ Device not found: ${query}`)
+    // Optionally show a notification that device was not found
+  }
 }
 
 const hideContextMenu = () => {

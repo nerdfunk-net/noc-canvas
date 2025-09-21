@@ -119,6 +119,22 @@ export const useDevicesStore = defineStore('devices', () => {
     }
   }
 
+  const findDeviceByName = (name: string): Device | null => {
+    return devices.value.find(device => device.name === name) || null
+  }
+
+  const findDeviceByNautobotId = (nautobotId: string): Device | null => {
+    return devices.value.find(device => {
+      if (!device.properties) return false
+      try {
+        const props = JSON.parse(device.properties)
+        return props.nautobot_id === nautobotId
+      } catch {
+        return false
+      }
+    }) || null
+  }
+
   const fetchConnections = async () => {
     try {
       connections.value = await devicesApi.getConnections()
@@ -169,6 +185,8 @@ export const useDevicesStore = defineStore('devices', () => {
     createDevice,
     updateDevice,
     deleteDevice,
+    findDeviceByName,
+    findDeviceByNautobotId,
     fetchConnections,
     createConnection,
     setSelectedDevice,

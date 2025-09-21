@@ -323,6 +323,15 @@
       @confirm="handleLoadConfirm"
       @cancel="handleLoadCancel"
     />
+
+    <!-- Duplicate Device Modal -->
+    <DuplicateDeviceModal
+      :show="showDuplicateDialog"
+      :device-name="duplicateDeviceName"
+      @cancel="handleDuplicateCancel"
+      @show="handleDuplicateShow"
+      @add="handleDuplicateAdd"
+    />
   </div>
 </template>
 
@@ -334,6 +343,7 @@ import { type NautobotDevice, canvasApi } from '@/services/api'
 import SaveCanvasModal from './SaveCanvasModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import LoadCanvasModal from './LoadCanvasModal.vue'
+import DuplicateDeviceModal from './DuplicateDeviceModal.vue'
 
 const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
@@ -439,6 +449,12 @@ const showLoadModal = ref(false)
 const showLoadConfirmDialog = ref(false)
 const pendingCanvasId = ref<number | null>(null)
 
+// Duplicate Device Modal state
+const showDuplicateDialog = ref(false)
+const duplicateDeviceName = ref('')
+const pendingDeviceData = ref<any>(null)
+const duplicateExistingDevice = ref<Device | null>(null)
+
 // Mouse state
 const mouseState = reactive({
   isDown: false,
@@ -522,7 +538,8 @@ const contextMenuItems = computed(() => {
     },
     { icon: '💻', label: 'Commands', action: () => showDeviceCommands(contextMenu.target!) },
     { icon: '🔗', label: 'Neighbors', action: () => showDeviceNeighbors(contextMenu.target!) },
-    { icon: '🔍', label: 'Analyze', action: () => analyzeDevice(contextMenu.target!) }
+    { icon: '🔍', label: 'Analyze', action: () => analyzeDevice(contextMenu.target!) },
+    { icon: '🗑️', label: 'Remove', action: () => deleteDevice(contextMenu.target!) }
   ]
   console.log('🐛 Device context menu items:', items)
   console.log('🐛 Device item with submenu:', items.find(item => item.submenu))
@@ -727,6 +744,37 @@ const handleCanvasSave = async (data: { name: string; sharable: boolean }) => {
   }
 }
 
+// Duplicate Device Modal functions
+const handleDuplicateCancel = () => {
+  showDuplicateDialog.value = false
+  pendingDeviceData.value = null
+  duplicateExistingDevice.value = null
+  duplicateDeviceName.value = ''
+}
+
+const handleDuplicateShow = () => {
+  if (duplicateExistingDevice.value) {
+    // Center and highlight the existing device
+    centerOnDevice(duplicateExistingDevice.value)
+    // Clear selection and select the existing device
+    selectedDevices.value.clear()
+    selectedDevice.value = duplicateExistingDevice.value
+  }
+  handleDuplicateCancel()
+}
+
+const handleDuplicateAdd = async () => {
+  if (pendingDeviceData.value) {
+    try {
+      await deviceStore.createDevice(pendingDeviceData.value)
+      console.log('✅ Duplicate device added successfully')
+    } catch (error) {
+      console.error('❌ Failed to create duplicate device:', error)
+    }
+  }
+  handleDuplicateCancel()
+}
+
 const showDeviceOverview = (device: Device) => {
   console.log('Show Device Overview:', device.name)
 }
@@ -831,6 +879,23 @@ const onDrop = async (event: DragEvent) => {
       const { template } = parsedData as { type: string; template: DeviceTemplate }
       const deviceName = `${template.name}-${Date.now()}`
 
+      // Check for duplicate by name
+      const existingDevice = deviceStore.findDeviceByName(deviceName)
+      if (existingDevice) {
+        // Show duplicate dialog
+        duplicateDeviceName.value = deviceName
+        duplicateExistingDevice.value = existingDevice
+        pendingDeviceData.value = {
+          name: deviceName,
+          device_type: template.type,
+          position_x: x - 40,
+          position_y: y - 40,
+          properties: JSON.stringify(template.defaultProperties)
+        }
+        showDuplicateDialog.value = true
+        return
+      }
+
       console.log('🏗️ Creating device from template:', deviceName)
       await deviceStore.createDevice({
         name: deviceName,
@@ -843,6 +908,37 @@ const onDrop = async (event: DragEvent) => {
     } else if (type === 'nautobot-device') {
       const { device } = parsedData as { type: string; device: NautobotDevice }
       console.log('🏗️ Creating device from Nautobot:', device.name)
+
+      // Check for duplicate by name first
+      let existingDevice = deviceStore.findDeviceByName(device.name)
+      
+      // If not found by name, check by nautobot_id
+      if (!existingDevice) {
+        existingDevice = deviceStore.findDeviceByNautobotId(device.id)
+      }
+
+      if (existingDevice) {
+        // Show duplicate dialog
+        duplicateDeviceName.value = device.name
+        duplicateExistingDevice.value = existingDevice
+        pendingDeviceData.value = {
+          name: device.name,
+          device_type: mapNautobotDeviceType(device),
+          ip_address: device.primary_ip4?.address?.split('/')[0],
+          position_x: x - 40,
+          position_y: y - 40,
+          properties: JSON.stringify({
+            nautobot_id: device.id,
+            location: device.location?.name,
+            role: device.role?.name,
+            status: device.status?.name,
+            device_model: device.device_type?.model,
+            last_backup: device.cf_last_backup
+          })
+        }
+        showDuplicateDialog.value = true
+        return
+      }
       
       await deviceStore.createDevice({
         name: device.name,
@@ -1281,13 +1377,27 @@ const centerOnDevice = (device: Device) => {
 }
 
 const deleteDevice = async (device: Device) => {
-  if (confirm(`Delete ${device.name}?`)) {
+  console.log('🗑️ Remove device requested:', device.name)
+  
+  if (confirm(`Are you sure you want to remove "${device.name}" from the canvas?`)) {
     try {
       await deviceStore.deleteDevice(device.id)
+      
+      // Remove from selections if it was selected
+      if (selectedDevice.value?.id === device.id) {
+        selectedDevice.value = null
+        deviceStore.setSelectedDevice(null)
+      }
+      selectedDevices.value.delete(device.id)
+      
+      console.log('✅ Device removed successfully:', device.name)
     } catch (error) {
-      console.error('Failed to delete device:', error)
+      console.error('❌ Failed to delete device:', error)
     }
+  } else {
+    console.log('❌ Device removal cancelled by user')
   }
+  
   hideContextMenu()
 }
 

@@ -1,7 +1,11 @@
 <template>
   <div class="flex h-screen bg-gray-50">
-    <!-- Left Panel -->
-    <div class="w-80 panel" style="min-width: 320px; background-color: #f9fafb; border-right: 2px solid #e5e7eb;">
+    <!-- Left Panel - Only show on Dashboard -->
+    <div 
+      v-if="$route.name === 'dashboard'"
+      class="w-80 panel" 
+      style="min-width: 320px; background-color: #f9fafb; border-right: 2px solid #e5e7eb;"
+    >
       <div class="p-4 border-b border-gray-200">
         <h2 class="text-lg font-semibold text-gray-800">Device Inventory</h2>
       </div>

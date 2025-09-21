@@ -503,6 +503,338 @@
             </button>
           </div>
 
+          <!-- Canvas Tab -->
+          <div v-if="activeTab === 'canvas'" class="space-y-6">
+            <!-- Canvas Management -->
+            <div class="card p-6">
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="text-lg font-semibold text-gray-900">Canvas Management</h2>
+                <div class="flex items-center space-x-3">
+                  <!-- Selection Info -->
+                  <span v-if="selectedCanvases.size > 0" class="text-sm text-gray-600">
+                    {{ selectedCanvases.size }} selected
+                  </span>
+                  
+                  <!-- Action Buttons -->
+                  <button
+                    v-if="selectedCanvases.size === 1"
+                    @click="showRenameDialog"
+                    class="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                    title="Rename selected canvas"
+                  >
+                    <i class="fas fa-edit mr-1"></i>
+                    Rename
+                  </button>
+                  
+                  <button
+                    v-if="selectedCanvases.size === 1"
+                    @click="loadSelectedCanvas"
+                    class="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+                    title="Load selected canvas"
+                  >
+                    <i class="fas fa-folder-open mr-1"></i>
+                    Load
+                  </button>
+                  
+                  <button
+                    v-if="selectedCanvases.size > 0"
+                    @click="showDeleteDialog"
+                    class="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
+                    title="Delete selected canvases"
+                  >
+                    <i class="fas fa-trash mr-1"></i>
+                    Delete ({{ selectedCanvases.size }})
+                  </button>
+                  
+                  <button
+                    @click="refreshCanvases"
+                    :disabled="loadingCanvases"
+                    class="px-3 py-1 text-xs bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 text-white rounded-md transition-colors"
+                    title="Refresh canvas list"
+                  >
+                    <i :class="loadingCanvases ? 'fas fa-spinner fa-spin' : 'fas fa-sync-alt'" class="mr-1"></i>
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              <!-- Loading State -->
+              <div v-if="loadingCanvases" class="flex items-center justify-center py-12">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span class="ml-3 text-gray-600">Loading canvases...</span>
+              </div>
+
+              <!-- Error State -->
+              <div v-else-if="canvasError" class="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+                <div class="flex">
+                  <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                  </svg>
+                  <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-800">Error Loading Canvases</h3>
+                    <p class="mt-1 text-sm text-red-700">{{ canvasError }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Empty State -->
+              <div v-else-if="canvases.length === 0" class="text-center py-12 text-gray-500">
+                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                  </svg>
+                </div>
+                <p class="text-base font-medium text-gray-900 mb-1">No saved canvases</p>
+                <p class="text-sm text-gray-500">Create your first canvas to get started</p>
+              </div>
+
+              <!-- Canvas Grid -->
+              <div v-else>
+                <!-- Search Bar -->
+                <div class="mb-6">
+                  <div class="relative">
+                    <input
+                      v-model="canvasSearchQuery"
+                      type="text"
+                      placeholder="Search canvases..."
+                      class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Canvas Tiles -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  <div
+                    v-for="canvas in filteredCanvases"
+                    :key="canvas.id"
+                    class="relative border border-gray-200 rounded-lg p-4 hover:bg-gray-50 hover:border-gray-300 cursor-pointer transition-all duration-200"
+                    :class="{ 
+                      'ring-2 ring-blue-500 bg-blue-50 border-blue-200': selectedCanvases.has(canvas.id),
+                      'hover:shadow-md': !selectedCanvases.has(canvas.id)
+                    }"
+                    @click="toggleCanvasSelection(canvas.id)"
+                  >
+                    <!-- Selection Checkbox -->
+                    <div class="absolute top-3 right-3">
+                      <div class="w-5 h-5 border-2 rounded" :class="selectedCanvases.has(canvas.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-300'">
+                        <svg v-if="selectedCanvases.has(canvas.id)" class="w-3 h-3 text-white ml-0.5 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                        </svg>
+                      </div>
+                    </div>
+
+                    <!-- Canvas Content -->
+                    <div class="pr-8">
+                      <!-- Canvas Icon -->
+                      <div class="w-12 h-12 bg-gradient-to-br rounded-lg flex items-center justify-center mb-3" :class="getCanvasIconGradient(canvas)">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                        </svg>
+                      </div>
+
+                      <!-- Canvas Name -->
+                      <h3 class="font-medium text-gray-900 text-sm mb-1 truncate" :title="canvas.name">{{ canvas.name }}</h3>
+                      
+                      <!-- Canvas Info -->
+                      <div class="text-xs text-gray-500 mb-2">
+                        <span v-if="canvas.is_own" class="text-blue-600 font-medium">Your canvas</span>
+                        <span v-else>
+                          <svg class="w-3 h-3 inline mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                          </svg>
+                          {{ canvas.owner_username }}
+                        </span>
+                        <span v-if="canvas.sharable" class="ml-2 text-green-600">• Shared</span>
+                      </div>
+
+                      <!-- Date -->
+                      <p class="text-xs text-gray-400">
+                        {{ formatCanvasDate(canvas.updated_at) }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rename Canvas Modal -->
+          <div 
+            v-if="showRenameDialogModal" 
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            @click.self="closeRenameDialog"
+          >
+            <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-md">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Rename Canvas</h3>
+                <button
+                  @click="closeRenameDialog"
+                  class="text-gray-400 hover:text-gray-600 transition-colors"
+                  type="button"
+                >
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+
+              <form @submit.prevent="confirmRename">
+                <div class="mb-4">
+                  <label class="block text-sm font-medium text-gray-700 mb-2">Canvas Name</label>
+                  <input
+                    v-model="renameCanvasName"
+                    type="text"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter new name"
+                    required
+                  >
+                </div>
+
+                <div v-if="renameError" class="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
+                  <p class="text-sm text-red-600">{{ renameError }}</p>
+                </div>
+
+                <div class="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    @click="closeRenameDialog"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  >
+                    Rename
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Delete Canvas Confirmation Modal -->
+          <div 
+            v-if="showDeleteDialogModal" 
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            @click.self="closeDeleteDialog"
+          >
+            <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-md">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Delete Canvases</h3>
+                <button
+                  @click="closeDeleteDialog"
+                  class="text-gray-400 hover:text-gray-600 transition-colors"
+                  type="button"
+                >
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+
+              <div class="mb-6">
+                <div class="flex items-center mb-3">
+                  <div class="flex-shrink-0">
+                    <svg class="h-8 w-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 14.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                    </svg>
+                  </div>
+                  <div class="ml-3">
+                    <h3 class="text-sm font-medium text-gray-900">Confirm Deletion</h3>
+                  </div>
+                </div>
+                
+                <p class="text-gray-700 text-sm leading-relaxed">
+                  Are you sure you want to delete {{ selectedCanvases.size }} canvas{{ selectedCanvases.size === 1 ? '' : 'es' }}?
+                  This action cannot be undone.
+                </p>
+              </div>
+
+              <div class="flex justify-end space-x-3">
+                <button
+                  @click="closeDeleteDialog"
+                  class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  @click="confirmDelete"
+                  class="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+                  type="button"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Load Canvas Confirmation Modal -->
+          <div 
+            v-if="showLoadConfirmationModal" 
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            @click.self="closeLoadConfirmation"
+          >
+            <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-md">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Load Canvas</h3>
+                <button
+                  @click="closeLoadConfirmation"
+                  class="text-gray-400 hover:text-gray-600 transition-colors"
+                  type="button"
+                >
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+
+              <div class="mb-6">
+                <div class="flex items-center mb-3">
+                  <div class="flex-shrink-0">
+                    <svg class="h-8 w-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 14.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                    </svg>
+                  </div>
+                  <div class="ml-3">
+                    <h3 class="text-sm font-medium text-gray-900">Current Canvas Will Be Replaced</h3>
+                  </div>
+                </div>
+                
+                <p class="text-gray-700 text-sm leading-relaxed mb-3">
+                  Loading <strong>{{ canvasToLoad?.name }}</strong> will replace your current canvas with {{ deviceStore.devices.length }} device{{ deviceStore.devices.length === 1 ? '' : 's' }}.
+                </p>
+                
+                <p class="text-gray-600 text-sm">
+                  Any unsaved changes will be lost. Are you sure you want to continue?
+                </p>
+              </div>
+
+              <div class="flex justify-end space-x-3">
+                <button
+                  @click="closeLoadConfirmation"
+                  class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  @click="confirmLoadCanvas"
+                  class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  type="button"
+                >
+                  Load Canvas
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Save Button (for Profile tab) -->
           <div v-if="activeTab === 'profile'" class="flex justify-end">
             <button
@@ -521,11 +853,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
 import { useNotificationStore } from '@/stores/notification'
+import { canvasApi, type CanvasListItem } from '@/services/api'
+import { useDevicesStore } from '@/stores/devices'
 
 const notificationStore = useNotificationStore()
+const router = useRouter()
+const deviceStore = useDevicesStore()
 
 const activeTab = ref('general')
 const saving = ref(false)
@@ -545,6 +882,7 @@ const connectionStatus = reactive({
 const tabs = [
   { id: 'general', name: 'General', icon: 'fas fa-cog' },
   { id: 'plugins', name: 'Plugins', icon: 'fas fa-plug' },
+  { id: 'canvas', name: 'Canvas', icon: 'fas fa-layer-group' },
   { id: 'profile', name: 'Profile', icon: 'fas fa-user' }
 ]
 
@@ -589,6 +927,22 @@ const passwordChange = reactive({
   confirmPassword: ''
 })
 
+// Canvas management state
+const canvases = ref<CanvasListItem[]>([])
+const selectedCanvases = ref(new Set<number>())
+const loadingCanvases = ref(false)
+const canvasError = ref<string | null>(null)
+const canvasSearchQuery = ref('')
+
+// Modal/dialog states
+const showRenameDialogModal = ref(false)
+const showDeleteDialogModal = ref(false)
+const showLoadConfirmationModal = ref(false)
+const renameCanvasId = ref<number | null>(null)
+const renameCanvasName = ref('')
+const renameError = ref<string | null>(null)
+const canvasToLoad = ref<CanvasListItem | null>(null)
+
 const isPasswordChangeValid = computed(() => {
   return passwordChange.currentPassword &&
          passwordChange.newPassword &&
@@ -596,6 +950,270 @@ const isPasswordChangeValid = computed(() => {
          passwordChange.newPassword === passwordChange.confirmPassword &&
          passwordChange.newPassword.length >= 6
 })
+
+// Canvas computed properties
+const filteredCanvases = computed(() => {
+  if (!canvasSearchQuery.value.trim()) {
+    return canvases.value
+  }
+  
+  const query = canvasSearchQuery.value.toLowerCase()
+  return canvases.value.filter(canvas => 
+    canvas.name.toLowerCase().includes(query) ||
+    canvas.owner_username.toLowerCase().includes(query)
+  )
+})
+
+// Canvas management functions
+const refreshCanvases = async () => {
+  loadingCanvases.value = true
+  canvasError.value = null
+  
+  try {
+    console.log('🔄 Loading canvases...')
+    const response = await canvasApi.getCanvasList()
+    canvases.value = response
+    console.log('✅ Loaded canvases:', response)
+  } catch (err) {
+    console.error('❌ Failed to load canvases:', err)
+    canvasError.value = err instanceof Error ? err.message : 'Failed to load canvases'
+  } finally {
+    loadingCanvases.value = false
+  }
+}
+
+const toggleCanvasSelection = (canvasId: number) => {
+  if (selectedCanvases.value.has(canvasId)) {
+    selectedCanvases.value.delete(canvasId)
+  } else {
+    selectedCanvases.value.add(canvasId)
+  }
+}
+
+const getCanvasIconGradient = (canvas: CanvasListItem) => {
+  if (canvas.is_own) {
+    return 'from-blue-500 to-indigo-600'
+  } else if (canvas.sharable) {
+    return 'from-green-500 to-emerald-600'
+  } else {
+    return 'from-gray-500 to-slate-600'
+  }
+}
+
+const formatCanvasDate = (dateString: string) => {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+  
+  if (diffInHours < 24) {
+    return `${Math.floor(diffInHours)} hours ago`
+  } else if (diffInHours < 24 * 7) {
+    return `${Math.floor(diffInHours / 24)} days ago`
+  } else {
+    return date.toLocaleDateString()
+  }
+}
+
+const showRenameDialog = () => {
+  const selectedIds = Array.from(selectedCanvases.value)
+  if (selectedIds.length === 1) {
+    const canvas = canvases.value.find(c => c.id === selectedIds[0])
+    if (canvas) {
+      renameCanvasId.value = canvas.id
+      renameCanvasName.value = canvas.name
+      renameError.value = null
+      showRenameDialogModal.value = true
+    }
+  }
+}
+
+const showDeleteDialog = () => {
+  if (selectedCanvases.value.size > 0) {
+    showDeleteDialogModal.value = true
+  }
+}
+
+const loadSelectedCanvas = async () => {
+  const selectedIds = Array.from(selectedCanvases.value)
+  if (selectedIds.length === 1) {
+    const canvasId = selectedIds[0]
+    const selectedCanvas = canvases.value.find(c => c.id === canvasId)
+    
+    if (!selectedCanvas) return
+    
+    // Check if current canvas has content
+    if (deviceStore.devices.length > 0) {
+      canvasToLoad.value = selectedCanvas
+      showLoadConfirmationModal.value = true
+    } else {
+      // Canvas is empty, load directly
+      await performCanvasLoad(canvasId, selectedCanvas.name)
+    }
+  }
+}
+
+const closeLoadConfirmation = () => {
+  showLoadConfirmationModal.value = false
+  canvasToLoad.value = null
+}
+
+const confirmLoadCanvas = async () => {
+  if (canvasToLoad.value) {
+    await performCanvasLoad(canvasToLoad.value.id, canvasToLoad.value.name)
+    closeLoadConfirmation()
+  }
+}
+
+const performCanvasLoad = async (canvasId: number, canvasName: string) => {
+  try {
+    console.log('🔄 Loading canvas from Settings:', canvasId)
+    
+    // Clear current canvas first if it has devices (uses API to maintain sync)
+    if (deviceStore.devices.length > 0) {
+      await deviceStore.clearDevices()
+      console.log('✅ Current canvas cleared')
+    }
+    
+    // Fetch canvas data
+    const canvas = await canvasApi.getCanvas(canvasId)
+    console.log('✅ Canvas data loaded:', canvas)
+    
+    // Load devices from canvas data (uses API to maintain sync)
+    for (const deviceData of canvas.canvas_data.devices) {
+      const device = await deviceStore.createDevice({
+        name: deviceData.name,
+        device_type: deviceData.device_type as 'router' | 'switch' | 'firewall' | 'vpn_gateway',
+        ip_address: deviceData.ip_address,
+        position_x: deviceData.position_x,
+        position_y: deviceData.position_y,
+        properties: deviceData.properties
+      })
+      console.log('✅ Device created:', device)
+    }
+    
+    // Load connections from canvas data (uses API to maintain sync)
+    for (const connectionData of canvas.canvas_data.connections) {
+      const connection = await deviceStore.createConnection({
+        source_device_id: connectionData.source_device_id,
+        target_device_id: connectionData.target_device_id,
+        connection_type: connectionData.connection_type,
+        properties: connectionData.properties
+      })
+      console.log('✅ Connection created:', connection)
+    }
+
+    console.log('✅ Canvas loaded successfully from Settings')
+    notificationStore.addNotification({
+      title: 'Success',
+      message: `Canvas "${canvasName}" loaded successfully`,
+      type: 'success'
+    })
+
+    // Navigate to main view after successful loading
+    await router.push('/')
+    
+  } catch (error) {
+    console.error('❌ Failed to load canvas:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to load canvas',
+      type: 'error'
+    })
+  }
+}
+
+// Canvas modal functions
+const closeRenameDialog = () => {
+  showRenameDialogModal.value = false
+  renameCanvasId.value = null
+  renameCanvasName.value = ''
+  renameError.value = null
+}
+
+const confirmRename = async () => {
+  if (!renameCanvasId.value || !renameCanvasName.value.trim()) return
+  
+  try {
+    // Check if name already exists (exclude current canvas)
+    const existingCanvas = canvases.value.find(c => 
+      c.name.toLowerCase() === renameCanvasName.value.toLowerCase() && 
+      c.id !== renameCanvasId.value
+    )
+    
+    if (existingCanvas) {
+      renameError.value = 'A canvas with this name already exists'
+      return
+    }
+    
+    // Update canvas name
+    await canvasApi.updateCanvas(renameCanvasId.value, {
+      name: renameCanvasName.value.trim()
+    })
+    
+    // Update local canvas list
+    const canvasIndex = canvases.value.findIndex(c => c.id === renameCanvasId.value)
+    if (canvasIndex !== -1) {
+      canvases.value[canvasIndex].name = renameCanvasName.value.trim()
+    }
+    
+    notificationStore.addNotification({
+      title: 'Success',
+      message: 'Canvas renamed successfully',
+      type: 'success'
+    })
+    
+    closeRenameDialog()
+  } catch (error) {
+    console.error('❌ Failed to rename canvas:', error)
+    renameError.value = error instanceof Error ? error.message : 'Failed to rename canvas'
+  }
+}
+
+const closeDeleteDialog = () => {
+  showDeleteDialogModal.value = false
+}
+
+const confirmDelete = async () => {
+  const canvasIds = Array.from(selectedCanvases.value)
+  
+  try {
+    // Delete each canvas
+    for (const canvasId of canvasIds) {
+      await canvasApi.deleteCanvas(canvasId)
+    }
+    
+    // Remove from local list
+    canvases.value = canvases.value.filter(canvas => !canvasIds.includes(canvas.id))
+    
+    // Clear selection
+    selectedCanvases.value.clear()
+    
+    notificationStore.addNotification({
+      title: 'Success',
+      message: `${canvasIds.length} canvas${canvasIds.length === 1 ? '' : 'es'} deleted successfully`,
+      type: 'success'
+    })
+    
+    closeDeleteDialog()
+  } catch (error) {
+    console.error('❌ Failed to delete canvases:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to delete canvases',
+      type: 'error'
+    })
+  }
+}
+
+// Load canvases when the canvas tab is shown
+const loadCanvasesIfNeeded = async () => {
+  if (activeTab.value === 'canvas' && canvases.value.length === 0) {
+    await refreshCanvases()
+  }
+}
+
+// Watch activeTab to load canvases
+watch(activeTab, loadCanvasesIfNeeded)
 
 const addCredential = () => {
   settings.credentials.push({

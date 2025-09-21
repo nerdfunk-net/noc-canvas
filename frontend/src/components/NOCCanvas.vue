@@ -695,7 +695,7 @@ const closeSaveModal = () => {
   showSaveModal.value = false
 }
 
-const handleCanvasSave = async (data: { name: string; sharable: boolean }) => {
+const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasId?: number }) => {
   try {
     // Import the canvas API
     const { canvasApi } = await import('@/services/api')
@@ -720,18 +720,29 @@ const handleCanvasSave = async (data: { name: string; sharable: boolean }) => {
       }))
     }
 
-    // Save canvas to backend
-    const response = await canvasApi.saveCanvas({
-      name: data.name,
-      sharable: data.sharable,
-      canvas_data: canvasData
-    })
+    let response
+    if (data.canvasId) {
+      // Update existing canvas
+      response = await canvasApi.updateCanvas(data.canvasId, {
+        name: data.name,
+        sharable: data.sharable,
+        canvas_data: canvasData
+      })
+      console.log('✅ Canvas updated successfully:', response)
+    } else {
+      // Create new canvas
+      response = await canvasApi.saveCanvas({
+        name: data.name,
+        sharable: data.sharable,
+        canvas_data: canvasData
+      })
+      console.log('✅ Canvas saved successfully:', response)
+    }
 
-    console.log('✅ Canvas saved successfully:', response)
     showSaveModal.value = false
 
     // TODO: Show success notification
-    // notificationStore.showSuccess(`Canvas "${data.name}" saved successfully`)
+    // notificationStore.showSuccess(`Canvas "${data.name}" ${data.canvasId ? 'updated' : 'saved'} successfully`)
     
   } catch (error) {
     console.error('❌ Failed to save canvas:', error)

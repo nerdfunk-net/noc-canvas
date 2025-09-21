@@ -61,10 +61,7 @@ class ApiClient {
     this.baseURL = baseURL
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseURL}${endpoint}`
     const token = localStorage.getItem('token')
 
@@ -220,9 +217,9 @@ export const nautobotApi = {
     return this.getDevices({
       filter_type: filterType,
       filter_value: query,
-      limit: 100
+      limit: 100,
     })
-  }
+  },
 }
 
 // Canvas API
@@ -249,5 +246,5 @@ export const canvasApi = {
 
   async deleteCanvas(canvasId: number) {
     return apiClient.delete(`/api/canvas/${canvasId}`)
-  }
+  },
 }

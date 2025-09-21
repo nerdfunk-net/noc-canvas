@@ -11,16 +11,19 @@
     >
       <!-- Header -->
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-gray-900">
-          Save Canvas
-        </h3>
+        <h3 class="text-lg font-semibold text-gray-900">Save Canvas</h3>
         <button
           @click="closeModal"
           class="text-gray-400 hover:text-gray-600 transition-colors"
           type="button"
         >
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
           </svg>
         </button>
       </div>
@@ -29,9 +32,16 @@
       <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
         <div class="flex items-center space-x-2 text-blue-800">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+            ></path>
           </svg>
-          <span class="font-medium">Current Canvas: {{ deviceCount }} devices, {{ connectionCount }} connections</span>
+          <span class="font-medium"
+            >Current Canvas: {{ deviceCount }} devices, {{ connectionCount }} connections</span
+          >
         </div>
       </div>
 
@@ -45,7 +55,11 @@
       <div v-else-if="loadError" class="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
         <div class="flex">
           <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            <path
+              fill-rule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+              clip-rule="evenodd"
+            />
           </svg>
           <div class="ml-3">
             <h3 class="text-sm font-medium text-red-800">Error Loading Canvases</h3>
@@ -61,9 +75,9 @@
             @click="activeTab = 'new'"
             :class="[
               'flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors',
-              activeTab === 'new' 
-                ? 'bg-white text-gray-900 shadow-sm' 
-                : 'text-gray-600 hover:text-gray-900'
+              activeTab === 'new'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900',
             ]"
           >
             Create New
@@ -72,9 +86,9 @@
             @click="activeTab = 'existing'"
             :class="[
               'flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors',
-              activeTab === 'existing' 
-                ? 'bg-white text-gray-900 shadow-sm' 
-                : 'text-gray-600 hover:text-gray-900'
+              activeTab === 'existing'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900',
             ]"
           >
             Overwrite Existing ({{ userCanvases.length }})
@@ -85,9 +99,7 @@
         <div v-if="activeTab === 'new'" class="flex-1 flex flex-col">
           <form @submit.prevent="handleSave" class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">
-                Canvas Name
-              </label>
+              <label class="block text-sm font-medium text-gray-700 mb-2"> Canvas Name </label>
               <input
                 ref="nameInput"
                 v-model="canvasForm.name"
@@ -128,14 +140,26 @@
               type="text"
               placeholder="Search your canvases..."
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
+            />
           </div>
 
           <!-- Empty State -->
           <div v-if="userCanvases.length === 0" class="text-center py-12 text-gray-500">
-            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+            <div
+              class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"
+            >
+              <svg
+                class="w-8 h-8 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                ></path>
               </svg>
             </div>
             <p class="text-base font-medium text-gray-900 mb-1">No saved canvases</p>
@@ -149,9 +173,10 @@
                 v-for="canvas in filteredUserCanvases"
                 :key="canvas.id"
                 class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 hover:border-gray-300 cursor-pointer transition-all duration-200 relative group"
-                :class="{ 
-                  'ring-2 ring-blue-500 bg-blue-50 border-blue-200': selectedCanvas?.id === canvas.id,
-                  'hover:shadow-md': selectedCanvas?.id !== canvas.id
+                :class="{
+                  'ring-2 ring-blue-500 bg-blue-50 border-blue-200':
+                    selectedCanvas?.id === canvas.id,
+                  'hover:shadow-md': selectedCanvas?.id !== canvas.id,
                 }"
                 @click="selectCanvas(canvas)"
               >
@@ -159,9 +184,21 @@
                 <div class="flex items-start space-x-3">
                   <!-- Canvas Icon -->
                   <div class="flex-shrink-0">
-                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                      <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    <div
+                      class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center"
+                    >
+                      <svg
+                        class="w-5 h-5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                        ></path>
                       </svg>
                     </div>
                   </div>
@@ -170,7 +207,7 @@
                   <div class="flex-1 min-w-0">
                     <!-- Canvas Name -->
                     <h4 class="font-medium text-gray-900 text-sm truncate">{{ canvas.name }}</h4>
-                    
+
                     <!-- Canvas Info -->
                     <div class="mt-1 text-xs text-gray-500">
                       <span class="text-blue-600 font-medium">Your canvas</span>
@@ -187,16 +224,37 @@
                 <!-- Status Badges -->
                 <div class="absolute top-2 right-2 flex flex-col space-y-1">
                   <!-- Selection indicator -->
-                  <div v-if="selectedCanvas?.id === canvas.id" class="w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
+                  <div
+                    v-if="selectedCanvas?.id === canvas.id"
+                    class="w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center"
+                  >
                     <svg class="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                      <path
+                        fill-rule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clip-rule="evenodd"
+                      ></path>
                     </svg>
                   </div>
-                  
+
                   <!-- Sharing indicator -->
-                  <div v-if="canvas.sharable" class="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center" title="Shared canvas">
-                    <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z"></path>
+                  <div
+                    v-if="canvas.sharable"
+                    class="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center"
+                    title="Shared canvas"
+                  >
+                    <svg
+                      class="w-2.5 h-2.5 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z"
+                      ></path>
                     </svg>
                   </div>
                 </div>
@@ -212,7 +270,10 @@
       </div>
 
       <!-- Actions -->
-      <div v-if="!loading && !loadError" class="flex justify-end space-x-3 mt-4 pt-4 border-t border-gray-200">
+      <div
+        v-if="!loading && !loadError"
+        class="flex justify-end space-x-3 mt-4 pt-4 border-t border-gray-200"
+      >
         <button
           @click="closeModal"
           class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
@@ -233,24 +294,27 @@
     </div>
 
     <!-- Overwrite Confirmation Dialog -->
-    <div 
-      v-if="showOverwriteDialog" 
+    <div
+      v-if="showOverwriteDialog"
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60"
       @click.self="cancelOverwrite"
     >
       <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-md">
         <!-- Header -->
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold text-gray-900">
-            Confirm Overwrite
-          </h3>
+          <h3 class="text-lg font-semibold text-gray-900">Confirm Overwrite</h3>
           <button
             @click="cancelOverwrite"
             class="text-gray-400 hover:text-gray-600 transition-colors"
             type="button"
           >
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              ></path>
             </svg>
           </button>
         </div>
@@ -259,24 +323,30 @@
         <div class="mb-6">
           <div class="flex items-center mb-3">
             <div class="flex-shrink-0">
-              <svg class="h-8 w-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 14.5c-.77.833.192 2.5 1.732 2.5z"></path>
+              <svg
+                class="h-8 w-8 text-yellow-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 14.5c-.77.833.192 2.5 1.732 2.5z"
+                ></path>
               </svg>
             </div>
             <div class="ml-3">
-              <h3 class="text-sm font-medium text-gray-900">
-                Canvas Already Exists
-              </h3>
+              <h3 class="text-sm font-medium text-gray-900">Canvas Already Exists</h3>
             </div>
           </div>
-          
+
           <p class="text-gray-700 text-sm leading-relaxed mb-2">
             A canvas named <strong>"{{ overwriteCanvasName }}"</strong> already exists.
           </p>
-          
-          <p class="text-gray-600 text-sm">
-            Do you want to overwrite it with the current canvas?
-          </p>
+
+          <p class="text-gray-600 text-sm">Do you want to overwrite it with the current canvas?</p>
         </div>
 
         <!-- Actions -->
@@ -323,7 +393,7 @@ const emit = defineEmits<Emits>()
 // Form state
 const canvasForm = ref({
   name: '',
-  sharable: false
+  sharable: false,
 })
 
 // UI state
@@ -342,18 +412,18 @@ const selectedCanvas = ref<CanvasListItem | null>(null)
 // Overwrite confirmation
 const showOverwriteDialog = ref(false)
 const overwriteCanvasName = ref('')
-const pendingOverwriteData = ref<{ name: string; sharable: boolean; canvasId?: number } | null>(null)
+const pendingOverwriteData = ref<{ name: string; sharable: boolean; canvasId?: number } | null>(
+  null
+)
 
 // Computed properties
 const filteredUserCanvases = computed(() => {
   if (!searchQuery.value.trim()) {
     return userCanvases.value
   }
-  
+
   const query = searchQuery.value.toLowerCase()
-  return userCanvases.value.filter(canvas => 
-    canvas.name.toLowerCase().includes(query)
-  )
+  return userCanvases.value.filter((canvas) => canvas.name.toLowerCase().includes(query))
 })
 
 const canSave = computed(() => {
@@ -368,12 +438,12 @@ const canSave = computed(() => {
 const loadUserCanvases = async () => {
   loading.value = true
   loadError.value = null
-  
+
   try {
     console.log('🔄 Loading user canvases...')
     const response = await canvasApi.getCanvasList()
     // Filter to only show user's own canvases
-    userCanvases.value = response.filter(canvas => canvas.is_own)
+    userCanvases.value = response.filter((canvas) => canvas.is_own)
     console.log('✅ Loaded user canvases:', userCanvases.value)
   } catch (err) {
     console.error('❌ Failed to load user canvases:', err)
@@ -396,7 +466,7 @@ const formatDate = (dateString: string) => {
   const date = new Date(dateString)
   const now = new Date()
   const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-  
+
   if (diffInHours < 24) {
     return `${Math.floor(diffInHours)} hours ago`
   } else if (diffInHours < 24 * 7) {
@@ -413,9 +483,9 @@ const getSaveButtonText = () => {
 }
 
 const checkNameExists = (name: string): CanvasListItem | null => {
-  return userCanvases.value.find(canvas => 
-    canvas.name.toLowerCase() === name.toLowerCase()
-  ) || null
+  return (
+    userCanvases.value.find((canvas) => canvas.name.toLowerCase() === name.toLowerCase()) || null
+  )
 }
 
 const handleSave = async () => {
@@ -424,7 +494,7 @@ const handleSave = async () => {
   const saveData = {
     name: canvasForm.value.name.trim(),
     sharable: canvasForm.value.sharable,
-    canvasId: activeTab.value === 'existing' ? selectedCanvas.value?.id : undefined
+    canvasId: activeTab.value === 'existing' ? selectedCanvas.value?.id : undefined,
   }
 
   // Check for name conflicts when creating new canvas
@@ -482,7 +552,7 @@ const closeModal = () => {
 const resetForm = () => {
   canvasForm.value = {
     name: '',
-    sharable: false
+    sharable: false,
   }
   activeTab.value = 'new'
   selectedCanvas.value = null
@@ -502,23 +572,30 @@ watch(activeTab, async (newTab) => {
 })
 
 // Watch for show prop changes to reset form and load data
-watch(() => props.show, async (show) => {
-  if (show) {
-    resetForm()
-    await loadUserCanvases()
-    // Focus name input when modal opens
-    await nextTick()
-    if (activeTab.value === 'new') {
-      nameInput.value?.focus()
+watch(
+  () => props.show,
+  async (show) => {
+    if (show) {
+      resetForm()
+      await loadUserCanvases()
+      // Focus name input when modal opens
+      await nextTick()
+      if (activeTab.value === 'new') {
+        nameInput.value?.focus()
+      }
     }
   }
-})
+)
 
 // Expose methods for parent component
 defineExpose({
   resetForm,
-  setSaving: (value: boolean) => { saving.value = value },
-  setError: (message: string | null) => { saveError.value = message }
+  setSaving: (value: boolean) => {
+    saving.value = value
+  },
+  setError: (message: string | null) => {
+    saveError.value = message
+  },
 })
 </script>
 
@@ -529,8 +606,12 @@ defineExpose({
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Modal content animation */

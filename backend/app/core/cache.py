@@ -4,7 +4,6 @@ Cache service for NOC Canvas using Redis.
 
 import json
 import logging
-import asyncio
 from typing import Any, Optional
 from .config import settings
 
@@ -12,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import redis.asyncio as redis
+
     REDIS_AVAILABLE = True
 except ImportError:
     logger.warning("Redis library not available. Caching will be disabled.")
@@ -37,13 +37,15 @@ class CacheService:
                 decode_responses=True,
                 retry_on_timeout=True,
                 socket_connect_timeout=5,
-                socket_timeout=5
+                socket_timeout=5,
             )
             # Test connection
             await self.redis.ping()
             logger.info("Connected to Redis cache")
         except Exception as e:
-            logger.warning(f"Failed to connect to Redis: {e}. Caching will be disabled.")
+            logger.warning(
+                f"Failed to connect to Redis: {e}. Caching will be disabled."
+            )
             self.redis = None
 
     async def disconnect(self):

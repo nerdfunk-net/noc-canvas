@@ -15,8 +15,10 @@ from ..core.database import Base, engine
 # Use main database Base for credentials
 CredentialsBase = Base
 
+
 class UserCredential(CredentialsBase):
     """User credentials stored in separate database."""
+
     __tablename__ = "user_credentials"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -48,11 +50,11 @@ def get_or_create_encryption_key():
     key_file = os.path.join(key_dir, ".encryption_key")
 
     if os.path.exists(key_file):
-        with open(key_file, 'rb') as f:
+        with open(key_file, "rb") as f:
             return f.read()
     else:
         key = Fernet.generate_key()
-        with open(key_file, 'wb') as f:
+        with open(key_file, "wb") as f:
             f.write(key)
         # Set restrictive permissions on key file
         os.chmod(key_file, 0o600)
@@ -79,6 +81,7 @@ def decrypt_password(encrypted_password: str) -> str:
 # Pydantic models for API
 class CredentialBase(BaseModel):
     """Base credential model."""
+
     name: str
     username: str
     password: str
@@ -86,11 +89,13 @@ class CredentialBase(BaseModel):
 
 class CredentialCreate(CredentialBase):
     """Credential creation model."""
+
     pass
 
 
 class CredentialUpdate(BaseModel):
     """Credential update model."""
+
     name: Optional[str] = None
     username: Optional[str] = None
     password: Optional[str] = None
@@ -98,6 +103,7 @@ class CredentialUpdate(BaseModel):
 
 class CredentialResponse(BaseModel):
     """Credential response model (without password)."""
+
     id: int
     owner: str
     name: str
@@ -111,16 +117,19 @@ class CredentialResponse(BaseModel):
 
 class CredentialWithPassword(CredentialResponse):
     """Credential response model with decrypted password."""
+
     password: str
 
 
 class CredentialsList(BaseModel):
     """List of credentials response."""
+
     credentials: List[CredentialResponse]
 
 
 class CredentialsListWithPasswords(BaseModel):
     """List of credentials response with passwords."""
+
     credentials: List[CredentialWithPassword]
 
 

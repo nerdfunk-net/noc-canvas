@@ -2,7 +2,7 @@
 Settings models for storing configuration in database.
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime
 from sqlalchemy.sql import func
 from ..core.database import Base
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ from typing import Optional
 
 class AppSettings(Base):
     """Application settings stored in database."""
+
     __tablename__ = "app_settings"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -23,8 +24,10 @@ class AppSettings(Base):
 
 # Pydantic models for API
 
+
 class NautobotSettings(BaseModel):
     """Nautobot configuration settings."""
+
     url: Optional[str] = None
     token: Optional[str] = None
     timeout: int = 30
@@ -33,6 +36,7 @@ class NautobotSettings(BaseModel):
 
 class CheckMKSettings(BaseModel):
     """CheckMK configuration settings."""
+
     url: Optional[str] = None
     site: Optional[str] = None
     username: Optional[str] = None
@@ -43,19 +47,17 @@ class CheckMKSettings(BaseModel):
 
 class CacheSettings(BaseModel):
     """Cache configuration settings."""
+
     enabled: bool = True
     ttl_seconds: int = 600
     prefetch_on_startup: bool = True
     refresh_interval_minutes: int = 0
-    prefetch_items: dict = {
-        "devices": False,
-        "locations": False,
-        "statistics": True
-    }
+    prefetch_items: dict = {"devices": False, "locations": False, "statistics": True}
 
 
 class AppSettingsUpdate(BaseModel):
     """Settings update model."""
+
     key: str
     value: Optional[str] = None
     description: Optional[str] = None
@@ -63,6 +65,7 @@ class AppSettingsUpdate(BaseModel):
 
 class AppSettingsResponse(BaseModel):
     """Settings response model."""
+
     id: int
     key: str
     value: Optional[str]
@@ -76,6 +79,7 @@ class AppSettingsResponse(BaseModel):
 
 class SettingsTest(BaseModel):
     """Settings test response."""
+
     success: bool
     message: str
     connection_source: str = "manual_test"
@@ -83,6 +87,7 @@ class SettingsTest(BaseModel):
 
 class NautobotTestRequest(BaseModel):
     """Nautobot connection test request."""
+
     url: str
     token: str
     timeout: int = 30
@@ -91,6 +96,7 @@ class NautobotTestRequest(BaseModel):
 
 class CheckMKTestRequest(BaseModel):
     """CheckMK connection test request."""
+
     url: str
     site: str
     username: str
@@ -101,12 +107,13 @@ class CheckMKTestRequest(BaseModel):
 
 class UnifiedSettings(BaseModel):
     """Unified settings model for frontend."""
+
     nautobot: dict = {
         "enabled": False,
         "url": "",
         "token": "",
         "verifyTls": True,
-        "timeout": 30
+        "timeout": 30,
     }
     checkmk: dict = {
         "enabled": False,
@@ -114,28 +121,27 @@ class UnifiedSettings(BaseModel):
         "site": "cmk",
         "username": "",
         "password": "",
-        "verifyTls": True
+        "verifyTls": True,
     }
-    canvas: dict = {
-        "autoSaveInterval": 60,
-        "gridEnabled": True
-    }
+    canvas: dict = {"autoSaveInterval": 60, "gridEnabled": True}
     database: dict = {
         "host": "",
         "port": 5432,
         "database": "noc_canvas",
         "username": "",
         "password": "",
-        "ssl": False
+        "ssl": False,
     }
 
 
 class CredentialsSettings(BaseModel):
     """User credentials settings."""
+
     credentials: list = []
 
 
 class PasswordChangeRequest(BaseModel):
     """Password change request."""
+
     current_password: str
     new_password: str

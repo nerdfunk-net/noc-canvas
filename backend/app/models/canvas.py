@@ -11,7 +11,9 @@ class Canvas(Base):
     name = Column(String, nullable=False, index=True)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     sharable = Column(Boolean, default=False)
-    canvas_data = Column(Text, nullable=False)  # JSON string containing devices and positions
+    canvas_data = Column(
+        Text, nullable=False
+    )  # JSON string containing devices and positions
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

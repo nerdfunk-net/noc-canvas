@@ -14,7 +14,9 @@ logger = logging.getLogger(__name__)
 class CheckMKAPIError(Exception):
     """CheckMK API error exception."""
 
-    def __init__(self, message: str, status_code: int = None, response_data: Dict = None):
+    def __init__(
+        self, message: str, status_code: int = None, response_data: Dict = None
+    ):
         super().__init__(message)
         self.status_code = status_code
         self.response_data = response_data
@@ -138,7 +140,9 @@ class CheckMKClient:
 
         return await self._request("GET", "objects/host_config", params=params)
 
-    async def get_host(self, hostname: str, effective_attributes: bool = False) -> Dict[str, Any]:
+    async def get_host(
+        self, hostname: str, effective_attributes: bool = False
+    ) -> Dict[str, Any]:
         """Get specific host configuration."""
         params = {}
         if effective_attributes:
@@ -165,9 +169,13 @@ class CheckMKClient:
         if bake_agent:
             params["bake_agent"] = "true"
 
-        return await self._request("POST", "objects/host_config", data=data, params=params)
+        return await self._request(
+            "POST", "objects/host_config", data=data, params=params
+        )
 
-    async def update_host(self, hostname: str, attributes: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_host(
+        self, hostname: str, attributes: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Update existing host."""
         data = {"attributes": attributes}
         endpoint = f"objects/host_config/{quote(hostname)}"
@@ -195,17 +203,25 @@ class CheckMKClient:
     async def bulk_create_hosts(self, hosts: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Create multiple hosts."""
         data = {"entries": hosts}
-        return await self._request("POST", "domain-types/host_config/actions/bulk-create", data=data)
+        return await self._request(
+            "POST", "domain-types/host_config/actions/bulk-create", data=data
+        )
 
-    async def bulk_update_hosts(self, hosts: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    async def bulk_update_hosts(
+        self, hosts: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Update multiple hosts."""
         data = {"entries": hosts}
-        return await self._request("PUT", "domain-types/host_config/actions/bulk-update", data=data)
+        return await self._request(
+            "PUT", "domain-types/host_config/actions/bulk-update", data=data
+        )
 
     async def bulk_delete_hosts(self, hostnames: List[str]) -> Dict[str, Any]:
         """Delete multiple hosts."""
         data = {"entries": hostnames}
-        return await self._request("POST", "domain-types/host_config/actions/bulk-delete", data=data)
+        return await self._request(
+            "POST", "domain-types/host_config/actions/bulk-delete", data=data
+        )
 
     # Monitoring
 
@@ -221,7 +237,9 @@ class CheckMKClient:
         if query:
             params["query"] = query
 
-        return await self._request("GET", "domain-types/host/collections/all", params=params)
+        return await self._request(
+            "GET", "domain-types/host/collections/all", params=params
+        )
 
     async def get_monitored_host(
         self,
@@ -249,7 +267,9 @@ class CheckMKClient:
         if query:
             params["query"] = query
 
-        return await self._request("GET", "domain-types/service/collections/all", params=params)
+        return await self._request(
+            "GET", "domain-types/service/collections/all", params=params
+        )
 
     async def show_service(
         self,
@@ -272,7 +292,9 @@ class CheckMKClient:
         endpoint = f"objects/host/{quote(hostname)}/actions/show_discovery"
         return await self._request("GET", endpoint)
 
-    async def start_service_discovery(self, hostname: str, mode: str = "new") -> Dict[str, Any]:
+    async def start_service_discovery(
+        self, hostname: str, mode: str = "new"
+    ) -> Dict[str, Any]:
         """Start service discovery."""
         data = {"mode": mode}
         endpoint = f"objects/host/{quote(hostname)}/actions/discover_services"
@@ -316,7 +338,9 @@ class CheckMKClient:
             "persistent": persistent,
             "notify": notify,
         }
-        return await self._request("POST", "domain-types/acknowledge/collections/host", data=data)
+        return await self._request(
+            "POST", "domain-types/acknowledge/collections/host", data=data
+        )
 
     async def acknowledge_service_problem(
         self,
@@ -337,7 +361,9 @@ class CheckMKClient:
             "persistent": persistent,
             "notify": notify,
         }
-        return await self._request("POST", "domain-types/acknowledge/collections/service", data=data)
+        return await self._request(
+            "POST", "domain-types/acknowledge/collections/service", data=data
+        )
 
     async def delete_acknowledgment(self, ack_id: str) -> None:
         """Delete acknowledgment."""
@@ -360,7 +386,9 @@ class CheckMKClient:
             "end_time": end_time,
             "comment": comment,
         }
-        return await self._request("POST", "domain-types/downtime/collections/host", data=data)
+        return await self._request(
+            "POST", "domain-types/downtime/collections/host", data=data
+        )
 
     async def add_host_comment(
         self,
@@ -375,7 +403,9 @@ class CheckMKClient:
             "comment": comment,
             "persistent": persistent,
         }
-        return await self._request("POST", "domain-types/comment/collections/host", data=data)
+        return await self._request(
+            "POST", "domain-types/comment/collections/host", data=data
+        )
 
     async def add_service_comment(
         self,
@@ -392,13 +422,17 @@ class CheckMKClient:
             "comment": comment,
             "persistent": persistent,
         }
-        return await self._request("POST", "domain-types/comment/collections/service", data=data)
+        return await self._request(
+            "POST", "domain-types/comment/collections/service", data=data
+        )
 
     # Configuration Management
 
     async def get_pending_changes(self) -> Dict[str, Any]:
         """Get pending configuration changes."""
-        return await self._request("GET", "domain-types/activation_run/collections/pending_changes")
+        return await self._request(
+            "GET", "domain-types/activation_run/collections/pending_changes"
+        )
 
     async def activate_changes(
         self,
@@ -414,21 +448,29 @@ class CheckMKClient:
         if sites:
             data["sites"] = sites
 
-        return await self._request("POST", "domain-types/activation_run/actions/activate-changes", data=data)
+        return await self._request(
+            "POST", "domain-types/activation_run/actions/activate-changes", data=data
+        )
 
     async def get_activation_status(self, activation_id: str) -> Dict[str, Any]:
         """Get activation status."""
         endpoint = f"objects/activation_run/{quote(activation_id)}"
         return await self._request("GET", endpoint)
 
-    async def wait_for_activation_completion(self, activation_id: str) -> Dict[str, Any]:
+    async def wait_for_activation_completion(
+        self, activation_id: str
+    ) -> Dict[str, Any]:
         """Wait for activation completion."""
-        endpoint = f"objects/activation_run/{quote(activation_id)}/actions/wait-for-completion"
+        endpoint = (
+            f"objects/activation_run/{quote(activation_id)}/actions/wait-for-completion"
+        )
         return await self._request("POST", endpoint)
 
     async def get_running_activations(self) -> Dict[str, Any]:
         """Get running activations."""
-        return await self._request("GET", "domain-types/activation_run/collections/running")
+        return await self._request(
+            "GET", "domain-types/activation_run/collections/running"
+        )
 
     # Folders
 
@@ -449,7 +491,9 @@ class CheckMKClient:
 
         return await self._request("GET", "objects/folder_config", params=params)
 
-    async def get_folder(self, folder_path: str, show_hosts: bool = False) -> Dict[str, Any]:
+    async def get_folder(
+        self, folder_path: str, show_hosts: bool = False
+    ) -> Dict[str, Any]:
         """Get specific folder."""
         params = {}
         if show_hosts:
@@ -493,7 +537,9 @@ class CheckMKClient:
         endpoint = f"objects/folder_config/{quote(folder_path)}"
         return await self._request("PUT", endpoint, data=data)
 
-    async def delete_folder(self, folder_path: str, delete_mode: str = "recursive") -> None:
+    async def delete_folder(
+        self, folder_path: str, delete_mode: str = "recursive"
+    ) -> None:
         """Delete folder."""
         params = {"delete_mode": delete_mode}
         endpoint = f"objects/folder_config/{quote(folder_path)}"
@@ -505,10 +551,14 @@ class CheckMKClient:
         endpoint = f"objects/folder_config/{quote(folder_path)}/actions/move"
         return await self._request("POST", endpoint, data=data)
 
-    async def bulk_update_folders(self, folders: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    async def bulk_update_folders(
+        self, folders: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Update multiple folders."""
         data = {"entries": folders}
-        return await self._request("PUT", "domain-types/folder_config/actions/bulk-update", data=data)
+        return await self._request(
+            "PUT", "domain-types/folder_config/actions/bulk-update", data=data
+        )
 
     async def get_hosts_in_folder(
         self,
@@ -549,15 +599,21 @@ class CheckMKClient:
         endpoint = f"objects/host_group_config/{quote(name)}"
         await self._request("DELETE", endpoint)
 
-    async def bulk_update_host_groups(self, groups: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    async def bulk_update_host_groups(
+        self, groups: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Update multiple host groups."""
         data = {"entries": groups}
-        return await self._request("PUT", "domain-types/host_group_config/actions/bulk-update", data=data)
+        return await self._request(
+            "PUT", "domain-types/host_group_config/actions/bulk-update", data=data
+        )
 
     async def bulk_delete_host_groups(self, group_names: List[str]) -> Dict[str, Any]:
         """Delete multiple host groups."""
         data = {"entries": group_names}
-        return await self._request("POST", "domain-types/host_group_config/actions/bulk-delete", data=data)
+        return await self._request(
+            "POST", "domain-types/host_group_config/actions/bulk-delete", data=data
+        )
 
     # Host Tag Groups
 

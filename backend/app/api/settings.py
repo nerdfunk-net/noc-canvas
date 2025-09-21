@@ -22,7 +22,6 @@ from ..models.settings import (
     SettingsTest,
     UnifiedSettings,
     CredentialsSettings,
-    PasswordChangeRequest,
 )
 from ..services.nautobot import nautobot_service
 from ..services.checkmk import checkmk_service
@@ -34,7 +33,7 @@ security = HTTPBearer()
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Get current authenticated user."""
     token = credentials.credentials
@@ -57,6 +56,7 @@ def get_current_user(
 
 # Specific routes (must be before generic /{key} route)
 
+
 @router.get("/unified", response_model=UnifiedSettings)
 async def get_unified_settings(
     db: Session = Depends(get_db),
@@ -78,30 +78,48 @@ async def get_unified_settings(
     unified.nautobot = {
         "enabled": stored_settings.get("nautobot_enabled", "false").lower() == "true",
         "url": stored_settings.get("nautobot_url") or app_settings.nautobot_url or "",
-        "token": "***" if (stored_settings.get("nautobot_token") or app_settings.nautobot_token) else "",
-        "verifyTls": stored_settings.get("nautobot_verify_tls", str(app_settings.nautobot_verify_ssl)).lower() == "true",
-        "timeout": int(stored_settings.get("nautobot_timeout", str(app_settings.nautobot_timeout)))
+        "token": "***"
+        if (stored_settings.get("nautobot_token") or app_settings.nautobot_token)
+        else "",
+        "verifyTls": stored_settings.get(
+            "nautobot_verify_tls", str(app_settings.nautobot_verify_ssl)
+        ).lower()
+        == "true",
+        "timeout": int(
+            stored_settings.get("nautobot_timeout", str(app_settings.nautobot_timeout))
+        ),
     }
 
     # CheckMK settings (prefer database, fallback to environment)
     unified.checkmk = {
         "enabled": stored_settings.get("checkmk_enabled", "false").lower() == "true",
         "url": stored_settings.get("checkmk_url") or app_settings.checkmk_url or "",
-        "site": stored_settings.get("checkmk_site") or app_settings.checkmk_site or "cmk",
-        "username": stored_settings.get("checkmk_username") or app_settings.checkmk_username or "",
-        "password": "***" if (stored_settings.get("checkmk_password") or app_settings.checkmk_password) else "",
-        "verifyTls": stored_settings.get("checkmk_verify_tls", str(app_settings.checkmk_verify_ssl)).lower() == "true"
+        "site": stored_settings.get("checkmk_site")
+        or app_settings.checkmk_site
+        or "cmk",
+        "username": stored_settings.get("checkmk_username")
+        or app_settings.checkmk_username
+        or "",
+        "password": "***"
+        if (stored_settings.get("checkmk_password") or app_settings.checkmk_password)
+        else "",
+        "verifyTls": stored_settings.get(
+            "checkmk_verify_tls", str(app_settings.checkmk_verify_ssl)
+        ).lower()
+        == "true",
     }
 
     # Canvas settings
     unified.canvas = {
         "autoSaveInterval": int(stored_settings.get("canvas_autosave_interval", "60")),
-        "gridEnabled": stored_settings.get("canvas_grid_enabled", "true").lower() == "true"
+        "gridEnabled": stored_settings.get("canvas_grid_enabled", "true").lower()
+        == "true",
     }
 
     # Database settings (from YAML config or environment)
     try:
         from ..core.yaml_config import load_database_config
+
         db_config = load_database_config()
         if db_config:
             unified.database = {
@@ -110,7 +128,7 @@ async def get_unified_settings(
                 "database": db_config.database,
                 "username": db_config.username,
                 "password": "***" if db_config.password else "",
-                "ssl": db_config.ssl
+                "ssl": db_config.ssl,
             }
         else:
             # Default empty configuration
@@ -120,7 +138,7 @@ async def get_unified_settings(
                 "database": "noc_canvas",
                 "username": "",
                 "password": "",
-                "ssl": False
+                "ssl": False,
             }
     except Exception as e:
         logger.warning(f"Could not load database config: {e}")
@@ -130,7 +148,7 @@ async def get_unified_settings(
             "database": "noc_canvas",
             "username": "",
             "password": "",
-            "ssl": False
+            "ssl": False,
         }
 
     return unified
@@ -143,9 +161,14 @@ async def get_user_credentials(
 ):
     """Get user credentials."""
     try:
-        setting = db.query(AppSettings).filter(AppSettings.key == f"user_credentials_{current_user.username}").first()
+        setting = (
+            db.query(AppSettings)
+            .filter(AppSettings.key == f"user_credentials_{current_user.username}")
+            .first()
+        )
         if setting and setting.value:
             import json
+
             credentials = json.loads(setting.value)
             return {"credentials": credentials}
         return {"credentials": []}
@@ -190,7 +213,9 @@ async def create_or_update_setting(
     current_user: User = Depends(get_current_user),
 ):
     """Create or update a setting."""
-    setting = db.query(AppSettings).filter(AppSettings.key == setting_update.key).first()
+    setting = (
+        db.query(AppSettings).filter(AppSettings.key == setting_update.key).first()
+    )
 
     if setting:
         # Update existing setting
@@ -231,6 +256,7 @@ async def delete_setting(
 
 
 # Nautobot Settings
+
 
 @router.get("/nautobot/current", response_model=NautobotSettings)
 async def get_nautobot_settings(
@@ -276,6 +302,7 @@ async def test_nautobot_settings(
 
 
 # CheckMK Settings
+
 
 @router.get("/checkmk/current", response_model=CheckMKSettings)
 async def get_checkmk_settings(
@@ -324,6 +351,7 @@ async def test_checkmk_settings(
 
 
 # Cache Settings
+
 
 @router.get("/cache/current", response_model=CacheSettings)
 async def get_cache_settings(
@@ -417,30 +445,40 @@ async def save_unified_settings(
         settings_to_save = [
             ("nautobot_enabled", str(settings_data.nautobot.get("enabled", False))),
             ("checkmk_enabled", str(settings_data.checkmk.get("enabled", False))),
-            ("canvas_autosave_interval", str(settings_data.canvas.get("autoSaveInterval", 60))),
+            (
+                "canvas_autosave_interval",
+                str(settings_data.canvas.get("autoSaveInterval", 60)),
+            ),
             ("canvas_grid_enabled", str(settings_data.canvas.get("gridEnabled", True))),
         ]
 
         # Add Nautobot configuration settings
-        if hasattr(settings_data, 'nautobot') and settings_data.nautobot:
+        if hasattr(settings_data, "nautobot") and settings_data.nautobot:
             nautobot_config = settings_data.nautobot
-            settings_to_save.extend([
-                ("nautobot_url", nautobot_config.get("url", "")),
-                ("nautobot_token", nautobot_config.get("token", "")),
-                ("nautobot_verify_tls", str(nautobot_config.get("verifyTls", True))),
-                ("nautobot_timeout", str(nautobot_config.get("timeout", 30))),
-            ])
+            settings_to_save.extend(
+                [
+                    ("nautobot_url", nautobot_config.get("url", "")),
+                    ("nautobot_token", nautobot_config.get("token", "")),
+                    (
+                        "nautobot_verify_tls",
+                        str(nautobot_config.get("verifyTls", True)),
+                    ),
+                    ("nautobot_timeout", str(nautobot_config.get("timeout", 30))),
+                ]
+            )
 
         # Add CheckMK configuration settings
-        if hasattr(settings_data, 'checkmk') and settings_data.checkmk:
+        if hasattr(settings_data, "checkmk") and settings_data.checkmk:
             checkmk_config = settings_data.checkmk
-            settings_to_save.extend([
-                ("checkmk_url", checkmk_config.get("url", "")),
-                ("checkmk_site", checkmk_config.get("site", "")),
-                ("checkmk_username", checkmk_config.get("username", "")),
-                ("checkmk_password", checkmk_config.get("password", "")),
-                ("checkmk_verify_tls", str(checkmk_config.get("verifyTls", True))),
-            ])
+            settings_to_save.extend(
+                [
+                    ("checkmk_url", checkmk_config.get("url", "")),
+                    ("checkmk_site", checkmk_config.get("site", "")),
+                    ("checkmk_username", checkmk_config.get("username", "")),
+                    ("checkmk_password", checkmk_config.get("password", "")),
+                    ("checkmk_verify_tls", str(checkmk_config.get("verifyTls", True))),
+                ]
+            )
 
         # Save all settings to database
         for key, value in settings_to_save:
@@ -456,7 +494,7 @@ async def save_unified_settings(
                 db.add(setting)
 
         # Save database configuration to YAML file
-        if hasattr(settings_data, 'database') and settings_data.database:
+        if hasattr(settings_data, "database") and settings_data.database:
             try:
                 from ..core.yaml_config import DatabaseConfig, save_database_config
 
@@ -469,7 +507,7 @@ async def save_unified_settings(
                         database=db_data.get("database", "noc_canvas"),
                         username=db_data.get("username", ""),
                         password=db_data.get("password", ""),
-                        ssl=db_data.get("ssl", False)
+                        ssl=db_data.get("ssl", False),
                     )
                     save_database_config(config)
                     logger.info("Database configuration saved to YAML file")
@@ -485,7 +523,7 @@ async def save_unified_settings(
         logger.error(f"Error saving unified settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save settings: {str(e)}"
+            detail=f"Failed to save settings: {str(e)}",
         )
 
 
@@ -503,16 +541,10 @@ async def test_nautobot_connection(
             verify_ssl=test_data.get("verify_ssl", True),
         )
 
-        return {
-            "success": success,
-            "message": message
-        }
+        return {"success": success, "message": message}
     except Exception as e:
         logger.error(f"Error testing Nautobot connection: {str(e)}")
-        return {
-            "success": False,
-            "message": f"Connection test failed: {str(e)}"
-        }
+        return {"success": False, "message": f"Connection test failed: {str(e)}"}
 
 
 @router.post("/test-checkmk")
@@ -530,16 +562,10 @@ async def test_checkmk_connection(
             verify_ssl=test_data.get("verify_ssl", True),
         )
 
-        return {
-            "success": success,
-            "message": message
-        }
+        return {"success": success, "message": message}
     except Exception as e:
         logger.error(f"Error testing CheckMK connection: {str(e)}")
-        return {
-            "success": False,
-            "message": f"Connection test failed: {str(e)}"
-        }
+        return {"success": False, "message": f"Connection test failed: {str(e)}"}
 
 
 @router.post("/test-database")
@@ -559,7 +585,7 @@ async def test_database_connection(
             database=test_data.get("database", ""),
             username=test_data.get("username", ""),
             password=test_data.get("password", ""),
-            ssl=test_data.get("ssl", False)
+            ssl=test_data.get("ssl", False),
         )
 
         # Get database URL and test connection
@@ -569,17 +595,11 @@ async def test_database_connection(
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
 
-        return {
-            "success": True,
-            "message": "Database connection successful"
-        }
+        return {"success": True, "message": "Database connection successful"}
 
     except Exception as e:
         logger.error(f"Error testing database connection: {str(e)}")
-        return {
-            "success": False,
-            "message": f"Database connection failed: {str(e)}"
-        }
+        return {"success": False, "message": f"Database connection failed: {str(e)}"}
 
 
 @router.post("/database/config")
@@ -597,7 +617,7 @@ async def save_database_config(
             database=config_data.get("database", ""),
             username=config_data.get("username", ""),
             password=config_data.get("password", ""),
-            ssl=config_data.get("ssl", False)
+            ssl=config_data.get("ssl", False),
         )
 
         success = save_database_config(config)
@@ -606,14 +626,14 @@ async def save_database_config(
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to save database configuration"
+                detail="Failed to save database configuration",
             )
 
     except Exception as e:
         logger.error(f"Error saving database config: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save database configuration: {str(e)}"
+            detail=f"Failed to save database configuration: {str(e)}",
         )
 
 
@@ -630,9 +650,7 @@ async def get_database_status(
 
     except Exception as e:
         logger.error(f"Error getting database status: {str(e)}")
-        return {
-            "error": f"Failed to get database status: {str(e)}"
-        }
+        return {"error": f"Failed to get database status: {str(e)}"}
 
 
 @router.post("/credentials")
@@ -663,5 +681,5 @@ async def save_user_credentials(
         logger.error(f"Error saving credentials: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save credentials: {str(e)}"
+            detail=f"Failed to save credentials: {str(e)}",
         )

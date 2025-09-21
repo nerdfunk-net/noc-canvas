@@ -23,28 +23,36 @@ def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
+        expire = datetime.utcnow() + timedelta(
+            minutes=settings.access_token_expire_minutes
+        )
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    encoded_jwt = jwt.encode(
+        to_encode, settings.secret_key, algorithm=settings.algorithm
+    )
     return encoded_jwt
 
 
 def verify_token(token: str) -> Optional[dict]:
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(
+            token, settings.secret_key, algorithms=[settings.algorithm]
+        )
         username: str = payload.get("sub")
         if username is None:
             return None
         return {
             "username": username,
             "is_admin": payload.get("is_admin", False),
-            "permissions": payload.get("permissions", [])
+            "permissions": payload.get("permissions", []),
         }
     except JWTError:
         return None
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict:
     """Get current authenticated user."""
     user_data = verify_token(credentials.credentials)
     if user_data is None:
@@ -60,12 +68,13 @@ async def verify_admin_user(current_user: dict = Depends(get_current_user)) -> d
     """Verify user has admin permissions."""
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin permissions required"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin permissions required"
         )
     return current_user
 
 
-async def verify_token_dependency(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+async def verify_token_dependency(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict:
     """Token verification dependency for routes."""
     return await get_current_user(credentials)

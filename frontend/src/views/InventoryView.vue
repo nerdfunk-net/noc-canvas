@@ -4,11 +4,7 @@
       <div class="max-w-6xl mx-auto">
         <div class="flex items-center justify-between mb-6">
           <h1 class="text-2xl font-bold text-gray-900">Device Inventory</h1>
-          <button
-            @click="refreshInventory"
-            class="btn-primary"
-            :disabled="deviceStore.loading"
-          >
+          <button @click="refreshInventory" class="btn-primary" :disabled="deviceStore.loading">
             {{ deviceStore.loading ? 'Refreshing...' : 'Refresh' }}
           </button>
         </div>
@@ -25,8 +21,8 @@
             <div class="flex items-start justify-between">
               <div class="flex items-center space-x-3">
                 <div class="w-9 h-9">
-                  <img 
-                    :src="getDeviceIconUrl(device.device_type)" 
+                  <img
+                    :src="getDeviceIconUrl(device.device_type)"
                     :alt="`${device.device_type} icon`"
                     class="w-9 h-9 object-contain"
                   />
@@ -46,10 +42,7 @@
                 >
                   ✏️
                 </button>
-                <button
-                  @click.stop="deleteDevice(device)"
-                  class="text-gray-400 hover:text-red-600"
-                >
+                <button @click.stop="deleteDevice(device)" class="text-gray-400 hover:text-red-600">
                   🗑️
                 </button>
               </div>
@@ -75,9 +68,7 @@
             <p class="text-gray-500 mb-4">
               Start by dragging device templates from the inventory panel to the canvas.
             </p>
-            <router-link to="/dashboard" class="btn-primary">
-              Go to Canvas
-            </router-link>
+            <router-link to="/dashboard" class="btn-primary"> Go to Canvas </router-link>
           </div>
         </div>
 
@@ -87,10 +78,7 @@
           class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
           @click="closeModal"
         >
-          <div
-            class="bg-white rounded-lg p-6 max-w-md w-full mx-4"
-            @click.stop
-          >
+          <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4" @click.stop>
             <h2 class="text-lg font-semibold mb-4">
               {{ editingDevice ? 'Edit Device' : 'Device Details' }}
             </h2>
@@ -98,9 +86,7 @@
             <form v-if="editingDevice" @submit.prevent="saveDevice">
               <div class="space-y-4">
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Name
-                  </label>
+                  <label class="block text-sm font-medium text-gray-700 mb-1"> Name </label>
                   <input
                     v-model="deviceForm.name"
                     type="text"
@@ -109,9 +95,7 @@
                 </div>
 
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">
-                    IP Address
-                  </label>
+                  <label class="block text-sm font-medium text-gray-700 mb-1"> IP Address </label>
                   <input
                     v-model="deviceForm.ip_address"
                     type="text"
@@ -120,18 +104,8 @@
                 </div>
 
                 <div class="flex justify-end space-x-2">
-                  <button
-                    type="button"
-                    @click="closeModal"
-                    class="btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    class="btn-primary"
-                    :disabled="saving"
-                  >
+                  <button type="button" @click="closeModal" class="btn-secondary">Cancel</button>
+                  <button type="submit" class="btn-primary" :disabled="saving">
                     {{ saving ? 'Saving...' : 'Save' }}
                   </button>
                 </div>
@@ -152,16 +126,8 @@
               </div>
 
               <div class="flex justify-end space-x-2 mt-4">
-                <button
-                  @click="closeModal"
-                  class="btn-secondary"
-                >
-                  Close
-                </button>
-                <button
-                  @click="editDevice(deviceStore.selectedDevice!)"
-                  class="btn-primary"
-                >
+                <button @click="closeModal" class="btn-secondary">Close</button>
+                <button @click="editDevice(deviceStore.selectedDevice!)" class="btn-primary">
                   Edit
                 </button>
               </div>
@@ -188,7 +154,7 @@ const saving = ref(false)
 
 const deviceForm = reactive({
   name: '',
-  ip_address: ''
+  ip_address: '',
 })
 
 const formatProperties = (properties: string | null) => {
@@ -221,7 +187,7 @@ const saveDevice = async () => {
   try {
     await deviceStore.updateDevice(deviceStore.selectedDevice.id, {
       name: deviceForm.name,
-      ip_address: deviceForm.ip_address || undefined
+      ip_address: deviceForm.ip_address || undefined,
     })
     closeModal()
   } catch (error) {
@@ -248,9 +214,10 @@ const closeModal = () => {
 }
 
 const refreshInventory = async () => {
-  await deviceStore.fetchDevices()
+  // Note: In this app, devices are managed locally on the canvas
+  // Refresh would reload from current canvas state
 }
 
-// Load initial data
-refreshInventory()
+// Load initial data - no need to fetch from backend
+// refreshInventory()
 </script>

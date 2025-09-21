@@ -44,7 +44,7 @@
             :disabled="loading"
             class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
           >
-            {{ loading ? 'Processing...' : (isLogin ? 'Sign in' : 'Sign up') }}
+            {{ loading ? 'Processing...' : isLogin ? 'Sign in' : 'Sign up' }}
           </button>
         </div>
 
@@ -54,7 +54,7 @@
             @click="toggleMode"
             class="text-primary-600 hover:text-primary-500 text-sm"
           >
-            {{ isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in" }}
+            {{ isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in' }}
           </button>
         </div>
       </form>
@@ -76,7 +76,7 @@ const error = ref('')
 
 const form = reactive({
   username: '',
-  password: ''
+  password: '',
 })
 
 const toggleMode = () => {

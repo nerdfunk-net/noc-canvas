@@ -1,6 +1,6 @@
 <template>
-  <div 
-    v-if="show" 
+  <div
+    v-if="show"
     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
     @click.self="cancel"
   >
@@ -16,7 +16,12 @@
           type="button"
         >
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
           </svg>
         </button>
       </div>
@@ -66,7 +71,7 @@ interface Emits {
 withDefaults(defineProps<Props>(), {
   title: 'Confirm Action',
   confirmText: 'Confirm',
-  cancelText: 'Cancel'
+  cancelText: 'Cancel',
 })
 
 const emit = defineEmits<Emits>()

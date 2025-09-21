@@ -4,13 +4,14 @@ Nautobot data models for API requests and responses.
 
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime
 
 
 # Request Models
 
+
 class DeviceFilter(BaseModel):
     """Device filtering options."""
+
     limit: Optional[int] = None
     offset: Optional[int] = None
     filter_type: Optional[str] = None  # 'name', 'location', 'prefix'
@@ -19,11 +20,13 @@ class DeviceFilter(BaseModel):
 
 class CheckIPRequest(BaseModel):
     """IP address availability check request."""
+
     ip_address: str = Field(..., description="IP address to check")
 
 
 class DeviceOnboardRequest(BaseModel):
     """Device onboarding request."""
+
     location_id: str = Field(..., description="Nautobot location ID")
     ip_address: str = Field(..., description="Device IP address")
     secret_groups_id: Optional[str] = Field(None, description="Secret groups ID")
@@ -39,38 +42,46 @@ class DeviceOnboardRequest(BaseModel):
 
 class SyncNetworkDataRequest(BaseModel):
     """Network data synchronization request."""
+
     data: Dict[str, Any] = Field(..., description="Sync configuration data")
 
 
 # Response Models
 
+
 class DeviceRole(BaseModel):
     """Device role information."""
+
     name: str
 
 
 class DeviceLocation(BaseModel):
     """Device location information."""
+
     name: str
 
 
 class DeviceIP(BaseModel):
     """Device IP address information."""
+
     address: str
 
 
 class DeviceStatus(BaseModel):
     """Device status information."""
+
     name: str
 
 
 class DeviceType(BaseModel):
     """Device type information."""
+
     model: str
 
 
 class Device(BaseModel):
     """Device information from Nautobot."""
+
     id: str
     name: str
     role: Optional[DeviceRole] = None
@@ -83,6 +94,7 @@ class Device(BaseModel):
 
 class DeviceListResponse(BaseModel):
     """Device list response with pagination."""
+
     devices: List[Device]
     count: int
     has_more: bool
@@ -95,6 +107,7 @@ class DeviceListResponse(BaseModel):
 
 class LocationParent(BaseModel):
     """Location parent information."""
+
     id: str
     name: str
     description: Optional[str] = None
@@ -102,6 +115,7 @@ class LocationParent(BaseModel):
 
 class LocationChild(BaseModel):
     """Location child information."""
+
     id: str
     name: str
     description: Optional[str] = None
@@ -109,6 +123,7 @@ class LocationChild(BaseModel):
 
 class Location(BaseModel):
     """Location information."""
+
     id: str
     name: str
     description: Optional[str] = None
@@ -118,6 +133,7 @@ class Location(BaseModel):
 
 class NautobotStats(BaseModel):
     """Nautobot statistics."""
+
     devices: int
     locations: int
     device_types: int
@@ -132,11 +148,13 @@ class NautobotStats(BaseModel):
 
 class IPAddressDevice(BaseModel):
     """Device information for IP address check."""
+
     name: str
 
 
 class IPAddressCheck(BaseModel):
     """IP address availability check result."""
+
     ip_address: str
     is_available: bool
     exists: bool
@@ -148,12 +166,14 @@ class IPAddressCheck(BaseModel):
 
 class OnboardingJob(BaseModel):
     """Device onboarding job result."""
+
     id: Optional[str] = None
     status: str = "pending"
 
 
 class OnboardingResponse(BaseModel):
     """Device onboarding response."""
+
     success: bool
     message: str
     job_id: Optional[str] = None
@@ -166,12 +186,14 @@ class OnboardingResponse(BaseModel):
 
 class SyncJob(BaseModel):
     """Network data sync job result."""
+
     id: Optional[str] = None
     status: str = "pending"
 
 
 class SyncResponse(BaseModel):
     """Network data sync response."""
+
     success: bool
     message: str
     job_id: Optional[str] = None
@@ -182,6 +204,7 @@ class SyncResponse(BaseModel):
 
 class NautobotResource(BaseModel):
     """Generic Nautobot resource."""
+
     id: str
     name: str
     description: Optional[str] = None
@@ -189,53 +212,63 @@ class NautobotResource(BaseModel):
 
 class NautobotRole(NautobotResource):
     """Nautobot role."""
+
     pass
 
 
 class NautobotPlatform(NautobotResource):
     """Nautobot platform."""
+
     pass
 
 
 class NautobotStatus(NautobotResource):
     """Nautobot status."""
+
     pass
 
 
 class NautobotManufacturer(NautobotResource):
     """Nautobot manufacturer."""
+
     pass
 
 
 class NautobotDeviceType(NautobotResource):
     """Nautobot device type."""
+
     model: str
 
 
 class NautobotTag(NautobotResource):
     """Nautobot tag."""
+
     pass
 
 
 class NautobotCustomField(NautobotResource):
     """Nautobot custom field."""
+
     type: str
     required: bool
 
 
 class NautobotNamespace(NautobotResource):
     """Nautobot namespace."""
+
     pass
 
 
 class NautobotSecretGroup(BaseModel):
     """Nautobot secret group."""
+
     id: str
     name: str
 
 
 class HealthCheckResponse(BaseModel):
     """Nautobot health check response."""
+
     status: str
     message: str
     devices_count: Optional[int] = None
@@ -243,6 +276,7 @@ class HealthCheckResponse(BaseModel):
 
 class ConnectionTestResponse(BaseModel):
     """Nautobot connection test response."""
+
     success: bool
     message: str
     nautobot_url: str

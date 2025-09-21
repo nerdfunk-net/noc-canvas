@@ -42,9 +42,24 @@
     <!-- Loading State -->
     <div v-if="loading && devices.length === 0" class="flex-1 flex items-center justify-center">
       <div class="text-center">
-        <svg class="w-6 h-6 text-blue-500 animate-spin mx-auto mb-2" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        <svg
+          class="w-6 h-6 text-blue-500 animate-spin mx-auto mb-2"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          ></circle>
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
         </svg>
         <p class="text-xs text-gray-500">Loading...</p>
       </div>
@@ -53,8 +68,18 @@
     <!-- Error State -->
     <div v-else-if="error" class="flex-1 flex items-center justify-center">
       <div class="text-center px-2">
-        <svg class="w-6 h-6 text-red-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <svg
+          class="w-6 h-6 text-red-500 mx-auto mb-2"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
         </svg>
         <p class="text-xs font-medium text-red-600">Error</p>
         <p class="text-xs text-red-500 mt-1">{{ error }}</p>
@@ -64,9 +89,24 @@
     <!-- Not Configured State -->
     <div v-else-if="!isNautobotConfigured" class="flex-1 flex items-center justify-center">
       <div class="text-center px-2">
-        <svg class="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <svg
+          class="w-8 h-8 text-gray-400 mx-auto mb-2"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+          />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+          />
         </svg>
         <p class="text-xs font-medium text-gray-600 mb-2">Not Configured</p>
         <router-link
@@ -79,10 +119,23 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="filteredDevices.length === 0 && !loading" class="flex-1 flex items-center justify-center">
+    <div
+      v-else-if="filteredDevices.length === 0 && !loading"
+      class="flex-1 flex items-center justify-center"
+    >
       <div class="text-center px-2">
-        <svg class="w-6 h-6 text-gray-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        <svg
+          class="w-6 h-6 text-gray-400 mx-auto mb-2"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
         </svg>
         <p class="text-xs font-medium text-gray-600">
           {{ devices.length === 0 ? 'No devices' : 'No matches' }}
@@ -91,12 +144,11 @@
     </div>
 
     <!-- Device Tree -->
-    <div v-if="filteredDevices.length > 0 && !loading" class="flex-1 min-h-0 overflow-auto custom-scrollbar">
-      <div
-        v-for="(group, groupName) in groupedDevices"
-        :key="groupName"
-        class="mb-1"
-      >
+    <div
+      v-if="filteredDevices.length > 0 && !loading"
+      class="flex-1 min-h-0 overflow-x-hidden overflow-y-auto custom-scrollbar"
+    >
+      <div v-for="(group, groupName) in groupedDevices" :key="groupName" class="mb-1">
         <!-- Group Header -->
         <div
           @click="toggleGroup(groupName)"
@@ -110,19 +162,24 @@
               viewBox="0 0 24 24"
               stroke="currentColor"
             >
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5l7 7-7 7"
+              />
             </svg>
             <span class="text-xs">{{ getGroupEmoji() }}</span>
             <span class="truncate">{{ groupName || 'Unknown' }}</span>
-            <span class="px-1.5 py-0.5 text-xs bg-gray-200 text-gray-600 rounded-full flex-shrink-0">{{ group.length }}</span>
+            <span
+              class="px-1.5 py-0.5 text-xs bg-gray-200 text-gray-600 rounded-full flex-shrink-0"
+              >{{ group.length }}</span
+            >
           </div>
         </div>
 
         <!-- Group Content -->
-        <div
-          v-if="expandedGroups.has(groupName)"
-          class="group-content bg-white"
-        >
+        <div v-if="expandedGroups.has(groupName)" class="group-content bg-white">
           <div
             v-for="device in group"
             :key="device.id"
@@ -140,8 +197,8 @@
                   :class="getStatusColor(device.status?.name)"
                   :title="device.status?.name || 'Unknown'"
                 ></div>
-                <img 
-                  :src="getDeviceIconUrl(mapNautobotDeviceType(device))" 
+                <img
+                  :src="getDeviceIconUrl(mapNautobotDeviceType(device))"
                   :alt="`${mapNautobotDeviceType(device)} icon`"
                   class="w-4 h-4 object-contain"
                 />
@@ -158,15 +215,27 @@
               </div>
 
               <!-- Device Actions -->
-              <div class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+              <div
+                class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+              >
                 <button
                   @click.stop="viewDevice(device)"
                   class="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-blue-600 transition-colors rounded"
                   title="View"
                 >
                   <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
                   </svg>
                 </button>
                 <button
@@ -175,7 +244,12 @@
                   title="Add"
                 >
                   <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                    />
                   </svg>
                 </button>
               </div>
@@ -191,7 +265,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { nautobotApi, type NautobotDevice } from '@/services/api'
 import { useSettingsStore } from '@/stores/settings'
-import { useDevicesStore, type Device } from '@/stores/devices'
+import { useDevicesStore } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
 import { useDeviceIcons } from '@/composables/useDeviceIcons'
 
@@ -218,7 +292,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  groupByProp: 'location'
+  groupByProp: 'location',
 })
 
 // Emits
@@ -254,14 +328,16 @@ debouncedFilterValue.value = filterValue.value
 
 // Computed property to check if Nautobot is properly configured
 const isNautobotConfigured = computed(() => {
-  const isConfigured = !!(settingsStore.settings.nautobot.enabled &&
-                          settingsStore.settings.nautobot.url &&
-                          settingsStore.settings.nautobot.token)
+  const isConfigured = !!(
+    settingsStore.settings.nautobot.enabled &&
+    settingsStore.settings.nautobot.url &&
+    settingsStore.settings.nautobot.token
+  )
   console.log('🔧 isNautobotConfigured check:', {
     enabled: settingsStore.settings.nautobot.enabled,
     hasUrl: !!settingsStore.settings.nautobot.url,
     hasToken: !!settingsStore.settings.nautobot.token,
-    result: isConfigured
+    result: isConfigured,
   })
   return isConfigured
 })
@@ -279,7 +355,7 @@ const filteredDevices = computed(() => {
   }
 
   const searchTerm = debouncedFilterValue.value.toLowerCase()
-  const filtered = devices.value.filter(device => {
+  const filtered = devices.value.filter((device) => {
     switch (filterType.value) {
       case 'name':
         return device.name.toLowerCase().includes(searchTerm)
@@ -307,7 +383,7 @@ const groupedDevices = computed(() => {
 
   const groups: Record<string, NautobotDevice[]> = {}
 
-  filteredDevices.value.forEach(device => {
+  filteredDevices.value.forEach((device) => {
     let groupValue: string
 
     switch (groupBy.value) {
@@ -337,7 +413,7 @@ const groupedDevices = computed(() => {
   const sortedGroups: Record<string, NautobotDevice[]> = {}
   Object.keys(groups)
     .sort()
-    .forEach(key => {
+    .forEach((key) => {
       sortedGroups[key] = groups[key].sort((a, b) => a.name.localeCompare(b.name))
     })
 
@@ -348,7 +424,9 @@ const groupedDevices = computed(() => {
 })
 
 // Methods
-const mapNautobotDeviceType = (nautobotDevice: NautobotDevice): 'router' | 'switch' | 'firewall' | 'vpn_gateway' => {
+const mapNautobotDeviceType = (
+  nautobotDevice: NautobotDevice
+): 'router' | 'switch' | 'firewall' | 'vpn_gateway' => {
   const role = nautobotDevice.role?.name?.toLowerCase() || ''
   const deviceType = nautobotDevice.device_type?.model?.toLowerCase() || ''
 
@@ -398,10 +476,10 @@ const loadDevices = async () => {
 
       if (devices.value.length < 50) {
         // Small dataset: expand first 3 groups
-        groupNames.slice(0, 3).forEach(name => expandedGroups.value.add(name))
+        groupNames.slice(0, 3).forEach((name) => expandedGroups.value.add(name))
       } else if (devices.value.length < 200) {
         // Medium dataset: expand first 2 groups
-        groupNames.slice(0, 2).forEach(name => expandedGroups.value.add(name))
+        groupNames.slice(0, 2).forEach((name) => expandedGroups.value.add(name))
       } else {
         // Large dataset: expand only first group
         if (groupNames.length > 0) {
@@ -437,26 +515,26 @@ const selectDevice = (device: NautobotDevice) => {
 
 const viewDevice = (device: NautobotDevice) => {
   console.log('👁️ Eye icon clicked - viewing device:', device.name)
-  
+
   // Find the device on the canvas by Nautobot ID
   const canvasDevice = deviceStore.findDeviceByNautobotId(device.id)
-  
+
   if (canvasDevice) {
     console.log('✅ Device found on canvas:', canvasDevice.name)
-    
+
     // Use viewport dimensions to center the device
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
-    
+
     // Calculate center position for the device
     canvasStore.setPosition({
       x: viewportWidth / 2 - (canvasDevice.position_x + 40) * canvasStore.scale,
-      y: viewportHeight / 2 - (canvasDevice.position_y + 40) * canvasStore.scale
+      y: viewportHeight / 2 - (canvasDevice.position_y + 40) * canvasStore.scale,
     })
-    
+
     // Also select the device on canvas
     deviceStore.setSelectedDevice(canvasDevice)
-    
+
     console.log('✅ Device centered on canvas')
   } else {
     console.log('❌ Device not found on canvas:', device.name)
@@ -466,10 +544,10 @@ const viewDevice = (device: NautobotDevice) => {
 
 const addToCanvas = async (device: NautobotDevice) => {
   console.log('➕ Plus icon clicked - adding device to canvas:', device.name)
-  
+
   // Check for duplicate by name first (same logic as drag/drop)
   let existingDevice = deviceStore.findDeviceByName(device.name)
-  
+
   // If not found by name, check by nautobot_id
   if (!existingDevice) {
     existingDevice = deviceStore.findDeviceByNautobotId(device.id)
@@ -477,26 +555,28 @@ const addToCanvas = async (device: NautobotDevice) => {
 
   if (existingDevice) {
     console.log('⚠️ Device already exists on canvas:', device.name)
-    
+
     // Center on existing device instead (same as eye icon functionality)
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
 
     canvasStore.setPosition({
       x: viewportWidth / 2 - (existingDevice.position_x + 40) * canvasStore.scale,
-      y: viewportHeight / 2 - (existingDevice.position_y + 40) * canvasStore.scale
+      y: viewportHeight / 2 - (existingDevice.position_y + 40) * canvasStore.scale,
     })
-    
+
     // Select the existing device on canvas
     deviceStore.setSelectedDevice(existingDevice)
-    
+
     console.log('✅ Centered on existing device:', existingDevice.name)
     return
   }
 
   try {
     // Map Nautobot device type to canvas device type (same logic as drag/drop)
-    const mapNautobotDeviceType = (nautobotDevice: NautobotDevice): 'router' | 'switch' | 'firewall' | 'vpn_gateway' => {
+    const mapNautobotDeviceType = (
+      nautobotDevice: NautobotDevice
+    ): 'router' | 'switch' | 'firewall' | 'vpn_gateway' => {
       const role = nautobotDevice.role?.name?.toLowerCase() || ''
       const deviceType = nautobotDevice.device_type?.model?.toLowerCase() || ''
 
@@ -521,7 +601,7 @@ const addToCanvas = async (device: NautobotDevice) => {
     // Place the device in center of current view
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
-    
+
     // Calculate center position in canvas coordinates
     const centerX = (viewportWidth / 2 - canvasStore.position.x) / canvasStore.scale
     const centerY = (viewportHeight / 2 - canvasStore.position.y) / canvasStore.scale
@@ -539,15 +619,14 @@ const addToCanvas = async (device: NautobotDevice) => {
         role: device.role?.name,
         status: device.status?.name,
         device_model: device.device_type?.model,
-        last_backup: device.cf_last_backup
-      })
+        last_backup: device.cf_last_backup,
+      }),
     })
-    
+
     console.log('✅ Device added to canvas successfully:', newDevice.name)
-    
+
     // Also emit the event for backward compatibility
     emit('deviceAddedToCanvas', device)
-    
   } catch (error) {
     console.error('❌ Failed to add device to canvas:', error)
   }
@@ -557,13 +636,14 @@ const startDeviceDrag = (event: DragEvent, device: NautobotDevice) => {
   if (event.dataTransfer) {
     const dragData = {
       type: 'nautobot-device',
-      device
+      device,
     }
     event.dataTransfer.setData('application/json', JSON.stringify(dragData))
     event.dataTransfer.effectAllowed = 'copy'
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const getGroupIcon = (): string => {
   // Return icon based on current groupBy setting
   switch (groupBy.value) {
@@ -622,9 +702,9 @@ watch(groupBy, () => {
   setTimeout(() => {
     const groupNames = Object.keys(groupedDevices.value)
     if (devices.value.length < 50) {
-      groupNames.slice(0, 3).forEach(name => expandedGroups.value.add(name))
+      groupNames.slice(0, 3).forEach((name) => expandedGroups.value.add(name))
     } else if (devices.value.length < 200) {
-      groupNames.slice(0, 2).forEach(name => expandedGroups.value.add(name))
+      groupNames.slice(0, 2).forEach((name) => expandedGroups.value.add(name))
     } else {
       if (groupNames.length > 0) {
         expandedGroups.value.add(groupNames[0])
@@ -657,7 +737,7 @@ onMounted(async () => {
 // Expose methods to parent component
 defineExpose({
   refreshDevices,
-  selectedDevice
+  selectedDevice,
 })
 </script>
 
@@ -703,6 +783,11 @@ defineExpose({
 /* Hide scrollbar when not needed */
 .custom-scrollbar::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Ensure horizontal scrollbar never appears */
+.custom-scrollbar::-webkit-scrollbar:horizontal {
+  display: none;
 }
 
 /* Compact spacing */

@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from celery import Celery
+
     CELERY_AVAILABLE = True
 
     # Create Celery app
@@ -50,7 +51,9 @@ class BackgroundJobService:
     def submit_job(self, task_name: str, *args, **kwargs) -> str:
         """Submit a background job."""
         if not self.enabled:
-            raise Exception("Background job service is not available. Please install and configure Celery.")
+            raise Exception(
+                "Background job service is not available. Please install and configure Celery."
+            )
 
         try:
             task = self.celery.send_task(task_name, args=args, kwargs=kwargs)
@@ -181,7 +184,9 @@ if CELERY_AVAILABLE and celery_app:
 
             # Get hosts from CheckMK
             result = checkmk_service.get_all_hosts(
-                effective_attributes=filters.get("effective_attributes", False) if filters else False,
+                effective_attributes=filters.get("effective_attributes", False)
+                if filters
+                else False,
                 include_links=filters.get("include_links", False) if filters else False,
                 site=filters.get("site") if filters else None,
             )
@@ -253,7 +258,9 @@ if CELERY_AVAILABLE and celery_app:
             elif operation == "update":
                 result = checkmk_service.bulk_update_hosts(hosts_data)
             elif operation == "delete":
-                hostnames = [host.get("hostname") for host in hosts_data if host.get("hostname")]
+                hostnames = [
+                    host.get("hostname") for host in hosts_data if host.get("hostname")
+                ]
                 result = checkmk_service.bulk_delete_hosts(hostnames)
             else:
                 raise ValueError(f"Unsupported operation: {operation}")
@@ -302,7 +309,11 @@ if CELERY_AVAILABLE and celery_app:
             # Warm up Nautobot caches
             self.update_state(
                 state="PROGRESS",
-                meta={"current": 20, "total": 100, "status": "Warming up Nautobot caches"},
+                meta={
+                    "current": 20,
+                    "total": 100,
+                    "status": "Warming up Nautobot caches",
+                },
             )
 
             # Cache device stats
@@ -316,7 +327,11 @@ if CELERY_AVAILABLE and celery_app:
 
             self.update_state(
                 state="PROGRESS",
-                meta={"current": 60, "total": 100, "status": "Warming up CheckMK caches"},
+                meta={
+                    "current": 60,
+                    "total": 100,
+                    "status": "Warming up CheckMK caches",
+                },
             )
 
             # Warm up CheckMK caches
@@ -331,7 +346,14 @@ if CELERY_AVAILABLE and celery_app:
             return {
                 "status": "completed",
                 "message": "Cache warm-up completed successfully",
-                "caches_warmed": ["nautobot_stats", "nautobot_devices", "nautobot_locations", "checkmk_stats", "checkmk_hosts", "checkmk_folders"],
+                "caches_warmed": [
+                    "nautobot_stats",
+                    "nautobot_devices",
+                    "nautobot_locations",
+                    "checkmk_stats",
+                    "checkmk_hosts",
+                    "checkmk_folders",
+                ],
             }
 
         except Exception as e:

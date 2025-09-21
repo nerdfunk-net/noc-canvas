@@ -5,7 +5,7 @@
     :class="{
       'ring-4 ring-blue-400 ring-opacity-50': isDragOver,
       'cursor-grab': !mouseState.isDragging,
-      'cursor-grabbing': mouseState.isDragging && !selectionBox
+      'cursor-grabbing': mouseState.isDragging && !selectionBox,
     }"
     @drop="onDrop"
     @dragover.prevent="onDragOver"
@@ -15,14 +15,25 @@
     @mouseup="onCanvasMouseUp"
   >
     <!-- Loading state while canvas initializes -->
-    <div 
-      v-if="canvasSize.width === 0 || canvasSize.height === 0" 
+    <div
+      v-if="canvasSize.width === 0 || canvasSize.height === 0"
       class="absolute inset-0 flex items-center justify-center bg-gray-50"
     >
       <div class="text-gray-500">
         <svg class="animate-spin h-8 w-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          ></circle>
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
         </svg>
         <p class="text-sm">Initializing canvas...</p>
       </div>
@@ -38,7 +49,7 @@
         scaleX: scale,
         scaleY: scale,
         x: position.x,
-        y: position.y
+        y: position.y,
       }"
       @wheel="onWheel"
       @mousedown="onStageMouseDown"
@@ -55,7 +66,7 @@
               points: line,
               stroke: '#e5e7eb',
               strokeWidth: 1,
-              opacity: 0.5
+              opacity: 0.5,
             }"
           />
           <v-line
@@ -65,7 +76,7 @@
               points: line,
               stroke: '#e5e7eb',
               strokeWidth: 1,
-              opacity: 0.5
+              opacity: 0.5,
             }"
           />
         </v-group>
@@ -80,7 +91,7 @@
             points: connection.points,
             stroke: '#3b82f6',
             strokeWidth: 2,
-            opacity: 0.8
+            opacity: 0.8,
           }"
         />
       </v-layer>
@@ -93,7 +104,7 @@
           :config="{
             x: device.position_x,
             y: device.position_y,
-            draggable: true
+            draggable: true,
           }"
           @dragend="onDeviceDragEnd(device, $event)"
           @click="onDeviceClick(device, $event)"
@@ -108,13 +119,17 @@
               width: 60,
               height: 60,
               fill: getDeviceColor(device.device_type),
-              stroke: selectedDevice?.id === device.id || selectedDevices.has(device.id) ? '#1d4ed8' : '#6b7280',
-              strokeWidth: selectedDevice?.id === device.id || selectedDevices.has(device.id) ? 3 : 1,
+              stroke:
+                selectedDevice?.id === device.id || selectedDevices.has(device.id)
+                  ? '#1d4ed8'
+                  : '#6b7280',
+              strokeWidth:
+                selectedDevice?.id === device.id || selectedDevices.has(device.id) ? 3 : 1,
               cornerRadius: 8,
               shadowColor: 'black',
               shadowBlur: 4,
               shadowOpacity: 0.1,
-              shadowOffsetY: 2
+              shadowOffsetY: 2,
             }"
           />
 
@@ -126,7 +141,7 @@
               y: 16,
               width: 28,
               height: 28,
-              image: getDeviceIcon(device.device_type)
+              image: getDeviceIcon(device.device_type),
             }"
           />
 
@@ -143,7 +158,7 @@
               offsetX: device.name.length * 5.5,
               offsetY: 10,
               width: 60,
-              ellipsis: true
+              ellipsis: true,
             }"
           />
 
@@ -158,7 +173,7 @@
               fill: '#10b981',
               stroke: '#065f46',
               strokeWidth: 1,
-              opacity: connectionMode ? 1 : 0
+              opacity: connectionMode ? 1 : 0,
             }"
             @click="onConnectionPointClick(device, point, $event)"
           />
@@ -177,7 +192,7 @@
             fill: 'rgba(59, 130, 246, 0.1)',
             stroke: '#3b82f6',
             strokeWidth: 1,
-            dash: [5, 5]
+            dash: [5, 5],
           }"
         />
       </v-layer>
@@ -198,21 +213,17 @@
           position: 'absolute',
           left: contextMenu.x + 'px',
           top: contextMenu.y + 'px',
-          zIndex: 1000
+          zIndex: 1000,
         }"
         class="bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-44"
       >
-        <div
-          v-for="item in contextMenuItems"
-          :key="item.label"
-          class="relative context-menu-item"
-        >
+        <div v-for="item in contextMenuItems" :key="item.label" class="relative context-menu-item">
           <button
             @click="item.submenu ? null : item.action()"
             class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-blue-50/80 hover:text-blue-900 flex items-center justify-between transition-all duration-150 ease-out"
             :class="{
               'cursor-default': item.submenu,
-              'hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/80': !item.submenu
+              'hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/80': !item.submenu,
             }"
           >
             <div class="flex items-center space-x-2">
@@ -221,7 +232,12 @@
             </div>
             <span v-if="item.submenu" class="text-gray-400 transition-colors">
               <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5l7 7-7 7"
+                ></path>
               </svg>
             </span>
           </button>
@@ -246,10 +262,7 @@
     </Transition>
 
     <!-- Device Search Input -->
-    <div 
-      v-if="showDeviceSearch" 
-      class="absolute bottom-4 right-16 z-10"
-    >
+    <div v-if="showDeviceSearch" class="absolute bottom-4 right-16 z-10">
       <div class="relative">
         <input
           ref="deviceSearchInput"
@@ -266,7 +279,12 @@
           class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
           </svg>
         </button>
       </div>
@@ -326,11 +344,7 @@
     />
 
     <!-- Load Canvas Modal -->
-    <LoadCanvasModal
-      :show="showLoadModal"
-      @close="closeLoadModal"
-      @load="handleCanvasLoad"
-    />
+    <LoadCanvasModal :show="showLoadModal" @close="closeLoadModal" @load="handleCanvasLoad" />
 
     <!-- Load Canvas Confirmation Dialog -->
     <ConfirmDialog
@@ -395,7 +409,10 @@ const isDragOver = ref(false)
 
 // Canvas save state tracking
 const currentCanvasId = ref<number | null>(null)
-const lastSavedState = ref<{ devices: Device[], connections: any[] }>({ devices: [], connections: [] })
+const lastSavedState = ref<{ devices: Device[]; connections: any[] }>({
+  devices: [],
+  connections: [],
+})
 
 // Computed property to check if canvas has unsaved changes
 const hasUnsavedChanges = computed(() => {
@@ -403,8 +420,12 @@ const hasUnsavedChanges = computed(() => {
   const currentConnections = deviceStore.connections
 
   // If canvas is empty and was empty when last saved, no changes
-  if (currentDevices.length === 0 && currentConnections.length === 0 &&
-      lastSavedState.value.devices.length === 0 && lastSavedState.value.connections.length === 0) {
+  if (
+    currentDevices.length === 0 &&
+    currentConnections.length === 0 &&
+    lastSavedState.value.devices.length === 0 &&
+    lastSavedState.value.connections.length === 0
+  ) {
     return false
   }
 
@@ -421,13 +442,15 @@ const hasUnsavedChanges = computed(() => {
   // Deep comparison of devices (simplified - just check IDs, names, and positions)
   for (let i = 0; i < currentDevices.length; i++) {
     const current = currentDevices[i]
-    const saved = lastSavedState.value.devices.find(d => d.id === current.id)
-    if (!saved ||
-        saved.name !== current.name ||
-        saved.position_x !== current.position_x ||
-        saved.position_y !== current.position_y ||
-        saved.device_type !== current.device_type ||
-        saved.ip_address !== current.ip_address) {
+    const saved = lastSavedState.value.devices.find((d) => d.id === current.id)
+    if (
+      !saved ||
+      saved.name !== current.name ||
+      saved.position_x !== current.position_x ||
+      saved.position_y !== current.position_y ||
+      saved.device_type !== current.device_type ||
+      saved.ip_address !== current.ip_address
+    ) {
       return true
     }
   }
@@ -435,11 +458,13 @@ const hasUnsavedChanges = computed(() => {
   // Deep comparison of connections
   for (let i = 0; i < currentConnections.length; i++) {
     const current = currentConnections[i]
-    const saved = lastSavedState.value.connections.find(c => c.id === current.id)
-    if (!saved ||
-        saved.source_device_id !== current.source_device_id ||
-        saved.target_device_id !== current.target_device_id ||
-        saved.connection_type !== current.connection_type) {
+    const saved = lastSavedState.value.connections.find((c) => c.id === current.id)
+    if (
+      !saved ||
+      saved.source_device_id !== current.source_device_id ||
+      saved.target_device_id !== current.target_device_id ||
+      saved.connection_type !== current.connection_type
+    ) {
       return true
     }
   }
@@ -451,9 +476,15 @@ const hasUnsavedChanges = computed(() => {
 const updateSavedState = () => {
   lastSavedState.value = {
     devices: [...deviceStore.devices],
-    connections: [...deviceStore.connections]
+    connections: [...deviceStore.connections],
   }
-  console.log('💾 Saved state updated with', lastSavedState.value.devices.length, 'devices and', lastSavedState.value.connections.length, 'connections')
+  console.log(
+    '💾 Saved state updated with',
+    lastSavedState.value.devices.length,
+    'devices and',
+    lastSavedState.value.connections.length,
+    'connections'
+  )
 }
 
 // Show unsaved changes dialog
@@ -472,41 +503,46 @@ const selectionBox = ref<{
 const selectedDevices = ref<Set<number>>(new Set())
 
 // Function to select devices within a selection box
-const selectDevicesInBox = (box: { startX: number; startY: number; endX: number; endY: number }) => {
+const selectDevicesInBox = (box: {
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+}) => {
   const minX = Math.min(box.startX, box.endX)
   const maxX = Math.max(box.startX, box.endX)
   const minY = Math.min(box.startY, box.endY)
   const maxY = Math.max(box.startY, box.endY)
-  
+
   console.log('🔍 Selecting devices in box:', { minX, minY, maxX, maxY })
-  
+
   // Start with current selection (additive selection with Shift+drag)
   const newSelection = new Set(selectedDevices.value)
   const deviceSize = 80 // Device width/height
-  
-  deviceStore.devices.forEach(device => {
+
+  deviceStore.devices.forEach((device) => {
     // Check if device overlaps with selection box
     const deviceLeft = device.position_x
     const deviceRight = device.position_x + deviceSize
     const deviceTop = device.position_y
     const deviceBottom = device.position_y + deviceSize
-    
+
     // Check if device overlaps with selection box
     const overlapsX = deviceLeft < maxX && deviceRight > minX
     const overlapsY = deviceTop < maxY && deviceBottom > minY
-    
+
     if (overlapsX && overlapsY) {
       newSelection.add(device.id)
       console.log('✅ Selected device:', device.name, 'at', device.position_x, device.position_y)
     }
   })
-  
+
   selectedDevices.value = newSelection
-  
+
   // Update single selection based on multi-selection
   if (selectedDevices.value.size === 1) {
     const singleDeviceId = Array.from(selectedDevices.value)[0]
-    const device = deviceStore.devices.find(d => d.id === singleDeviceId)
+    const device = deviceStore.devices.find((d) => d.id === singleDeviceId)
     if (device) {
       selectedDevice.value = device
       deviceStore.setSelectedDevice(device)
@@ -515,7 +551,7 @@ const selectDevicesInBox = (box: { startX: number; startY: number; endX: number;
     selectedDevice.value = null
     deviceStore.setSelectedDevice(null)
   }
-  
+
   console.log(`🎯 Total devices selected: ${selectedDevices.value.size}`)
 }
 
@@ -525,7 +561,7 @@ const contextMenu = reactive({
   x: 0,
   y: 0,
   target: null as Device | null,
-  targetType: 'canvas' as 'canvas' | 'device'
+  targetType: 'canvas' as 'canvas' | 'device',
 })
 
 // Connection state
@@ -564,7 +600,7 @@ const mouseState = reactive({
   isDown: false,
   startX: 0,
   startY: 0,
-  isDragging: false
+  isDragging: false,
 })
 
 // Grid lines computation
@@ -587,22 +623,24 @@ const gridLines = computed(() => {
 
 // Render connections
 const renderConnections = computed(() => {
-  return deviceStore.connections.map(connection => {
-    const sourceDevice = deviceStore.devices.find(d => d.id === connection.source_device_id)
-    const targetDevice = deviceStore.devices.find(d => d.id === connection.target_device_id)
+  return deviceStore.connections
+    .map((connection) => {
+      const sourceDevice = deviceStore.devices.find((d) => d.id === connection.source_device_id)
+      const targetDevice = deviceStore.devices.find((d) => d.id === connection.target_device_id)
 
-    if (!sourceDevice || !targetDevice) return null
+      if (!sourceDevice || !targetDevice) return null
 
-    return {
-      id: connection.id,
-      points: [
-        sourceDevice.position_x + 30,
-        sourceDevice.position_y + 30,
-        targetDevice.position_x + 30,
-        targetDevice.position_y + 30
-      ]
-    }
-  }).filter(Boolean)
+      return {
+        id: connection.id,
+        points: [
+          sourceDevice.position_x + 30,
+          sourceDevice.position_y + 30,
+          targetDevice.position_x + 30,
+          targetDevice.position_y + 30,
+        ],
+      }
+    })
+    .filter((connection): connection is NonNullable<typeof connection> => connection !== null)
 })
 
 // Context menu items
@@ -619,12 +657,15 @@ const contextMenuItems = computed(() => {
             { icon: '📂', label: 'Load', action: loadCanvas },
             { icon: '💾', label: 'Save', action: saveCanvas },
             { icon: '📋', label: 'Save As', action: saveCanvasAs },
-            { icon: '🗑️', label: 'Clear', action: clearCanvas }
-          ]
-        }
+            { icon: '🗑️', label: 'Clear', action: clearCanvas },
+          ],
+        },
       ]
       console.log('🐛 Canvas context menu items:', items)
-      console.log('🐛 Canvas item with submenu:', items.find(item => item.submenu))
+      console.log(
+        '🐛 Canvas item with submenu:',
+        items.find((item) => item.submenu)
+      )
       return items
     }
     return []
@@ -638,16 +679,19 @@ const contextMenuItems = computed(() => {
       label: 'Config',
       submenu: [
         { icon: '👁️', label: 'Show', action: () => showDeviceConfig(contextMenu.target!) },
-        { icon: '📝', label: 'Show Changes', action: () => showDeviceChanges(contextMenu.target!) }
-      ]
+        { icon: '📝', label: 'Show Changes', action: () => showDeviceChanges(contextMenu.target!) },
+      ],
     },
     { icon: '💻', label: 'Commands', action: () => showDeviceCommands(contextMenu.target!) },
     { icon: '🔗', label: 'Neighbors', action: () => showDeviceNeighbors(contextMenu.target!) },
     { icon: '🔍', label: 'Analyze', action: () => analyzeDevice(contextMenu.target!) },
-    { icon: '🗑️', label: 'Remove', action: () => deleteDevice(contextMenu.target!) }
+    { icon: '🗑️', label: 'Remove', action: () => deleteDevice(contextMenu.target!) },
   ]
   console.log('🐛 Device context menu items:', items)
-  console.log('🐛 Device item with submenu:', items.find(item => item.submenu))
+  console.log(
+    '🐛 Device item with submenu:',
+    items.find((item) => item.submenu)
+  )
   return items
 })
 
@@ -658,7 +702,7 @@ const getDeviceColor = (type: string) => {
     router: '#dbeafe',
     switch: '#dcfce7',
     firewall: '#fef3c7',
-    vpn_gateway: '#e0e7ff'
+    vpn_gateway: '#e0e7ff',
   }
   return colors[type as keyof typeof colors] || '#f3f4f6'
 }
@@ -679,7 +723,7 @@ const closeLoadModal = () => {
 
 const handleCanvasLoad = (canvasId: number) => {
   console.log('🔄 Canvas load requested for ID:', canvasId)
-  
+
   // Check if current canvas has devices
   if (deviceStore.devices.length > 0) {
     // Show confirmation dialog
@@ -725,25 +769,27 @@ const loadCanvasById = async (canvasId: number) => {
 
     // Load devices and connections directly from canvas data (pure frontend)
     // Convert CanvasDeviceData to Device with proper types
-    const devicesWithCorrectTypes = canvas.canvas_data.devices.map(device => ({
+    const devicesWithCorrectTypes = canvas.canvas_data.devices.map((device) => ({
       ...device,
-      device_type: device.device_type as Device['device_type']
+      device_type: device.device_type as Device['device_type'],
     }))
 
-    deviceStore.loadDevicesFromCanvasData(
-      devicesWithCorrectTypes,
-      canvas.canvas_data.connections
-    )
+    deviceStore.loadDevicesFromCanvasData(devicesWithCorrectTypes, canvas.canvas_data.connections)
 
     // Update tracking state
     currentCanvasId.value = canvasId
     updateSavedState()
 
-    console.log('✅ Canvas loaded successfully with', canvas.canvas_data.devices.length, 'devices and', canvas.canvas_data.connections.length, 'connections')
+    console.log(
+      '✅ Canvas loaded successfully with',
+      canvas.canvas_data.devices.length,
+      'devices and',
+      canvas.canvas_data.connections.length,
+      'connections'
+    )
 
     // Close the load modal after successful loading
     showLoadModal.value = false
-
   } catch (error) {
     console.error('❌ Failed to load canvas:', error)
     // notificationStore.showError('Failed to load canvas')
@@ -763,22 +809,22 @@ const saveCanvas = async () => {
   try {
     // Use the existing handleCanvasSave logic but with current canvas info
     const canvasData = {
-      devices: deviceStore.devices.map(device => ({
+      devices: deviceStore.devices.map((device) => ({
         id: device.id,
         name: device.name,
         device_type: device.device_type,
         ip_address: device.ip_address,
         position_x: device.position_x,
         position_y: device.position_y,
-        properties: device.properties
+        properties: device.properties,
       })),
-      connections: deviceStore.connections.map(connection => ({
+      connections: deviceStore.connections.map((connection) => ({
         id: connection.id,
         source_device_id: connection.source_device_id,
         target_device_id: connection.target_device_id,
         connection_type: connection.connection_type,
-        properties: connection.properties
-      }))
+        properties: connection.properties,
+      })),
     }
 
     // Import the canvas API
@@ -791,7 +837,7 @@ const saveCanvas = async () => {
     const response = await canvasApi.updateCanvas(currentCanvasId.value, {
       name: currentCanvas.name,
       sharable: currentCanvas.sharable,
-      canvas_data: canvasData
+      canvas_data: canvasData,
     })
 
     console.log('✅ Canvas quick saved successfully:', response)
@@ -807,7 +853,6 @@ const saveCanvas = async () => {
 
     // TODO: Show success notification
     // notificationStore.showSuccess(`Canvas quick saved successfully`)
-
   } catch (error) {
     console.error('❌ Failed to quick save canvas:', error)
     // Fall back to Save As dialog on error
@@ -861,25 +906,25 @@ const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasI
   try {
     // Import the canvas API
     const { canvasApi } = await import('@/services/api')
-    
+
     // Collect current canvas state
     const canvasData = {
-      devices: deviceStore.devices.map(device => ({
+      devices: deviceStore.devices.map((device) => ({
         id: device.id,
         name: device.name,
         device_type: device.device_type,
         ip_address: device.ip_address,
         position_x: device.position_x,
         position_y: device.position_y,
-        properties: device.properties
+        properties: device.properties,
       })),
-      connections: deviceStore.connections.map(connection => ({
+      connections: deviceStore.connections.map((connection) => ({
         id: connection.id,
         source_device_id: connection.source_device_id,
         target_device_id: connection.target_device_id,
         connection_type: connection.connection_type,
-        properties: connection.properties
-      }))
+        properties: connection.properties,
+      })),
     }
 
     let response
@@ -888,7 +933,7 @@ const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasI
       response = await canvasApi.updateCanvas(data.canvasId, {
         name: data.name,
         sharable: data.sharable,
-        canvas_data: canvasData
+        canvas_data: canvasData,
       })
       console.log('✅ Canvas updated successfully:', response)
       currentCanvasId.value = data.canvasId
@@ -897,7 +942,7 @@ const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasI
       response = await canvasApi.saveCanvas({
         name: data.name,
         sharable: data.sharable,
-        canvas_data: canvasData
+        canvas_data: canvasData,
       })
       console.log('✅ Canvas saved successfully:', response)
       currentCanvasId.value = response.id
@@ -916,10 +961,9 @@ const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasI
 
     // TODO: Show success notification
     // notificationStore.showSuccess(`Canvas "${data.name}" ${data.canvasId ? 'updated' : 'saved'} successfully`)
-    
   } catch (error) {
     console.error('❌ Failed to save canvas:', error)
-    
+
     // Show error to user via modal
     if (saveModalRef.value) {
       saveModalRef.value.setError(error instanceof Error ? error.message : 'Failed to save canvas')
@@ -983,12 +1027,13 @@ const analyzeDevice = (device: Device) => {
   console.log('Analyze Device:', device.name)
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const getConnectionPoints = (device: Device) => {
   return [
-    { x: 0, y: 30 },    // Left (middle of 60px height)
-    { x: 60, y: 30 },   // Right (middle of 60px height)
-    { x: 30, y: 0 },    // Top (middle of 60px width)
-    { x: 30, y: 60 }    // Bottom (middle of 60px width)
+    { x: 0, y: 30 }, // Left (middle of 60px height)
+    { x: 60, y: 30 }, // Right (middle of 60px height)
+    { x: 30, y: 0 }, // Top (middle of 60px width)
+    { x: 30, y: 60 }, // Bottom (middle of 60px width)
   ]
 }
 
@@ -1016,6 +1061,7 @@ const mapNautobotDeviceType = (nautobotDevice: NautobotDevice): Device['device_t
 }
 
 // Event handlers
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const onDragEnter = (event: DragEvent) => {
   console.log('🎯 Drag enter canvas')
   isDragOver.value = true
@@ -1026,6 +1072,7 @@ const onDragOver = (event: DragEvent) => {
   event.preventDefault()
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const onDragLeave = (event: DragEvent) => {
   console.log('🏃 Drag leave canvas')
   isDragOver.value = false
@@ -1065,7 +1112,7 @@ const onDrop = async (event: DragEvent) => {
 
       // Check for duplicate by name first
       let existingDevice = deviceStore.findDeviceByName(device.name)
-      
+
       // If not found by name, check by nautobot_id
       if (!existingDevice) {
         existingDevice = deviceStore.findDeviceByNautobotId(device.id)
@@ -1087,13 +1134,13 @@ const onDrop = async (event: DragEvent) => {
             role: device.role?.name,
             status: device.status?.name,
             device_model: device.device_type?.model,
-            last_backup: device.cf_last_backup
-          })
+            last_backup: device.cf_last_backup,
+          }),
         }
         showDuplicateDialog.value = true
         return
       }
-      
+
       deviceStore.createDevice({
         name: device.name,
         device_type: mapNautobotDeviceType(device),
@@ -1106,8 +1153,8 @@ const onDrop = async (event: DragEvent) => {
           role: device.role?.name,
           status: device.status?.name,
           device_model: device.device_type?.model,
-          last_backup: device.cf_last_backup
-        })
+          last_backup: device.cf_last_backup,
+        }),
       })
       console.log('✅ Device from Nautobot created successfully')
     } else {
@@ -1126,7 +1173,7 @@ const onWheel = (event: any) => {
   const pointer = stage.getPointerPosition()
   const mousePointTo = {
     x: (pointer.x - stage.x()) / stage.scaleX(),
-    y: (pointer.y - stage.y()) / stage.scaleY()
+    y: (pointer.y - stage.y()) / stage.scaleY(),
   }
 
   const newScale = event.evt.deltaY > 0 ? scale.value / scaleBy : scale.value * scaleBy
@@ -1138,7 +1185,7 @@ const onWheel = (event: any) => {
 
   canvasStore.setPosition({
     x: pointer.x - mousePointTo.x * newScale,
-    y: pointer.y - mousePointTo.y * newScale
+    y: pointer.y - mousePointTo.y * newScale,
   })
 }
 
@@ -1146,7 +1193,7 @@ const onStageMouseDown = (event: any) => {
   console.log('🎭 Stage mouse down:', {
     button: event.evt.button,
     target: event.target?.constructor?.name,
-    isStage: event.target === event.target.getStage()
+    isStage: event.target === event.target.getStage(),
   })
 
   // Don't handle right-clicks here - they are handled by onRightClick and onDeviceMouseDown
@@ -1179,7 +1226,7 @@ const onStageMouseDown = (event: any) => {
         startX: (pos.x - position.value.x) / scale.value,
         startY: (pos.y - position.value.y) / scale.value,
         endX: (pos.x - position.value.x) / scale.value,
-        endY: (pos.y - position.value.y) / scale.value
+        endY: (pos.y - position.value.y) / scale.value,
       }
     } else {
       selectionBox.value = null
@@ -1217,7 +1264,7 @@ const onStageMouseMove = (event: any) => {
 
       canvasStore.setPosition({
         x: position.value.x + deltaX,
-        y: position.value.y + deltaY
+        y: position.value.y + deltaY,
       })
 
       mouseState.startX = pos.x
@@ -1234,7 +1281,7 @@ const onStageMouseUp = () => {
   if (selectionBox.value) {
     selectDevicesInBox(selectionBox.value)
   }
-  
+
   mouseState.isDown = false
   mouseState.isDragging = false
   selectionBox.value = null
@@ -1257,7 +1304,7 @@ const onRightClick = (event: MouseEvent) => {
     target: (event.target as Element)?.tagName,
     currentTarget: (event.currentTarget as Element)?.tagName,
     contextMenuAlreadyShowing: contextMenu.show,
-    contextMenuTargetType: contextMenu.targetType
+    contextMenuTargetType: contextMenu.targetType,
   })
 
   event.preventDefault()
@@ -1302,7 +1349,16 @@ const onRightClick = (event: MouseEvent) => {
 }
 
 const onDeviceClick = (device: Device, event: any) => {
-  console.log('🖱️ Device click detected for:', device.name, 'shift key:', event.evt?.shiftKey, 'context menu showing:', contextMenu.show, 'target type:', contextMenu.targetType)
+  console.log(
+    '🖱️ Device click detected for:',
+    device.name,
+    'shift key:',
+    event.evt?.shiftKey,
+    'context menu showing:',
+    contextMenu.show,
+    'target type:',
+    contextMenu.targetType
+  )
 
   // Handle Shift+Click for multi-selection
   if (event.evt?.shiftKey) {
@@ -1315,7 +1371,7 @@ const onDeviceClick = (device: Device, event: any) => {
       console.log('➕ Added device to selection:', device.name)
     }
     console.log(`🎯 Total devices in multi-selection: ${selectedDevices.value.size}`)
-    
+
     // Also add to single selection if it's the only one, otherwise clear it
     if (selectedDevices.value.size === 1 && selectedDevices.value.has(device.id)) {
       selectedDevice.value = device
@@ -1328,7 +1384,7 @@ const onDeviceClick = (device: Device, event: any) => {
     // Normal click - replace selection
     selectedDevice.value = device
     deviceStore.setSelectedDevice(device)
-    
+
     // Clear multi-selection and set only this device
     selectedDevices.value.clear()
     selectedDevices.value.add(device.id)
@@ -1336,7 +1392,11 @@ const onDeviceClick = (device: Device, event: any) => {
   }
 
   // Don't hide context menu if it's showing a device context menu for this device
-  if (contextMenu.show && contextMenu.targetType === 'device' && contextMenu.target?.id === device.id) {
+  if (
+    contextMenu.show &&
+    contextMenu.targetType === 'device' &&
+    contextMenu.target?.id === device.id
+  ) {
     console.log('🔒 Keeping device context menu visible for:', device.name)
     return
   }
@@ -1354,7 +1414,7 @@ const onDeviceMouseDown = (device: Device, event: any) => {
     deviceName: device.name,
     button: event.evt.button,
     eventType: event.type,
-    target: event.target?.constructor?.name
+    target: event.target?.constructor?.name,
   })
 
   // Check if it's a right-click (button 2)
@@ -1407,7 +1467,7 @@ const onDeviceMouseDown = (device: Device, event: any) => {
     console.log('✅ Device context menu shown for:', device.name, {
       x: menuX,
       y: menuY,
-      contextMenuState: contextMenu
+      contextMenuState: contextMenu,
     })
   } else {
     console.log('🔘 Non-right-click on device:', device.name, 'button:', event.evt.button)
@@ -1421,7 +1481,7 @@ const onDeviceDragEnd = (device: Device, event: any) => {
   try {
     deviceStore.updateDevice(device.id, {
       position_x: newX,
-      position_y: newY
+      position_y: newY,
     })
   } catch (error) {
     console.error('Failed to update device position:', error)
@@ -1455,7 +1515,7 @@ const onConnectionPointClick = (device: Device, point: { x: number; y: number },
         deviceStore.createConnection({
           source_device_id: connectionStart.value.device.id,
           target_device_id: device.id,
-          connection_type: 'ethernet'
+          connection_type: 'ethernet',
         })
       } catch (error) {
         console.error('Failed to create connection:', error)
@@ -1480,9 +1540,12 @@ const fitToScreen = () => {
   if (deviceStore.devices.length === 0) return
 
   const padding = 100
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity
 
-  deviceStore.devices.forEach(device => {
+  deviceStore.devices.forEach((device) => {
     minX = Math.min(minX, device.position_x)
     minY = Math.min(minY, device.position_y)
     maxX = Math.max(maxX, device.position_x + 80)
@@ -1502,7 +1565,7 @@ const fitToScreen = () => {
   canvasStore.setZoom(newScale)
   canvasStore.setPosition({
     x: (containerRect.width - width * newScale) / 2 - (minX - padding) * newScale,
-    y: (containerRect.height - height * newScale) / 2 - (minY - padding) * newScale
+    y: (containerRect.height - height * newScale) / 2 - (minY - padding) * newScale,
   })
 }
 
@@ -1532,7 +1595,7 @@ const searchAndCenterDevice = () => {
   if (!query) return
 
   // Find device by name (case-insensitive)
-  const foundDevice = deviceStore.devices.find(device => 
+  const foundDevice = deviceStore.devices.find((device) =>
     device.name.toLowerCase().includes(query)
   )
 
@@ -1542,15 +1605,15 @@ const searchAndCenterDevice = () => {
     if (containerRect) {
       canvasStore.setPosition({
         x: containerRect.width / 2 - (foundDevice.position_x + 30) * scale.value,
-        y: containerRect.height / 2 - (foundDevice.position_y + 30) * scale.value
+        y: containerRect.height / 2 - (foundDevice.position_y + 30) * scale.value,
       })
-      
+
       // Select the device
       deviceStore.setSelectedDevice(foundDevice)
-      
+
       // Close search
       closeDeviceSearch()
-      
+
       console.log(`✅ Found and centered device: ${foundDevice.name}`)
     }
   } else {
@@ -1571,11 +1634,13 @@ const editDevice = (device: Device) => {
   hideContextMenu()
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const showProperties = (device: Device) => {
   console.log('Show properties:', device)
   hideContextMenu()
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const startConnection = (device: Device) => {
   connectionMode.value = true
   connectionStart.value = { device, point: { x: 30, y: 30 } }
@@ -1588,7 +1653,7 @@ const centerOnDevice = (device: Device) => {
 
   canvasStore.setPosition({
     x: containerRect.width / 2 - (device.position_x + 30) * scale.value,
-    y: containerRect.height / 2 - (device.position_y + 30) * scale.value
+    y: containerRect.height / 2 - (device.position_y + 30) * scale.value,
   })
   hideContextMenu()
 }
@@ -1626,7 +1691,7 @@ const handleResize = () => {
     const newWidth = canvasContainer.value.clientWidth
     const newHeight = canvasContainer.value.clientHeight
     console.log('🔄 Resizing canvas to:', { newWidth, newHeight })
-    
+
     // Only update if dimensions are valid, with minimum fallback
     if (newWidth > 0 && newHeight > 0) {
       canvasSize.width = newWidth
@@ -1655,12 +1720,14 @@ const handleGlobalClick = (event: MouseEvent) => {
   console.log('🖱️ Global click detected, context menu visible:', contextMenu.show)
   if (contextMenu.show) {
     // Find the context menu element
-    const contextMenuElement = document.querySelector('.bg-white.border.border-gray-200.rounded-lg.shadow-lg')
+    const contextMenuElement = document.querySelector(
+      '.bg-white.border.border-gray-200.rounded-lg.shadow-lg'
+    )
     const clickedInsideMenu = contextMenuElement?.contains(event.target as Node)
 
     console.log('📍 Click details:', {
       clickedInsideMenu,
-      targetElement: (event.target as Element)?.tagName
+      targetElement: (event.target as Element)?.tagName,
     })
 
     if (!clickedInsideMenu) {
@@ -1671,17 +1738,24 @@ const handleGlobalClick = (event: MouseEvent) => {
 
 // Global mouseup handler to hide context menu on left-click release only
 const handleGlobalMouseUp = (event: MouseEvent) => {
-  console.log('🖱️ Global mouseup detected, button:', event.button, 'context menu visible:', contextMenu.show)
+  console.log(
+    '🖱️ Global mouseup detected, button:',
+    event.button,
+    'context menu visible:',
+    contextMenu.show
+  )
 
   // Only hide context menu on left-click mouseup, never on right-click
   if (event.button === 0 && contextMenu.show) {
     // Find the context menu element
-    const contextMenuElement = document.querySelector('.bg-white.border.border-gray-200.rounded-lg.shadow-lg')
+    const contextMenuElement = document.querySelector(
+      '.bg-white.border.border-gray-200.rounded-lg.shadow-lg'
+    )
     const clickedInsideMenu = contextMenuElement?.contains(event.target as Node)
 
     console.log('📍 Left MouseUp details:', {
       clickedInsideMenu,
-      targetElement: (event.target as Element)?.tagName
+      targetElement: (event.target as Element)?.tagName,
     })
 
     if (!clickedInsideMenu) {
@@ -1801,7 +1875,10 @@ onUnmounted(() => {
   opacity: 0;
   visibility: hidden;
   transform: translateX(-10px);
-  transition: opacity 0.2s ease-out, visibility 0.2s ease-out, transform 0.2s ease-out;
+  transition:
+    opacity 0.2s ease-out,
+    visibility 0.2s ease-out,
+    transform 0.2s ease-out;
 }
 
 .context-menu-item:hover .submenu {

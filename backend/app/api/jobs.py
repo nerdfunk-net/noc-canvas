@@ -15,15 +15,20 @@ router = APIRouter()
 
 # Request/Response Models
 
+
 class JobSubmissionRequest(BaseModel):
     """Job submission request."""
+
     task_name: str = Field(..., description="Name of the task to execute")
     args: List[Any] = Field(default_factory=list, description="Positional arguments")
-    kwargs: Dict[str, Any] = Field(default_factory=dict, description="Keyword arguments")
+    kwargs: Dict[str, Any] = Field(
+        default_factory=dict, description="Keyword arguments"
+    )
 
 
 class JobStatusResponse(BaseModel):
     """Job status response."""
+
     id: str
     status: str
     result: Optional[Any] = None
@@ -33,6 +38,7 @@ class JobStatusResponse(BaseModel):
 
 class JobSubmissionResponse(BaseModel):
     """Job submission response."""
+
     job_id: str
     message: str
     status: str = "submitted"
@@ -40,6 +46,7 @@ class JobSubmissionResponse(BaseModel):
 
 class SyncDevicesRequest(BaseModel):
     """Sync devices job request."""
+
     limit: Optional[int] = None
     offset: Optional[int] = None
     filter_type: Optional[str] = None
@@ -48,6 +55,7 @@ class SyncDevicesRequest(BaseModel):
 
 class SyncHostsRequest(BaseModel):
     """Sync hosts job request."""
+
     effective_attributes: bool = False
     include_links: bool = False
     site: Optional[str] = None
@@ -55,11 +63,15 @@ class SyncHostsRequest(BaseModel):
 
 class BulkHostOperationRequest(BaseModel):
     """Bulk host operation request."""
+
     operation: str = Field(..., description="Operation type: create, update, delete")
-    hosts_data: List[Dict[str, Any]] = Field(..., description="Host data for the operation")
+    hosts_data: List[Dict[str, Any]] = Field(
+        ..., description="Host data for the operation"
+    )
 
 
 # Job Management Endpoints
+
 
 @router.post("/submit", response_model=JobSubmissionResponse)
 async def submit_job(
@@ -69,9 +81,7 @@ async def submit_job(
     """Submit a background job."""
     try:
         job_id = background_job_service.submit_job(
-            request.task_name,
-            *request.args,
-            **request.kwargs
+            request.task_name, *request.args, **request.kwargs
         )
 
         return JobSubmissionResponse(
@@ -130,6 +140,7 @@ async def cancel_job(
 
 # Predefined Job Types
 
+
 @router.post("/sync/nautobot-devices", response_model=JobSubmissionResponse)
 async def sync_nautobot_devices(
     request: SyncDevicesRequest = SyncDevicesRequest(),
@@ -148,7 +159,7 @@ async def sync_nautobot_devices(
 
         job_id = background_job_service.submit_job(
             "app.services.background_jobs.sync_nautobot_devices",
-            filters if filters else None
+            filters if filters else None,
         )
 
         return JobSubmissionResponse(
@@ -180,7 +191,7 @@ async def sync_checkmk_hosts(
 
         job_id = background_job_service.submit_job(
             "app.services.background_jobs.sync_checkmk_hosts",
-            filters if filters else None
+            filters if filters else None,
         )
 
         return JobSubmissionResponse(
@@ -211,7 +222,7 @@ async def bulk_host_operations(
         job_id = background_job_service.submit_job(
             "app.services.background_jobs.bulk_host_operations",
             request.operation,
-            request.hosts_data
+            request.hosts_data,
         )
 
         return JobSubmissionResponse(
@@ -252,6 +263,7 @@ async def warm_up_cache(
 
 # Job Health and Monitoring
 
+
 @router.get("/health")
 async def get_job_system_health(
     current_user: dict = Depends(get_current_user),
@@ -269,7 +281,9 @@ async def get_job_system_health(
             "status": "healthy" if stats else "no_workers",
             "message": "Job system is operational" if stats else "No workers available",
             "workers": list(stats.keys()) if stats else [],
-            "active_tasks_count": sum(len(tasks) for tasks in active_tasks.values()) if active_tasks else 0,
+            "active_tasks_count": sum(len(tasks) for tasks in active_tasks.values())
+            if active_tasks
+            else 0,
         }
     except Exception as e:
         logger.error(f"Error checking job system health: {str(e)}")
@@ -301,8 +315,12 @@ async def get_worker_info(
                     "name": worker_name,
                     "status": "online",
                     "pool": worker_stats.get("pool", {}),
-                    "active_tasks": len(active_tasks.get(worker_name, [])) if active_tasks else 0,
-                    "reserved_tasks": len(reserved_tasks.get(worker_name, [])) if reserved_tasks else 0,
+                    "active_tasks": len(active_tasks.get(worker_name, []))
+                    if active_tasks
+                    else 0,
+                    "reserved_tasks": len(reserved_tasks.get(worker_name, []))
+                    if reserved_tasks
+                    else 0,
                     "processed_tasks": worker_stats.get("total", {}),
                 }
                 workers_info.append(worker_info)

@@ -31,11 +31,11 @@ export const useDevicesStore = defineStore('devices', () => {
 
   const generateDeviceId = () => {
     // Use timestamp + counter to ensure uniqueness across sessions
-    return Date.now() * 1000 + (nextDeviceId++)
+    return Date.now() * 1000 + nextDeviceId++
   }
 
   const generateConnectionId = () => {
-    return Date.now() * 1000 + (nextConnectionId++)
+    return Date.now() * 1000 + nextConnectionId++
   }
 
   const loadDevicesFromCanvasData = (canvasDevices: Device[], canvasConnections: Connection[]) => {
@@ -47,11 +47,11 @@ export const useDevicesStore = defineStore('devices', () => {
 
       // Update ID counters to avoid conflicts
       if (devices.value.length > 0) {
-        const maxDeviceId = Math.max(...devices.value.map(d => d.id))
+        const maxDeviceId = Math.max(...devices.value.map((d) => d.id))
         nextDeviceId = Math.max(nextDeviceId, maxDeviceId + 1)
       }
       if (connections.value.length > 0) {
-        const maxConnectionId = Math.max(...connections.value.map(c => c.id))
+        const maxConnectionId = Math.max(...connections.value.map((c) => c.id))
         nextConnectionId = Math.max(nextConnectionId, maxConnectionId + 1)
       }
 
@@ -67,7 +67,7 @@ export const useDevicesStore = defineStore('devices', () => {
     try {
       const newDevice: Device = {
         id: generateDeviceId(),
-        ...deviceData
+        ...deviceData,
       }
       devices.value.push(newDevice)
       console.log('✅ Device created locally:', newDevice.name, 'ID:', newDevice.id)
@@ -80,7 +80,7 @@ export const useDevicesStore = defineStore('devices', () => {
 
   const updateDevice = (deviceId: number, updates: Partial<Device>): Device | null => {
     try {
-      const index = devices.value.findIndex(d => d.id === deviceId)
+      const index = devices.value.findIndex((d) => d.id === deviceId)
       if (index !== -1) {
         const updatedDevice = { ...devices.value[index], ...updates }
         devices.value[index] = updatedDevice
@@ -97,12 +97,12 @@ export const useDevicesStore = defineStore('devices', () => {
 
   const deleteDevice = (deviceId: number): boolean => {
     try {
-      const deviceToDelete = devices.value.find(d => d.id === deviceId)
+      const deviceToDelete = devices.value.find((d) => d.id === deviceId)
       if (deviceToDelete) {
-        devices.value = devices.value.filter(d => d.id !== deviceId)
+        devices.value = devices.value.filter((d) => d.id !== deviceId)
         // Also remove any connections involving this device
-        connections.value = connections.value.filter(c =>
-          c.source_device_id !== deviceId && c.target_device_id !== deviceId
+        connections.value = connections.value.filter(
+          (c) => c.source_device_id !== deviceId && c.target_device_id !== deviceId
         )
         console.log('✅ Device deleted locally:', deviceToDelete.name, 'ID:', deviceId)
         return true
@@ -116,19 +116,21 @@ export const useDevicesStore = defineStore('devices', () => {
   }
 
   const findDeviceByName = (name: string): Device | null => {
-    return devices.value.find(device => device.name === name) || null
+    return devices.value.find((device) => device.name === name) || null
   }
 
   const findDeviceByNautobotId = (nautobotId: string): Device | null => {
-    return devices.value.find(device => {
-      if (!device.properties) return false
-      try {
-        const props = JSON.parse(device.properties)
-        return props.nautobot_id === nautobotId
-      } catch {
-        return false
-      }
-    }) || null
+    return (
+      devices.value.find((device) => {
+        if (!device.properties) return false
+        try {
+          const props = JSON.parse(device.properties)
+          return props.nautobot_id === nautobotId
+        } catch {
+          return false
+        }
+      }) || null
+    )
   }
 
   const getConnectionsData = (): Connection[] => {
@@ -139,7 +141,7 @@ export const useDevicesStore = defineStore('devices', () => {
     try {
       const newConnection: Connection = {
         id: generateConnectionId(),
-        ...connectionData
+        ...connectionData,
       }
       connections.value.push(newConnection)
       console.log('✅ Connection created locally:', newConnection.id)
@@ -181,6 +183,6 @@ export const useDevicesStore = defineStore('devices', () => {
     getConnectionsData,
     createConnection,
     setSelectedDevice,
-    clearDevices
+    clearDevices,
   }
 })

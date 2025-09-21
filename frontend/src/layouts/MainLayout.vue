@@ -17,10 +17,12 @@
         :class="{ 'bg-blue-200': isResizing }"
         @mousedown="startResize"
         title="Drag to resize panel"
-        style="right: -1px;"
+        style="right: -1px"
       >
         <!-- Visual indicator dots for the drag handle -->
-        <div class="flex flex-col space-y-1 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+        <div
+          class="flex flex-col space-y-1 opacity-60 group-hover:opacity-100 transition-opacity duration-200"
+        >
           <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
           <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
           <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
@@ -42,21 +44,33 @@
               <router-link
                 to="/dashboard"
                 class="px-3 py-2 rounded-md text-sm font-medium"
-                :class="$route.name === 'dashboard' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'"
+                :class="
+                  $route.name === 'dashboard'
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+                "
               >
                 Dashboard
               </router-link>
               <router-link
                 to="/inventory"
                 class="px-3 py-2 rounded-md text-sm font-medium"
-                :class="$route.name === 'inventory' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'"
+                :class="
+                  $route.name === 'inventory'
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+                "
               >
                 Inventory
               </router-link>
               <router-link
                 to="/settings"
                 class="px-3 py-2 rounded-md text-sm font-medium"
-                :class="$route.name === 'settings' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'"
+                :class="
+                  $route.name === 'settings'
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+                "
               >
                 Settings
               </router-link>
@@ -88,8 +102,18 @@
                   <option value="150">150%</option>
                 </select>
                 <div class="absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none">
-                  <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  <svg
+                    class="w-3 h-3 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19 9l-7 7-7-7"
+                    ></path>
                   </svg>
                 </div>
               </div>
@@ -120,12 +144,7 @@
             </div>
 
             <span class="text-sm text-gray-600">{{ authStore.user?.username }}</span>
-            <button
-              @click="logout"
-              class="btn-secondary text-sm"
-            >
-              Logout
-            </button>
+            <button @click="logout" class="btn-secondary text-sm">Logout</button>
           </div>
         </div>
       </nav>
@@ -232,7 +251,7 @@ const startResize = (event: MouseEvent) => {
   console.log('🔄 Starting panel resize', {
     startX: event.clientX,
     startWidth: inventoryPanelWidth.value,
-    isResizing: isResizing.value
+    isResizing: isResizing.value,
   })
 
   // Prevent text selection during resize
@@ -258,7 +277,7 @@ const handleResize = (event: MouseEvent) => {
     startX: resizeStartX.value,
     deltaX,
     newWidth,
-    constrainedWidth
+    constrainedWidth,
   })
 }
 

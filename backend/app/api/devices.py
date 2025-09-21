@@ -54,8 +54,7 @@ class ConnectionResponse(BaseModel):
 
 @router.get("/", response_model=List[DeviceResponse])
 async def get_devices(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     devices = db.query(Device).all()
     return devices
@@ -65,7 +64,7 @@ async def get_devices(
 async def create_device(
     device: DeviceCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     db_device = Device(**device.dict())
     db.add(db_device)
@@ -79,7 +78,7 @@ async def update_device(
     device_id: int,
     device_update: DeviceUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     device = db.query(Device).filter(Device.id == device_id).first()
     if not device:
@@ -97,7 +96,7 @@ async def update_device(
 async def delete_device(
     device_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     device = db.query(Device).filter(Device.id == device_id).first()
     if not device:
@@ -110,8 +109,7 @@ async def delete_device(
 
 @router.get("/connections", response_model=List[ConnectionResponse])
 async def get_connections(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     connections = db.query(Connection).all()
     return connections
@@ -121,7 +119,7 @@ async def get_connections(
 async def create_connection(
     connection: ConnectionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     db_connection = Connection(**connection.dict())
     db.add(db_connection)

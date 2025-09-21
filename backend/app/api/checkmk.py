@@ -3,7 +3,7 @@ CheckMK API router for host management and monitoring.
 """
 
 import logging
-from typing import Optional, List
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from ..core.security import get_current_user
 from ..models.checkmk import (
@@ -18,25 +18,10 @@ from ..models.checkmk import (
     CheckMKBulkHostDeleteRequest,
     CheckMKServiceQueryRequest,
     CheckMKServiceDiscoveryRequest,
-    CheckMKDiscoveryPhaseUpdateRequest,
-    CheckMKAcknowledgeHostRequest,
-    CheckMKAcknowledgeServiceRequest,
-    CheckMKDowntimeRequest,
-    CheckMKCommentRequest,
     CheckMKActivateChangesRequest,
-    CheckMKHostGroupCreateRequest,
-    CheckMKHostGroupUpdateRequest,
-    CheckMKHostGroupBulkUpdateRequest,
-    CheckMKHostGroupBulkDeleteRequest,
     CheckMKFolderCreateRequest,
-    CheckMKFolderUpdateRequest,
-    CheckMKFolderMoveRequest,
-    CheckMKFolderBulkUpdateRequest,
-    CheckMKHostTagGroupCreateRequest,
-    CheckMKHostTagGroupUpdateRequest,
     CheckMKHostListResponse,
     CheckMKFolderListResponse,
-    CheckMKHostTagGroupListResponse,
     CheckMKVersionResponse,
     CheckMKOperationResponse,
     CheckMKStats,
@@ -86,7 +71,11 @@ async def test_current_checkmk_connection(
     try:
         from ..core.config import settings
 
-        if not settings.checkmk_url or not settings.checkmk_site or not settings.checkmk_username:
+        if (
+            not settings.checkmk_url
+            or not settings.checkmk_site
+            or not settings.checkmk_username
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="CheckMK settings not configured. Please configure CheckMK settings first.",
@@ -151,6 +140,7 @@ async def get_version(current_user: dict = Depends(get_current_user)):
 
 
 # Host Management Endpoints
+
 
 @router.get("/hosts", response_model=CheckMKHostListResponse)
 async def get_all_hosts(
@@ -365,6 +355,7 @@ async def rename_host(
 
 # Bulk Host Operations
 
+
 @router.post("/hosts/bulk-create", response_model=CheckMKOperationResponse)
 async def bulk_create_hosts(
     request: CheckMKBulkHostCreateRequest,
@@ -452,6 +443,7 @@ async def bulk_delete_hosts(
 
 # Host Monitoring & Status Endpoints
 
+
 @router.get("/monitoring/hosts", response_model=CheckMKOperationResponse)
 async def get_all_monitored_hosts(
     request: CheckMKServiceQueryRequest = None,
@@ -462,7 +454,9 @@ async def get_all_monitored_hosts(
         columns = request.columns if request else None
         query = request.query if request else None
 
-        result = await checkmk_service.get_all_monitored_hosts(columns=columns, query=query)
+        result = await checkmk_service.get_all_monitored_hosts(
+            columns=columns, query=query
+        )
         return CheckMKOperationResponse(
             success=True, message="Retrieved monitored hosts successfully", data=result
         )
@@ -513,7 +507,9 @@ async def get_host_services(
         columns = request.columns if request else None
         query = request.query if request else None
 
-        result = await checkmk_service.get_host_services(hostname, columns=columns, query=query)
+        result = await checkmk_service.get_host_services(
+            hostname, columns=columns, query=query
+        )
         return CheckMKOperationResponse(
             success=True,
             message=f"Retrieved services for host {hostname} successfully",
@@ -530,6 +526,7 @@ async def get_host_services(
 
 
 # Service Discovery Endpoints
+
 
 @router.get("/hosts/{hostname}/discovery", response_model=CheckMKOperationResponse)
 async def get_service_discovery(
@@ -554,7 +551,9 @@ async def get_service_discovery(
         )
 
 
-@router.post("/hosts/{hostname}/discovery/start", response_model=CheckMKOperationResponse)
+@router.post(
+    "/hosts/{hostname}/discovery/start", response_model=CheckMKOperationResponse
+)
 async def start_service_discovery(
     hostname: str,
     request: CheckMKServiceDiscoveryRequest = CheckMKServiceDiscoveryRequest(),
@@ -579,6 +578,7 @@ async def start_service_discovery(
 
 
 # Configuration Management Endpoints
+
 
 @router.get("/changes/pending", response_model=CheckMKOperationResponse)
 async def get_pending_changes(
@@ -630,6 +630,7 @@ async def activate_changes(
 
 # Folder Management Endpoints
 
+
 @router.get("/folders", response_model=CheckMKFolderListResponse)
 async def get_all_folders(
     parent: Optional[str] = None,
@@ -659,7 +660,9 @@ async def get_all_folders(
 
         return CheckMKFolderListResponse(folders=folders, total=len(folders))
     except CheckMKAPIError as e:
-        logger.error(f"CheckMK API error getting folders: status={e.status_code}, parent={parent}")
+        logger.error(
+            f"CheckMK API error getting folders: status={e.status_code}, parent={parent}"
+        )
 
         if e.status_code == 400:
             checkmk_error_detail = "Invalid folder request"
@@ -777,7 +780,9 @@ async def create_folder(
                                 validation_errors.append(f"{field}: {errors}")
 
         if validation_errors:
-            checkmk_error_detail = f"{checkmk_error_detail} - {'; '.join(validation_errors)}"
+            checkmk_error_detail = (
+                f"{checkmk_error_detail} - {'; '.join(validation_errors)}"
+            )
 
         logger.error(f"CheckMK folder creation failed: {checkmk_error_detail}")
         raise HTTPException(

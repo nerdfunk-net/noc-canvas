@@ -62,6 +62,7 @@ class CanvasResponse(BaseModel):
 
 class CanvasListItem(BaseModel):
     """Canvas list item with owner info for the load canvas modal"""
+
     id: int
     name: str
     owner_id: int
@@ -77,14 +78,15 @@ class CanvasListItem(BaseModel):
 
 @router.get("/", response_model=List[CanvasResponse])
 async def get_canvases(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get all canvases accessible to the current user (owned by them or sharable)"""
-    canvases = db.query(Canvas).filter(
-        (Canvas.owner_id == current_user.id) | (Canvas.sharable == True)
-    ).all()
-    
+    canvases = (
+        db.query(Canvas)
+        .filter((Canvas.owner_id == current_user.id) | Canvas.sharable)
+        .all()
+    )
+
     # Parse JSON canvas_data for each canvas
     result = []
     for canvas in canvases:
@@ -95,27 +97,27 @@ async def get_canvases(
             "sharable": canvas.sharable,
             "canvas_data": json.loads(canvas.canvas_data),
             "created_at": canvas.created_at,
-            "updated_at": canvas.updated_at
+            "updated_at": canvas.updated_at,
         }
         result.append(canvas_dict)
-    
+
     return result
 
 
 @router.get("/list", response_model=List[CanvasListItem])
 async def get_canvas_list(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get list of canvases for the load canvas modal"""
     from sqlalchemy.orm import joinedload
-    
-    canvases = db.query(Canvas).options(
-        joinedload(Canvas.owner)
-    ).filter(
-        (Canvas.owner_id == current_user.id) | (Canvas.sharable == True)
-    ).all()
-    
+
+    canvases = (
+        db.query(Canvas)
+        .options(joinedload(Canvas.owner))
+        .filter((Canvas.owner_id == current_user.id) | Canvas.sharable)
+        .all()
+    )
+
     result = []
     for canvas in canvases:
         canvas_item = CanvasListItem(
@@ -126,10 +128,10 @@ async def get_canvas_list(
             sharable=canvas.sharable,
             is_own=(canvas.owner_id == current_user.id),
             created_at=canvas.created_at,
-            updated_at=canvas.updated_at
+            updated_at=canvas.updated_at,
         )
         result.append(canvas_item)
-    
+
     return result
 
 
@@ -137,22 +139,22 @@ async def get_canvas_list(
 async def save_canvas(
     canvas: CanvasCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Save a new canvas"""
     canvas_data_json = json.dumps(canvas.canvas_data.dict())
-    
+
     db_canvas = Canvas(
         name=canvas.name,
         owner_id=current_user.id,
         sharable=canvas.sharable,
-        canvas_data=canvas_data_json
+        canvas_data=canvas_data_json,
     )
-    
+
     db.add(db_canvas)
     db.commit()
     db.refresh(db_canvas)
-    
+
     # Return with parsed canvas_data
     return CanvasResponse(
         id=db_canvas.id,
@@ -161,7 +163,7 @@ async def save_canvas(
         sharable=db_canvas.sharable,
         canvas_data=json.loads(db_canvas.canvas_data),
         created_at=db_canvas.created_at,
-        updated_at=db_canvas.updated_at
+        updated_at=db_canvas.updated_at,
     )
 
 
@@ -169,17 +171,17 @@ async def save_canvas(
 async def get_canvas(
     canvas_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get a specific canvas by ID"""
     canvas = db.query(Canvas).filter(Canvas.id == canvas_id).first()
     if not canvas:
         raise HTTPException(status_code=404, detail="Canvas not found")
-    
+
     # Check if user has access (owner or canvas is sharable)
     if canvas.owner_id != current_user.id and not canvas.sharable:
         raise HTTPException(status_code=403, detail="Access denied")
-    
+
     return CanvasResponse(
         id=canvas.id,
         name=canvas.name,
@@ -187,7 +189,7 @@ async def get_canvas(
         sharable=canvas.sharable,
         canvas_data=json.loads(canvas.canvas_data),
         created_at=canvas.created_at,
-        updated_at=canvas.updated_at
+        updated_at=canvas.updated_at,
     )
 
 
@@ -196,29 +198,29 @@ async def update_canvas(
     canvas_id: int,
     canvas_update: CanvasUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update an existing canvas"""
     canvas = db.query(Canvas).filter(Canvas.id == canvas_id).first()
     if not canvas:
         raise HTTPException(status_code=404, detail="Canvas not found")
-    
+
     # Only owner can update
     if canvas.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only canvas owner can update")
-    
+
     # Update fields
     update_data = canvas_update.dict(exclude_unset=True)
     if "canvas_data" in update_data:
         update_data["canvas_data"] = json.dumps(update_data["canvas_data"])
-    
+
     for field, value in update_data.items():
         setattr(canvas, field, value)
-    
+
     canvas.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(canvas)
-    
+
     return CanvasResponse(
         id=canvas.id,
         name=canvas.name,
@@ -226,7 +228,7 @@ async def update_canvas(
         sharable=canvas.sharable,
         canvas_data=json.loads(canvas.canvas_data),
         created_at=canvas.created_at,
-        updated_at=canvas.updated_at
+        updated_at=canvas.updated_at,
     )
 
 
@@ -234,17 +236,17 @@ async def update_canvas(
 async def delete_canvas(
     canvas_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a canvas"""
     canvas = db.query(Canvas).filter(Canvas.id == canvas_id).first()
     if not canvas:
         raise HTTPException(status_code=404, detail="Canvas not found")
-    
+
     # Only owner can delete
     if canvas.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only canvas owner can delete")
-    
+
     db.delete(canvas)
     db.commit()
     return {"message": "Canvas deleted successfully"}

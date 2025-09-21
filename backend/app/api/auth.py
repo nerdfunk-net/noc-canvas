@@ -4,7 +4,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from ..core.database import get_db
-from ..core.security import verify_password, get_password_hash, create_access_token, verify_token
+from ..core.security import (
+    verify_password,
+    get_password_hash,
+    create_access_token,
+    verify_token,
+)
 from ..core.config import settings
 from ..models.user import User
 
@@ -35,7 +40,7 @@ class UserResponse(BaseModel):
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     token = credentials.credentials
     token_data = verify_token(token)
@@ -78,7 +83,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already registered"
+            detail="Username already registered",
         )
 
     # Create new user
@@ -96,7 +101,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
     return UserResponse(
         id=current_user.id,
         username=current_user.username,
-        is_active=current_user.is_active
+        is_active=current_user.is_active,
     )
 
 
@@ -109,21 +114,23 @@ class PasswordChangeRequest(BaseModel):
 async def change_password(
     password_data: PasswordChangeRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Change user password."""
     # Verify current password
-    if not verify_password(password_data.current_password, current_user.hashed_password):
+    if not verify_password(
+        password_data.current_password, current_user.hashed_password
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current password is incorrect"
+            detail="Current password is incorrect",
         )
 
     # Validate new password
     if len(password_data.new_password) < 6:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New password must be at least 6 characters long"
+            detail="New password must be at least 6 characters long",
         )
 
     # Update password

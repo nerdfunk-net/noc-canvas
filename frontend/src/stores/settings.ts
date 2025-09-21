@@ -48,7 +48,7 @@ export const useSettingsStore = defineStore('settings', () => {
       url: '',
       token: '',
       verifyTls: true,
-      timeout: 30
+      timeout: 30,
     },
     checkmk: {
       enabled: false,
@@ -56,11 +56,11 @@ export const useSettingsStore = defineStore('settings', () => {
       site: 'cmk',
       username: '',
       password: '',
-      verifyTls: true
+      verifyTls: true,
     },
     canvas: {
       autoSaveInterval: 60,
-      gridEnabled: true
+      gridEnabled: true,
     },
     database: {
       host: '',
@@ -68,8 +68,8 @@ export const useSettingsStore = defineStore('settings', () => {
       database: 'noc_canvas',
       username: '',
       password: '',
-      ssl: false
-    }
+      ssl: false,
+    },
   })
 
   // Load settings from API
@@ -78,8 +78,8 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       const response = await fetch('http://localhost:8000/api/settings/unified', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
-        }
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        },
       })
 
       if (response.ok) {
@@ -111,9 +111,9 @@ export const useSettingsStore = defineStore('settings', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
         },
-        body: JSON.stringify(settings)
+        body: JSON.stringify(settings),
       })
 
       if (response.ok) {
@@ -132,6 +132,6 @@ export const useSettingsStore = defineStore('settings', () => {
     settings,
     loading,
     loadSettings,
-    saveSettings
+    saveSettings,
   }
 })

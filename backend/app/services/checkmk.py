@@ -37,7 +37,9 @@ class CheckMKService:
         config = self._get_config()
 
         if not all(config.get(key) for key in ["url", "site", "username", "password"]):
-            raise Exception("CheckMK settings not configured. Please configure all required settings.")
+            raise Exception(
+                "CheckMK settings not configured. Please configure all required settings."
+            )
 
         # Parse URL
         url = config["url"].rstrip("/")
@@ -52,7 +54,9 @@ class CheckMKService:
         # Use provided site_name or configured site
         effective_site = site_name or config["site"]
 
-        logger.info(f"Initializing CheckMK client for {protocol}://{host}/{effective_site}")
+        logger.info(
+            f"Initializing CheckMK client for {protocol}://{host}/{effective_site}"
+        )
 
         return CheckMKClient(
             host=host,
@@ -102,7 +106,9 @@ class CheckMKService:
                     return True, f"Connection successful! CheckMK version: {version}"
                 except CheckMKAPIError:
                     # Connection works but couldn't get version info
-                    logger.info("CheckMK connection successful (could not retrieve version)")
+                    logger.info(
+                        "CheckMK connection successful (could not retrieve version)"
+                    )
                     return True, "Connection successful!"
             else:
                 logger.warning("CheckMK connection test returned False")
@@ -182,10 +188,11 @@ class CheckMKService:
     ) -> Dict[str, Any]:
         """Get all hosts from CheckMK."""
         cache_key = cache_service.generate_key(
-            "checkmk", "hosts",
+            "checkmk",
+            "hosts",
             effective_attributes=effective_attributes,
             include_links=include_links,
-            site=site
+            site=site,
         )
 
         cached_result = await cache_service.get(cache_key)
@@ -206,12 +213,15 @@ class CheckMKService:
             logger.error(f"Error getting hosts: {str(e)}")
             raise
 
-    async def get_host(self, hostname: str, effective_attributes: bool = False) -> Dict[str, Any]:
+    async def get_host(
+        self, hostname: str, effective_attributes: bool = False
+    ) -> Dict[str, Any]:
         """Get specific host configuration."""
         cache_key = cache_service.generate_key(
-            "checkmk", "host",
+            "checkmk",
+            "host",
             hostname=hostname,
-            effective_attributes=effective_attributes
+            effective_attributes=effective_attributes,
         )
 
         cached_result = await cache_service.get(cache_key)
@@ -253,7 +263,9 @@ class CheckMKService:
             logger.error(f"Error creating host {hostname}: {str(e)}")
             raise
 
-    async def update_host(self, hostname: str, attributes: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_host(
+        self, hostname: str, attributes: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Update existing host configuration."""
         try:
             client = self._get_client()
@@ -287,8 +299,12 @@ class CheckMKService:
         try:
             client = self._get_client()
             # Convert folder path format: CheckMK uses ~ instead of /
-            normalized_folder = target_folder.replace("//", "/") if target_folder else "/"
-            checkmk_folder = normalized_folder.replace("/", "~") if normalized_folder else "~"
+            normalized_folder = (
+                target_folder.replace("//", "/") if target_folder else "/"
+            )
+            checkmk_folder = (
+                normalized_folder.replace("/", "~") if normalized_folder else "~"
+            )
 
             result = await client.move_host(hostname, checkmk_folder)
 
@@ -334,7 +350,9 @@ class CheckMKService:
             logger.error(f"Error bulk creating hosts: {str(e)}")
             raise
 
-    async def bulk_update_hosts(self, hosts: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    async def bulk_update_hosts(
+        self, hosts: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Update multiple hosts in one request."""
         try:
             client = self._get_client()
@@ -401,7 +419,9 @@ class CheckMKService:
         """Get services for a specific host."""
         try:
             client = self._get_client()
-            return await client.get_host_services(hostname, columns=columns, query=query)
+            return await client.get_host_services(
+                hostname, columns=columns, query=query
+            )
         except Exception as e:
             logger.error(f"Error getting services for host {hostname}: {str(e)}")
             raise
@@ -414,16 +434,22 @@ class CheckMKService:
             client = self._get_client()
             return await client.get_service_discovery(hostname)
         except Exception as e:
-            logger.error(f"Error getting service discovery for host {hostname}: {str(e)}")
+            logger.error(
+                f"Error getting service discovery for host {hostname}: {str(e)}"
+            )
             raise
 
-    async def start_service_discovery(self, hostname: str, mode: str = "new") -> Dict[str, Any]:
+    async def start_service_discovery(
+        self, hostname: str, mode: str = "new"
+    ) -> Dict[str, Any]:
         """Start service discovery for a host."""
         try:
             client = self._get_client()
             return await client.start_service_discovery(hostname, mode)
         except Exception as e:
-            logger.error(f"Error starting service discovery for host {hostname}: {str(e)}")
+            logger.error(
+                f"Error starting service discovery for host {hostname}: {str(e)}"
+            )
             raise
 
     # Configuration Management
@@ -470,10 +496,11 @@ class CheckMKService:
     ) -> Dict[str, Any]:
         """Get all folders."""
         cache_key = cache_service.generate_key(
-            "checkmk", "folders",
+            "checkmk",
+            "folders",
             parent=parent,
             recursive=recursive,
-            show_hosts=show_hosts
+            show_hosts=show_hosts,
         )
 
         cached_result = await cache_service.get(cache_key)
@@ -494,14 +521,20 @@ class CheckMKService:
             logger.error(f"Error getting folders: {str(e)}")
             raise
 
-    async def get_folder(self, folder_path: str, show_hosts: bool = False) -> Dict[str, Any]:
+    async def get_folder(
+        self, folder_path: str, show_hosts: bool = False
+    ) -> Dict[str, Any]:
         """Get specific folder."""
         try:
             client = self._get_client()
             # Convert folder path format: CheckMK uses ~ instead of /
-            normalized_folder_path = folder_path.replace("//", "/") if folder_path else "/"
+            normalized_folder_path = (
+                folder_path.replace("//", "/") if folder_path else "/"
+            )
             checkmk_folder_path = (
-                normalized_folder_path.replace("/", "~") if normalized_folder_path else "~"
+                normalized_folder_path.replace("/", "~")
+                if normalized_folder_path
+                else "~"
             )
             return await client.get_folder(checkmk_folder_path, show_hosts=show_hosts)
         except Exception as e:
@@ -520,7 +553,9 @@ class CheckMKService:
             client = self._get_client()
             # Convert folder path format
             normalized_parent = parent.replace("//", "/") if parent else "/"
-            checkmk_parent = normalized_parent.replace("/", "~") if normalized_parent else "~"
+            checkmk_parent = (
+                normalized_parent.replace("/", "~") if normalized_parent else "~"
+            )
 
             result = await client.create_folder(
                 name=name,

@@ -2,7 +2,6 @@
 Nautobot service for handling GraphQL queries and REST API calls.
 """
 
-import asyncio
 import httpx
 import logging
 from typing import Dict, Any, Optional, Tuple, List
@@ -42,10 +41,15 @@ class NautobotService:
                         "url": nautobot_url,
                         "token": nautobot_token,
                         "timeout": int(db_settings.get("nautobot_timeout", "30")),
-                        "verify_ssl": db_settings.get("nautobot_verify_tls", "true").lower() == "true",
+                        "verify_ssl": db_settings.get(
+                            "nautobot_verify_tls", "true"
+                        ).lower()
+                        == "true",
                         "_source": "database",
                     }
-                    logger.info(f"Using Nautobot settings from database: {config['url']}")
+                    logger.info(
+                        f"Using Nautobot settings from database: {config['url']}"
+                    )
                     return config
 
         except Exception as e:
@@ -63,7 +67,10 @@ class NautobotService:
         return config
 
     async def graphql_query(
-        self, query: str, variables: Optional[Dict[str, Any]] = None, username: Optional[str] = None
+        self,
+        query: str,
+        variables: Optional[Dict[str, Any]] = None,
+        username: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Execute GraphQL query against Nautobot."""
         config = self._get_config(username)
@@ -103,7 +110,13 @@ class NautobotService:
             logger.error(f"GraphQL query failed: {str(e)}")
             raise
 
-    async def rest_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None, username: Optional[str] = None) -> Dict[str, Any]:
+    async def rest_request(
+        self,
+        endpoint: str,
+        method: str = "GET",
+        data: Optional[Dict] = None,
+        username: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Execute REST API request against Nautobot."""
         config = self._get_config(username)
 
@@ -142,9 +155,7 @@ class NautobotService:
                         f"REST request failed with status {response.status_code}: {response.text}"
                     )
         except httpx.TimeoutException:
-            raise Exception(
-                f"REST request timed out after {config['timeout']} seconds"
-            )
+            raise Exception(f"REST request timed out after {config['timeout']} seconds")
         except Exception as e:
             logger.error(f"REST request failed: {str(e)}")
             raise
@@ -189,7 +200,10 @@ class NautobotService:
                 elif response.status_code == 404:
                     return False, "Nautobot API not found. Please verify the URL."
                 else:
-                    return False, f"Connection failed with status {response.status_code}"
+                    return (
+                        False,
+                        f"Connection failed with status {response.status_code}",
+                    )
 
         except httpx.TimeoutException:
             return False, f"Connection timed out after {timeout} seconds"
@@ -207,11 +221,12 @@ class NautobotService:
         """Get devices with optional filtering and pagination."""
         # Check cache first
         cache_key = cache_service.generate_key(
-            "nautobot", "devices",
+            "nautobot",
+            "devices",
             limit=limit,
             offset=offset,
             filter_type=filter_type,
-            filter_value=filter_value
+            filter_value=filter_value,
         )
 
         cached_result = await cache_service.get(cache_key)
@@ -233,10 +248,14 @@ class NautobotService:
                 }
                 """
                 count_variables = {"name_filter": [filter_value]}
-                count_result = await self.graphql_query(count_query, count_variables, username)
+                count_result = await self.graphql_query(
+                    count_query, count_variables, username
+                )
 
                 if "errors" in count_result:
-                    raise Exception(f"GraphQL errors in count query: {count_result['errors']}")
+                    raise Exception(
+                        f"GraphQL errors in count query: {count_result['errors']}"
+                    )
 
                 total_count = len(count_result["data"]["devices"])
 
@@ -424,9 +443,13 @@ class NautobotService:
 
         return response_data
 
-    async def get_device(self, device_id: str, username: Optional[str] = None) -> Dict[str, Any]:
+    async def get_device(
+        self, device_id: str, username: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Get specific device details."""
-        cache_key = cache_service.generate_key("nautobot", "device", device_id=device_id)
+        cache_key = cache_service.generate_key(
+            "nautobot", "device", device_id=device_id
+        )
 
         cached_device = await cache_service.get(cache_key)
         if cached_device:
@@ -471,7 +494,9 @@ class NautobotService:
 
         return device
 
-    async def get_locations(self, username: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def get_locations(
+        self, username: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Get list of locations."""
         cache_key = cache_service.generate_key("nautobot", "locations")
 
@@ -520,18 +545,26 @@ class NautobotService:
         try:
             # Get device, location, and device type counts
             devices_result = await self.rest_request("dcim/devices/", username=username)
-            locations_result = await self.rest_request("dcim/locations/", username=username)
-            device_types_result = await self.rest_request("dcim/device-types/", username=username)
+            locations_result = await self.rest_request(
+                "dcim/locations/", username=username
+            )
+            device_types_result = await self.rest_request(
+                "dcim/device-types/", username=username
+            )
 
             # Try to get IP addresses and prefixes (might not exist in all versions)
             try:
-                ip_addresses_result = await self.rest_request("ipam/ip-addresses/", username=username)
+                ip_addresses_result = await self.rest_request(
+                    "ipam/ip-addresses/", username=username
+                )
                 ip_addresses_count = ip_addresses_result.get("count", 0)
             except Exception:
                 ip_addresses_count = 0
 
             try:
-                prefixes_result = await self.rest_request("ipam/prefixes/", username=username)
+                prefixes_result = await self.rest_request(
+                    "ipam/prefixes/", username=username
+                )
                 prefixes_count = prefixes_result.get("count", 0)
             except Exception:
                 prefixes_count = 0
@@ -558,7 +591,9 @@ class NautobotService:
             logger.error(f"Error fetching Nautobot stats: {str(e)}")
             raise
 
-    async def check_ip_address(self, ip_address: str, username: Optional[str] = None) -> Dict[str, Any]:
+    async def check_ip_address(
+        self, ip_address: str, username: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Check if IP address is available."""
         query = """
         query device($ip_address: [String]) {

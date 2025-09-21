@@ -4,7 +4,7 @@ Database initialization system for PostgreSQL.
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
-from .yaml_config import load_database_config, get_database_url, DatabaseConfig
+from .yaml_config import load_database_config
 import logging
 import os
 
@@ -33,7 +33,7 @@ def create_database_if_not_exists() -> bool:
                 # Check if database exists
                 result = conn.execute(
                     text("SELECT 1 FROM pg_database WHERE datname = :dbname"),
-                    {"dbname": config.database}
+                    {"dbname": config.database},
                 )
 
                 if not result.fetchone():
@@ -67,9 +67,6 @@ def initialize_tables() -> bool:
     """
     try:
         from .database import engine, Base
-        from ..models.settings import AppSettings
-        from ..models.credential import UserCredential
-        from ..models.user import User
 
         # Create all tables using the main Base (includes users, settings, credentials)
         Base.metadata.create_all(bind=engine)
@@ -105,7 +102,9 @@ def create_default_admin_user() -> bool:
         admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "password")
 
         if not admin_username or not admin_password:
-            logger.warning("No default admin credentials found in environment variables")
+            logger.warning(
+                "No default admin credentials found in environment variables"
+            )
             return False
 
         SessionLocal = sessionmaker(bind=engine)
@@ -122,23 +121,25 @@ def create_default_admin_user() -> bool:
                 admin_user = User(
                     username=admin_username,
                     hashed_password=hashed_password,
-                    is_active=True
+                    is_active=True,
                 )
 
                 session.add(admin_user)
                 session.commit()
 
-                logger.info(f"Default admin user '{admin_username}' created successfully")
+                logger.info(
+                    f"Default admin user '{admin_username}' created successfully"
+                )
                 return True
             else:
-                logger.info(f"Users table already has {user_count} users, skipping admin user creation")
+                logger.info(
+                    f"Users table already has {user_count} users, skipping admin user creation"
+                )
                 return True
 
     except Exception as e:
         logger.error(f"Failed to create default admin user: {e}")
         return False
-
-
 
 
 def validate_database() -> bool:
@@ -163,7 +164,9 @@ def validate_database() -> bool:
             credentials_count = session.query(UserCredential).count()
             users_count = session.query(User).count()
 
-            logger.info(f"PostgreSQL validation - Settings: {settings_count}, Credentials: {credentials_count}, Users: {users_count}")
+            logger.info(
+                f"PostgreSQL validation - Settings: {settings_count}, Credentials: {credentials_count}, Users: {users_count}"
+            )
 
             # Basic validation - tables should be accessible
             return True
@@ -226,7 +229,7 @@ def check_database_status() -> dict:
         "config_found": False,
         "config_source": None,
         "connection_test": False,
-        "tables_exist": False
+        "tables_exist": False,
     }
 
     try:
@@ -235,19 +238,24 @@ def check_database_status() -> dict:
         if config:
             status["config_found"] = True
             # Determine config source
-            if all(os.getenv(var) for var in ["NOC_DATABASE", "NOC_USERNAME", "NOC_PASSWORD"]):
+            if all(
+                os.getenv(var)
+                for var in ["NOC_DATABASE", "NOC_USERNAME", "NOC_PASSWORD"]
+            ):
                 status["config_source"] = "environment"
             else:
                 status["config_source"] = "yaml"
 
         # Test connection
         from .database import test_database_connection
+
         status["connection_test"] = test_database_connection()
 
         # Check if tables exist
         if status["connection_test"]:
             from sqlalchemy.orm import sessionmaker
             from .database import engine
+
             SessionLocal = sessionmaker(bind=engine)
 
             try:
@@ -256,7 +264,7 @@ def check_database_status() -> dict:
                     session.execute(text("SELECT 1 FROM user_credentials LIMIT 1"))
                     session.execute(text("SELECT 1 FROM users LIMIT 1"))
                     status["tables_exist"] = True
-            except:
+            except Exception:
                 status["tables_exist"] = False
 
     except Exception as e:

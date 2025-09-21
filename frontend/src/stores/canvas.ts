@@ -36,6 +36,6 @@ export const useCanvasStore = defineStore('canvas', () => {
     setPosition,
     resetView,
     zoomIn,
-    zoomOut
+    zoomOut,
   }
 })

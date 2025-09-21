@@ -1,11 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from .core.database import engine, Base
 from .core.config import settings
 from .core.cache import cache_service
 from .core.db_init import full_database_setup
-from .api import auth, devices, nautobot, checkmk, settings as settings_api, jobs, canvas
+from .api import (
+    auth,
+    devices,
+    nautobot,
+    checkmk,
+    settings as settings_api,
+    jobs,
+    canvas,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,6 +28,7 @@ async def lifespan(app: FastAPI):
     logger.info("Checking database configuration...")
     try:
         from .core.yaml_config import load_database_config, validate_database_config
+
         config = load_database_config()
 
         if not config or not validate_database_config(config):
@@ -43,7 +51,9 @@ async def lifespan(app: FastAPI):
         if success:
             logger.info("✅ Database initialization completed successfully")
         else:
-            logger.error("❌ Database initialization failed - application may not work correctly")
+            logger.error(
+                "❌ Database initialization failed - application may not work correctly"
+            )
             raise RuntimeError("Database initialization failed")
 
     except Exception as e:

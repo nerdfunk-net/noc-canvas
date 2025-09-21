@@ -16,7 +16,7 @@ export const useDeviceIcons = () => {
       router: routerIcon,
       switch: switchIcon,
       firewall: firewallIcon,
-      vpn_gateway: shieldIcon
+      vpn_gateway: shieldIcon,
     }
 
     const loadPromises = Object.entries(iconPaths).map(([type, iconPath]) => {
@@ -55,7 +55,7 @@ export const useDeviceIcons = () => {
       router: routerIcon,
       switch: switchIcon,
       firewall: firewallIcon,
-      vpn_gateway: shieldIcon
+      vpn_gateway: shieldIcon,
     }
     return iconPaths[type as keyof typeof iconPaths] || iconPaths.router
   }
@@ -66,7 +66,7 @@ export const useDeviceIcons = () => {
       router: '🔀',
       switch: '🔁',
       firewall: '🛡️',
-      vpn_gateway: '🔐'
+      vpn_gateway: '🔐',
     }
     return icons[type as keyof typeof icons] || '📡'
   }
@@ -77,6 +77,6 @@ export const useDeviceIcons = () => {
     loadDeviceIcons,
     getDeviceIcon,
     getDeviceIconUrl,
-    getDeviceIconEmoji
+    getDeviceIconEmoji,
   }
 }

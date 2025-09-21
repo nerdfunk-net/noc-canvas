@@ -6,6 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 # Create engine with PostgreSQL URL
 def create_database_engine():
     """Create SQLAlchemy engine for PostgreSQL database."""
@@ -16,6 +17,7 @@ def create_database_engine():
     except Exception as e:
         logger.error(f"Failed to create database engine: {e}")
         raise
+
 
 engine = create_database_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

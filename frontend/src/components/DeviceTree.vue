@@ -140,7 +140,11 @@
                   :class="getStatusColor(device.status?.name)"
                   :title="device.status?.name || 'Unknown'"
                 ></div>
-                <span class="text-sm">{{ getDeviceEmoji(device) }}</span>
+                <img 
+                  :src="getDeviceIconUrl(mapNautobotDeviceType(device))" 
+                  :alt="`${mapNautobotDeviceType(device)} icon`"
+                  class="w-4 h-4 object-contain"
+                />
               </div>
 
               <!-- Device Info -->
@@ -189,6 +193,7 @@ import { nautobotApi, type NautobotDevice } from '@/services/api'
 import { useSettingsStore } from '@/stores/settings'
 import { useDevicesStore, type Device } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
+import { useDeviceIcons } from '@/composables/useDeviceIcons'
 
 // Debounce function for search
 function debounce<T extends (...args: any[]) => any>(
@@ -205,6 +210,7 @@ function debounce<T extends (...args: any[]) => any>(
 const settingsStore = useSettingsStore()
 const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
+const { getDeviceIconUrl } = useDeviceIcons()
 
 // Props
 interface Props {
@@ -342,6 +348,28 @@ const groupedDevices = computed(() => {
 })
 
 // Methods
+const mapNautobotDeviceType = (nautobotDevice: NautobotDevice): 'router' | 'switch' | 'firewall' | 'vpn_gateway' => {
+  const role = nautobotDevice.role?.name?.toLowerCase() || ''
+  const deviceType = nautobotDevice.device_type?.model?.toLowerCase() || ''
+
+  // Map based on role first, then device type
+  if (role.includes('router') || deviceType.includes('router')) {
+    return 'router'
+  }
+  if (role.includes('switch') || deviceType.includes('switch')) {
+    return 'switch'
+  }
+  if (role.includes('firewall') || deviceType.includes('firewall')) {
+    return 'firewall'
+  }
+  if (role.includes('vpn') || deviceType.includes('vpn')) {
+    return 'vpn_gateway'
+  }
+
+  // Default to router for network devices
+  return 'router'
+}
+
 const loadDevices = async () => {
   // Check if Nautobot is properly configured before attempting to load
   if (!isNautobotConfigured.value) {
@@ -566,22 +594,6 @@ const getGroupEmoji = (): string => {
     default:
       return '📁'
   }
-}
-
-const getDeviceEmoji = (device: any): string => {
-  // Return emoji based on device type or role
-  const deviceType = device.device_type?.model?.toLowerCase() || ''
-  const role = device.role?.name?.toLowerCase() || ''
-
-  if (deviceType.includes('router') || role.includes('router')) return '🔀'
-  if (deviceType.includes('switch') || role.includes('switch')) return '🔁'
-  if (deviceType.includes('firewall') || role.includes('firewall')) return '🛡️'
-  if (deviceType.includes('server') || role.includes('server')) return '🖥️'
-  if (deviceType.includes('access') || role.includes('access')) return '📡'
-  if (deviceType.includes('wireless') || role.includes('wireless')) return '📶'
-  if (deviceType.includes('phone') || role.includes('phone')) return '📞'
-
-  return '📡' // Default network device
 }
 
 const getStatusColor = (status?: string): string => {

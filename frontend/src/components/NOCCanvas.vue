@@ -119,15 +119,14 @@
           />
 
           <!-- Device Icon -->
-          <v-text
+          <v-image
+            v-if="getDeviceIcon(device.device_type)"
             :config="{
-              x: 40,
-              y: 25,
-              text: getDeviceIcon(device.device_type),
-              fontSize: 24,
-              align: 'center',
-              offsetX: 12,
-              offsetY: 12
+              x: 26,
+              y: 11,
+              width: 28,
+              height: 28,
+              image: getDeviceIcon(device.device_type)
             }"
           />
 
@@ -359,6 +358,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useDevicesStore, type Device, type DeviceTemplate } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
 import { type NautobotDevice, canvasApi } from '@/services/api'
+import { useDeviceIcons } from '@/composables/useDeviceIcons'
 import SaveCanvasModal from './SaveCanvasModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import LoadCanvasModal from './LoadCanvasModal.vue'
@@ -366,6 +366,7 @@ import DuplicateDeviceModal from './DuplicateDeviceModal.vue'
 
 const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
+const { loadDeviceIcons, getDeviceIcon } = useDeviceIcons()
 
 const canvasContainer = ref<HTMLElement>()
 const stage = ref()
@@ -571,15 +572,6 @@ const contextMenuItems = computed(() => {
 })
 
 // Device helpers
-const getDeviceIcon = (type: string) => {
-  const icons = {
-    router: '🔀',
-    switch: '🔁',
-    firewall: '🛡️',
-    vpn_gateway: '🔐'
-  }
-  return icons[type as keyof typeof icons] || '📡'
-}
 
 const getDeviceColor = (type: string) => {
   const colors = {
@@ -1573,6 +1565,9 @@ const handleGlobalMouseUp = (event: MouseEvent) => {
 
 onMounted(async () => {
   await nextTick()
+
+  // Load device icons first
+  await loadDeviceIcons()
 
   // Debug: Check device count
   console.log('🎯 Devices loaded:', deviceStore.devices.length)

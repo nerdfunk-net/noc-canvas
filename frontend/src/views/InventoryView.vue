@@ -24,8 +24,12 @@
           >
             <div class="flex items-start justify-between">
               <div class="flex items-center space-x-3">
-                <div class="text-2xl">
-                  {{ getDeviceIcon(device.device_type) }}
+                <div class="w-9 h-9">
+                  <img 
+                    :src="getDeviceIconUrl(device.device_type)" 
+                    :alt="`${device.device_type} icon`"
+                    class="w-9 h-9 object-contain"
+                  />
                 </div>
                 <div>
                   <h3 class="font-medium text-gray-900">{{ device.name }}</h3>
@@ -173,8 +177,10 @@
 import { ref, reactive } from 'vue'
 import MainLayout from '@/layouts/MainLayout.vue'
 import { useDevicesStore, type Device } from '@/stores/devices'
+import { useDeviceIcons } from '@/composables/useDeviceIcons'
 
 const deviceStore = useDevicesStore()
+const { getDeviceIconUrl } = useDeviceIcons()
 
 const showDeviceModal = ref(false)
 const editingDevice = ref(false)
@@ -184,16 +190,6 @@ const deviceForm = reactive({
   name: '',
   ip_address: ''
 })
-
-const getDeviceIcon = (type: string) => {
-  const icons = {
-    router: '🔀',
-    switch: '🔁',
-    firewall: '🛡️',
-    vpn_gateway: '🔐'
-  }
-  return icons[type as keyof typeof icons] || '📡'
-}
 
 const formatProperties = (properties: string | null) => {
   if (!properties) return 'None'

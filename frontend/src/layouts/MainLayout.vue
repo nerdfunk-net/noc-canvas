@@ -1,15 +1,33 @@
 <template>
   <div class="flex h-screen bg-gray-50">
     <!-- Left Panel - Only show on Dashboard -->
-    <div 
+    <div
       v-if="$route.name === 'dashboard'"
-      class="w-80 panel" 
-      style="min-width: 320px; background-color: #f9fafb; border-right: 2px solid #e5e7eb;"
+      class="panel relative"
+      :style="`width: ${inventoryPanelWidth}px; min-width: 250px; max-width: 600px; background-color: #f9fafb; border-right: 2px solid #e5e7eb;`"
     >
       <div class="p-4 border-b border-gray-200">
         <h2 class="text-lg font-semibold text-gray-800">Device Inventory</h2>
       </div>
       <InventoryPanel />
+
+      <!-- Resize Handle -->
+      <div
+        class="absolute top-0 right-0 w-3 h-full cursor-col-resize bg-transparent hover:bg-blue-100 transition-all duration-200 group flex items-center justify-center z-50"
+        :class="{ 'bg-blue-200': isResizing }"
+        @mousedown="startResize"
+        title="Drag to resize panel"
+        style="right: -1px;"
+      >
+        <!-- Visual indicator dots for the drag handle -->
+        <div class="flex flex-col space-y-1 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+          <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
+          <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
+          <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
+          <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
+          <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Main Content Area -->
@@ -121,7 +139,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCanvasStore } from '@/stores/canvas'
 import { useRouter } from 'vue-router'
@@ -130,6 +148,31 @@ import InventoryPanel from '@/components/InventoryPanel.vue'
 const authStore = useAuthStore()
 const canvasStore = useCanvasStore()
 const router = useRouter()
+
+// Inventory panel resize state
+const PANEL_WIDTH_KEY = 'noc-canvas-inventory-panel-width'
+const inventoryPanelWidth = ref(320) // Default width (80 * 4 = 320px, equivalent to w-80)
+const isResizing = ref(false)
+const resizeStartX = ref(0)
+const resizeStartWidth = ref(0)
+
+// Load saved panel width from localStorage
+const loadSavedPanelWidth = () => {
+  const saved = localStorage.getItem(PANEL_WIDTH_KEY)
+  if (saved) {
+    const width = parseInt(saved)
+    if (width >= 250 && width <= 600) {
+      inventoryPanelWidth.value = width
+      console.log('📐 Loaded saved panel width:', width)
+    }
+  }
+}
+
+// Save panel width to localStorage
+const savePanelWidth = (width: number) => {
+  localStorage.setItem(PANEL_WIDTH_KEY, width.toString())
+  console.log('💾 Saved panel width:', width)
+}
 
 // Computed property for current zoom level
 const currentZoom = computed(() => {
@@ -176,6 +219,78 @@ const validateCustomZoom = (event: Event) => {
   target.value = zoomPercent.toString()
   setZoom(zoomPercent / 100)
 }
+
+// Panel resize functions
+const startResize = (event: MouseEvent) => {
+  event.preventDefault()
+  event.stopPropagation()
+
+  isResizing.value = true
+  resizeStartX.value = event.clientX
+  resizeStartWidth.value = inventoryPanelWidth.value
+
+  console.log('🔄 Starting panel resize', {
+    startX: event.clientX,
+    startWidth: inventoryPanelWidth.value,
+    isResizing: isResizing.value
+  })
+
+  // Prevent text selection during resize
+  document.body.style.userSelect = 'none'
+  document.body.style.cursor = 'col-resize'
+}
+
+const handleResize = (event: MouseEvent) => {
+  if (!isResizing.value) {
+    return
+  }
+
+  const deltaX = event.clientX - resizeStartX.value
+  const newWidth = resizeStartWidth.value + deltaX
+
+  // Apply constraints: min 250px, max 600px
+  const constrainedWidth = Math.max(250, Math.min(600, newWidth))
+  inventoryPanelWidth.value = constrainedWidth
+
+  console.log('🔄 Resizing panel', {
+    isResizing: isResizing.value,
+    clientX: event.clientX,
+    startX: resizeStartX.value,
+    deltaX,
+    newWidth,
+    constrainedWidth
+  })
+}
+
+const stopResize = () => {
+  console.log('🛑 Stop resize called, isResizing:', isResizing.value)
+
+  if (!isResizing.value) return
+
+  isResizing.value = false
+  console.log('✅ Panel resize stopped, final width:', inventoryPanelWidth.value)
+
+  // Save the new width to localStorage
+  savePanelWidth(inventoryPanelWidth.value)
+
+  // Restore default cursor and text selection
+  document.body.style.userSelect = ''
+  document.body.style.cursor = ''
+}
+
+// Event listeners for resize
+onMounted(() => {
+  // Load saved panel width on component mount
+  loadSavedPanelWidth()
+
+  document.addEventListener('mousemove', handleResize)
+  document.addEventListener('mouseup', stopResize)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+})
 
 const logout = async () => {
   await authStore.logout()

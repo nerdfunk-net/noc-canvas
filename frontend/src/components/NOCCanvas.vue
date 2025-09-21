@@ -351,6 +351,17 @@
       @show="handleDuplicateShow"
       @add="handleDuplicateAdd"
     />
+
+    <!-- Unsaved Changes Warning Dialog -->
+    <ConfirmDialog
+      :show="showUnsavedChangesDialog"
+      title="Unsaved Changes"
+      message="You have unsaved changes that will be lost. Do you want to save your canvas before continuing?"
+      confirm-text="Save Canvas"
+      cancel-text="Continue Without Saving"
+      @confirm="handleUnsavedChangesSave"
+      @cancel="handleUnsavedChangesDiscard"
+    />
   </div>
 </template>
 
@@ -381,6 +392,73 @@ const showGrid = ref(true)
 const connectionMode = ref(false)
 const selectedDevice = ref<Device | null>(null)
 const isDragOver = ref(false)
+
+// Canvas save state tracking
+const currentCanvasId = ref<number | null>(null)
+const lastSavedState = ref<{ devices: Device[], connections: any[] }>({ devices: [], connections: [] })
+
+// Computed property to check if canvas has unsaved changes
+const hasUnsavedChanges = computed(() => {
+  const currentDevices = deviceStore.devices
+  const currentConnections = deviceStore.connections
+
+  // If canvas is empty and was empty when last saved, no changes
+  if (currentDevices.length === 0 && currentConnections.length === 0 &&
+      lastSavedState.value.devices.length === 0 && lastSavedState.value.connections.length === 0) {
+    return false
+  }
+
+  // Check if devices have changed
+  if (currentDevices.length !== lastSavedState.value.devices.length) {
+    return true
+  }
+
+  // Check if connections have changed
+  if (currentConnections.length !== lastSavedState.value.connections.length) {
+    return true
+  }
+
+  // Deep comparison of devices (simplified - just check IDs, names, and positions)
+  for (let i = 0; i < currentDevices.length; i++) {
+    const current = currentDevices[i]
+    const saved = lastSavedState.value.devices.find(d => d.id === current.id)
+    if (!saved ||
+        saved.name !== current.name ||
+        saved.position_x !== current.position_x ||
+        saved.position_y !== current.position_y ||
+        saved.device_type !== current.device_type ||
+        saved.ip_address !== current.ip_address) {
+      return true
+    }
+  }
+
+  // Deep comparison of connections
+  for (let i = 0; i < currentConnections.length; i++) {
+    const current = currentConnections[i]
+    const saved = lastSavedState.value.connections.find(c => c.id === current.id)
+    if (!saved ||
+        saved.source_device_id !== current.source_device_id ||
+        saved.target_device_id !== current.target_device_id ||
+        saved.connection_type !== current.connection_type) {
+      return true
+    }
+  }
+
+  return false
+})
+
+// Function to update the saved state (called after successful save/load)
+const updateSavedState = () => {
+  lastSavedState.value = {
+    devices: [...deviceStore.devices],
+    connections: [...deviceStore.connections]
+  }
+  console.log('💾 Saved state updated with', lastSavedState.value.devices.length, 'devices and', lastSavedState.value.connections.length, 'connections')
+}
+
+// Show unsaved changes dialog
+const showUnsavedChangesDialog = ref(false)
+const pendingAction = ref<(() => void) | null>(null)
 
 // Selection state
 const selectionBox = ref<{
@@ -540,6 +618,7 @@ const contextMenuItems = computed(() => {
           submenu: [
             { icon: '📂', label: 'Load', action: loadCanvas },
             { icon: '💾', label: 'Save', action: saveCanvas },
+            { icon: '📋', label: 'Save As', action: saveCanvasAs },
             { icon: '🗑️', label: 'Clear', action: clearCanvas }
           ]
         }
@@ -586,8 +665,11 @@ const getDeviceColor = (type: string) => {
 
 // Context menu functions
 const loadCanvas = () => {
-  console.log('Load Canvas - showing modal')
-  showLoadModal.value = true
+  console.log('Load Canvas - checking for unsaved changes')
+  promptToSaveBeforeAction('loading a canvas', () => {
+    console.log('Load Canvas - showing modal')
+    showLoadModal.value = true
+  })
 }
 
 // Load Canvas Modal functions
@@ -630,70 +712,133 @@ const handleLoadCancel = () => {
 const loadCanvasById = async (canvasId: number) => {
   try {
     console.log('🔄 Loading canvas from database...', canvasId)
-    
+
     // Clear current canvas first if it has devices
     if (deviceStore.devices.length > 0) {
-      await deviceStore.clearDevices()
+      deviceStore.clearDevices()
       console.log('✅ Current canvas cleared')
     }
-    
+
     // Fetch canvas data
     const canvas = await canvasApi.getCanvas(canvasId)
     console.log('✅ Canvas data loaded:', canvas)
-    
-    // Load devices from canvas data
-    for (const deviceData of canvas.canvas_data.devices) {
-      const device = await deviceStore.createDevice({
-        name: deviceData.name,
-        device_type: deviceData.device_type as Device['device_type'],
-        ip_address: deviceData.ip_address,
-        position_x: deviceData.position_x,
-        position_y: deviceData.position_y,
-        properties: deviceData.properties
-      })
-      console.log('✅ Device created:', device)
-    }
-    
-    // Load connections from canvas data
-    for (const connectionData of canvas.canvas_data.connections) {
-      const connection = await deviceStore.createConnection({
-        source_device_id: connectionData.source_device_id,
-        target_device_id: connectionData.target_device_id,
-        connection_type: connectionData.connection_type,
-        properties: connectionData.properties
-      })
-      console.log('✅ Connection created:', connection)
-    }
-    
-    console.log('✅ Canvas loaded successfully')
-    // notificationStore.showSuccess(`Canvas "${canvas.name}" loaded successfully`)
-    
+
+    // Load devices and connections directly from canvas data (pure frontend)
+    // Convert CanvasDeviceData to Device with proper types
+    const devicesWithCorrectTypes = canvas.canvas_data.devices.map(device => ({
+      ...device,
+      device_type: device.device_type as Device['device_type']
+    }))
+
+    deviceStore.loadDevicesFromCanvasData(
+      devicesWithCorrectTypes,
+      canvas.canvas_data.connections
+    )
+
+    // Update tracking state
+    currentCanvasId.value = canvasId
+    updateSavedState()
+
+    console.log('✅ Canvas loaded successfully with', canvas.canvas_data.devices.length, 'devices and', canvas.canvas_data.connections.length, 'connections')
+
     // Close the load modal after successful loading
     showLoadModal.value = false
-    
+
   } catch (error) {
     console.error('❌ Failed to load canvas:', error)
     // notificationStore.showError('Failed to load canvas')
   }
 }
 
-const saveCanvas = () => {
-  console.log('Save Canvas')
+// Quick save to current canvas (if already saved before)
+const saveCanvas = async () => {
+  console.log('Quick Save Canvas')
+
+  if (!currentCanvasId.value) {
+    console.log('No canvas ID found, opening Save As dialog')
+    saveCanvasAs()
+    return
+  }
+
+  try {
+    // Use the existing handleCanvasSave logic but with current canvas info
+    const canvasData = {
+      devices: deviceStore.devices.map(device => ({
+        id: device.id,
+        name: device.name,
+        device_type: device.device_type,
+        ip_address: device.ip_address,
+        position_x: device.position_x,
+        position_y: device.position_y,
+        properties: device.properties
+      })),
+      connections: deviceStore.connections.map(connection => ({
+        id: connection.id,
+        source_device_id: connection.source_device_id,
+        target_device_id: connection.target_device_id,
+        connection_type: connection.connection_type,
+        properties: connection.properties
+      }))
+    }
+
+    // Import the canvas API
+    const { canvasApi } = await import('@/services/api')
+
+    // Get current canvas info to preserve name and sharable setting
+    const currentCanvas = await canvasApi.getCanvas(currentCanvasId.value)
+
+    // Update existing canvas
+    const response = await canvasApi.updateCanvas(currentCanvasId.value, {
+      name: currentCanvas.name,
+      sharable: currentCanvas.sharable,
+      canvas_data: canvasData
+    })
+
+    console.log('✅ Canvas quick saved successfully:', response)
+
+    // Update saved state after successful save
+    updateSavedState()
+
+    // Execute pending action if there was one (from unsaved changes dialog)
+    if (pendingAction.value) {
+      pendingAction.value()
+      pendingAction.value = null
+    }
+
+    // TODO: Show success notification
+    // notificationStore.showSuccess(`Canvas quick saved successfully`)
+
+  } catch (error) {
+    console.error('❌ Failed to quick save canvas:', error)
+    // Fall back to Save As dialog on error
+    saveCanvasAs()
+  }
+}
+
+// Save As - always opens the save modal (original behavior)
+const saveCanvasAs = () => {
+  console.log('Save Canvas As')
   showSaveModal.value = true
 }
 
 const clearCanvas = () => {
-  console.log('Clear Canvas - showing confirmation dialog')
-  showClearDialog.value = true
+  console.log('Clear Canvas - checking for unsaved changes')
+  promptToSaveBeforeAction('clearing the canvas', () => {
+    console.log('Clear Canvas - showing confirmation dialog')
+    showClearDialog.value = true
+  })
 }
 
 // Clear Canvas Confirmation Dialog functions
-const handleClearConfirm = async () => {
+const handleClearConfirm = () => {
   console.log('✅ User confirmed canvas clear')
   showClearDialog.value = false
-  
+
   try {
-    await deviceStore.clearDevices()
+    deviceStore.clearDevices()
+    // Reset tracking state
+    currentCanvasId.value = null
+    updateSavedState()
     console.log('✅ Canvas cleared successfully')
     // notificationStore.showSuccess('Canvas cleared successfully')
   } catch (error) {
@@ -746,6 +891,7 @@ const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasI
         canvas_data: canvasData
       })
       console.log('✅ Canvas updated successfully:', response)
+      currentCanvasId.value = data.canvasId
     } else {
       // Create new canvas
       response = await canvasApi.saveCanvas({
@@ -754,9 +900,19 @@ const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasI
         canvas_data: canvasData
       })
       console.log('✅ Canvas saved successfully:', response)
+      currentCanvasId.value = response.id
     }
 
+    // Update saved state after successful save
+    updateSavedState()
+
     showSaveModal.value = false
+
+    // Execute pending action if there was one (from unsaved changes dialog)
+    if (pendingAction.value) {
+      pendingAction.value()
+      pendingAction.value = null
+    }
 
     // TODO: Show success notification
     // notificationStore.showSuccess(`Canvas "${data.name}" ${data.canvasId ? 'updated' : 'saved'} successfully`)
@@ -791,10 +947,10 @@ const handleDuplicateShow = () => {
   handleDuplicateCancel()
 }
 
-const handleDuplicateAdd = async () => {
+const handleDuplicateAdd = () => {
   if (pendingDeviceData.value) {
     try {
-      await deviceStore.createDevice(pendingDeviceData.value)
+      deviceStore.createDevice(pendingDeviceData.value)
       console.log('✅ Duplicate device added successfully')
     } catch (error) {
       console.error('❌ Failed to create duplicate device:', error)
@@ -938,7 +1094,7 @@ const onDrop = async (event: DragEvent) => {
         return
       }
       
-      await deviceStore.createDevice({
+      deviceStore.createDevice({
         name: device.name,
         device_type: mapNautobotDeviceType(device),
         ip_address: device.primary_ip4?.address?.split('/')[0], // Remove CIDR notation
@@ -1258,12 +1414,12 @@ const onDeviceMouseDown = (device: Device, event: any) => {
   }
 }
 
-const onDeviceDragEnd = async (device: Device, event: any) => {
+const onDeviceDragEnd = (device: Device, event: any) => {
   const newX = event.target.x()
   const newY = event.target.y()
 
   try {
-    await deviceStore.updateDevice(device.id, {
+    deviceStore.updateDevice(device.id, {
       position_x: newX,
       position_y: newY
     })
@@ -1286,7 +1442,7 @@ const onDeviceMouseLeave = () => {
   }
 }
 
-const onConnectionPointClick = async (device: Device, point: { x: number; y: number }, event: any) => {
+const onConnectionPointClick = (device: Device, point: { x: number; y: number }, event: any) => {
   event.cancelBubble = true
 
   if (!connectionMode.value) return
@@ -1296,7 +1452,7 @@ const onConnectionPointClick = async (device: Device, point: { x: number; y: num
   } else {
     if (connectionStart.value.device.id !== device.id) {
       try {
-        await deviceStore.createConnection({
+        deviceStore.createConnection({
           source_device_id: connectionStart.value.device.id,
           target_device_id: device.id,
           connection_type: 'ethernet'
@@ -1437,28 +1593,30 @@ const centerOnDevice = (device: Device) => {
   hideContextMenu()
 }
 
-const deleteDevice = async (device: Device) => {
+const deleteDevice = (device: Device) => {
   console.log('🗑️ Remove device requested:', device.name)
-  
+
   if (confirm(`Are you sure you want to remove "${device.name}" from the canvas?`)) {
     try {
-      await deviceStore.deleteDevice(device.id)
-      
-      // Remove from selections if it was selected
-      if (selectedDevice.value?.id === device.id) {
-        selectedDevice.value = null
-        deviceStore.setSelectedDevice(null)
+      const success = deviceStore.deleteDevice(device.id)
+
+      if (success) {
+        // Remove from selections if it was selected
+        if (selectedDevice.value?.id === device.id) {
+          selectedDevice.value = null
+          deviceStore.setSelectedDevice(null)
+        }
+        selectedDevices.value.delete(device.id)
+
+        console.log('✅ Device removed successfully:', device.name)
       }
-      selectedDevices.value.delete(device.id)
-      
-      console.log('✅ Device removed successfully:', device.name)
     } catch (error) {
       console.error('❌ Failed to delete device:', error)
     }
   } else {
     console.log('❌ Device removal cancelled by user')
   }
-  
+
   hideContextMenu()
 }
 
@@ -1534,6 +1692,57 @@ const handleGlobalMouseUp = (event: MouseEvent) => {
   }
 }
 
+// Global keyboard handler for shortcuts
+const handleGlobalKeyDown = (event: KeyboardEvent) => {
+  // Handle Ctrl+S (or Cmd+S on Mac) for save
+  if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    event.preventDefault() // Prevent browser's default save behavior
+    console.log('⌨️ Ctrl+S detected - triggering quick save')
+    saveCanvas()
+  }
+}
+
+// Browser beforeunload event handler to warn about unsaved changes
+const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+  if (hasUnsavedChanges.value) {
+    console.log('🚪 User trying to leave with unsaved changes')
+    event.preventDefault()
+    // Modern browsers ignore custom messages and show their own
+    event.returnValue = 'You have unsaved changes. Are you sure you want to leave?'
+    return 'You have unsaved changes. Are you sure you want to leave?'
+  }
+}
+
+// Function to prompt user to save before certain actions
+const promptToSaveBeforeAction = (actionName: string, actionCallback: () => void) => {
+  if (hasUnsavedChanges.value) {
+    // Store the pending action and show dialog
+    pendingAction.value = actionCallback
+    showUnsavedChangesDialog.value = true
+    return
+  }
+
+  // Continue with the action if no unsaved changes
+  actionCallback()
+}
+
+// Handlers for unsaved changes dialog
+const handleUnsavedChangesSave = () => {
+  showUnsavedChangesDialog.value = false
+  // Show save modal - after save completes, the pending action will need to be called manually
+  showSaveModal.value = true
+  // Note: The pending action will be called after successful save in handleCanvasSave
+}
+
+const handleUnsavedChangesDiscard = () => {
+  showUnsavedChangesDialog.value = false
+  // Execute the pending action without saving
+  if (pendingAction.value) {
+    pendingAction.value()
+    pendingAction.value = null
+  }
+}
+
 onMounted(async () => {
   await nextTick()
 
@@ -1559,14 +1768,18 @@ onMounted(async () => {
   }
 
   window.addEventListener('resize', handleResize)
+  window.addEventListener('beforeunload', handleBeforeUnload)
   document.addEventListener('click', handleGlobalClick)
   document.addEventListener('mouseup', handleGlobalMouseUp)
+  document.addEventListener('keydown', handleGlobalKeyDown)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('beforeunload', handleBeforeUnload)
   document.removeEventListener('click', handleGlobalClick)
   document.removeEventListener('mouseup', handleGlobalMouseUp)
+  document.removeEventListener('keydown', handleGlobalKeyDown)
 })
 </script>
 

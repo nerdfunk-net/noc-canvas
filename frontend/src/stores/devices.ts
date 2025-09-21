@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { devicesApi } from '@/services/api'
 
 export interface Device {
   id: number
@@ -26,21 +25,52 @@ export const useDevicesStore = defineStore('devices', () => {
   const selectedDevice = ref<Device | null>(null)
   const loading = ref(false)
 
-  const fetchDevices = async () => {
+  // Generate unique local IDs for devices and connections
+  let nextDeviceId = 1
+  let nextConnectionId = 1
+
+  const generateDeviceId = () => {
+    // Use timestamp + counter to ensure uniqueness across sessions
+    return Date.now() * 1000 + (nextDeviceId++)
+  }
+
+  const generateConnectionId = () => {
+    return Date.now() * 1000 + (nextConnectionId++)
+  }
+
+  const loadDevicesFromCanvasData = (canvasDevices: Device[], canvasConnections: Connection[]) => {
     loading.value = true
     try {
-      devices.value = await devicesApi.getDevices()
+      // Load devices and connections from canvas data (pure frontend)
+      devices.value = [...canvasDevices]
+      connections.value = [...canvasConnections]
+
+      // Update ID counters to avoid conflicts
+      if (devices.value.length > 0) {
+        const maxDeviceId = Math.max(...devices.value.map(d => d.id))
+        nextDeviceId = Math.max(nextDeviceId, maxDeviceId + 1)
+      }
+      if (connections.value.length > 0) {
+        const maxConnectionId = Math.max(...connections.value.map(c => c.id))
+        nextConnectionId = Math.max(nextConnectionId, maxConnectionId + 1)
+      }
+
+      console.log('✅ Devices loaded from canvas data:', devices.value.length)
     } catch (error) {
-      console.error('Failed to fetch devices:', error)
+      console.error('Failed to load devices from canvas data:', error)
     } finally {
       loading.value = false
     }
   }
 
-  const createDevice = async (deviceData: Omit<Device, 'id'>) => {
+  const createDevice = (deviceData: Omit<Device, 'id'>): Device => {
     try {
-      const newDevice = await devicesApi.createDevice(deviceData)
+      const newDevice: Device = {
+        id: generateDeviceId(),
+        ...deviceData
+      }
       devices.value.push(newDevice)
+      console.log('✅ Device created locally:', newDevice.name, 'ID:', newDevice.id)
       return newDevice
     } catch (error) {
       console.error('Failed to create device:', error)
@@ -48,24 +78,37 @@ export const useDevicesStore = defineStore('devices', () => {
     }
   }
 
-  const updateDevice = async (deviceId: number, updates: Partial<Device>) => {
+  const updateDevice = (deviceId: number, updates: Partial<Device>): Device | null => {
     try {
-      const updatedDevice = await devicesApi.updateDevice(deviceId, updates)
       const index = devices.value.findIndex(d => d.id === deviceId)
       if (index !== -1) {
+        const updatedDevice = { ...devices.value[index], ...updates }
         devices.value[index] = updatedDevice
+        console.log('✅ Device updated locally:', updatedDevice.name, 'ID:', deviceId)
+        return updatedDevice
       }
-      return updatedDevice
+      console.warn('Device not found for update:', deviceId)
+      return null
     } catch (error) {
       console.error('Failed to update device:', error)
       throw error
     }
   }
 
-  const deleteDevice = async (deviceId: number) => {
+  const deleteDevice = (deviceId: number): boolean => {
     try {
-      await devicesApi.deleteDevice(deviceId)
-      devices.value = devices.value.filter(d => d.id !== deviceId)
+      const deviceToDelete = devices.value.find(d => d.id === deviceId)
+      if (deviceToDelete) {
+        devices.value = devices.value.filter(d => d.id !== deviceId)
+        // Also remove any connections involving this device
+        connections.value = connections.value.filter(c =>
+          c.source_device_id !== deviceId && c.target_device_id !== deviceId
+        )
+        console.log('✅ Device deleted locally:', deviceToDelete.name, 'ID:', deviceId)
+        return true
+      }
+      console.warn('Device not found for deletion:', deviceId)
+      return false
     } catch (error) {
       console.error('Failed to delete device:', error)
       throw error
@@ -88,18 +131,18 @@ export const useDevicesStore = defineStore('devices', () => {
     }) || null
   }
 
-  const fetchConnections = async () => {
-    try {
-      connections.value = await devicesApi.getConnections()
-    } catch (error) {
-      console.error('Failed to fetch connections:', error)
-    }
+  const getConnectionsData = (): Connection[] => {
+    return [...connections.value]
   }
 
-  const createConnection = async (connectionData: Omit<Connection, 'id'>) => {
+  const createConnection = (connectionData: Omit<Connection, 'id'>): Connection => {
     try {
-      const newConnection = await devicesApi.createConnection(connectionData)
+      const newConnection: Connection = {
+        id: generateConnectionId(),
+        ...connectionData
+      }
       connections.value.push(newConnection)
+      console.log('✅ Connection created locally:', newConnection.id)
       return newConnection
     } catch (error) {
       console.error('Failed to create connection:', error)
@@ -111,17 +154,13 @@ export const useDevicesStore = defineStore('devices', () => {
     selectedDevice.value = device
   }
 
-  const clearDevices = async () => {
-    // Clear all devices from the canvas
+  const clearDevices = (): void => {
+    // Clear all devices from the canvas (pure frontend)
     try {
-      // Delete all devices via API
-      for (const device of devices.value) {
-        await devicesApi.deleteDevice(device.id)
-      }
-      // Clear the local store
       devices.value = []
       connections.value = []
       selectedDevice.value = null
+      console.log('✅ Canvas cleared locally')
     } catch (error) {
       console.error('Failed to clear devices:', error)
       throw error
@@ -133,13 +172,13 @@ export const useDevicesStore = defineStore('devices', () => {
     connections,
     selectedDevice,
     loading,
-    fetchDevices,
+    loadDevicesFromCanvasData,
     createDevice,
     updateDevice,
     deleteDevice,
     findDeviceByName,
     findDeviceByNautobotId,
-    fetchConnections,
+    getConnectionsData,
     createConnection,
     setSelectedDevice,
     clearDevices

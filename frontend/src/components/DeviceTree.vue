@@ -91,7 +91,7 @@
     </div>
 
     <!-- Device Tree -->
-    <div v-if="filteredDevices.length > 0 && !loading" class="flex-1 overflow-y-auto custom-scrollbar">
+    <div v-if="filteredDevices.length > 0 && !loading" class="flex-1 min-h-0 overflow-auto custom-scrollbar">
       <div
         v-for="(group, groupName) in groupedDevices"
         :key="groupName"
@@ -677,14 +677,14 @@ defineExpose({
   min-height: 28px;
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar - only appears when needed */
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e0 transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -693,11 +693,16 @@ defineExpose({
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #cbd5e0;
-  border-radius: 2px;
+  border-radius: 3px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
+}
+
+/* Hide scrollbar when not needed */
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* Compact spacing */

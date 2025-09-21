@@ -20,58 +20,11 @@ export interface Connection {
   properties?: string
 }
 
-export interface DeviceTemplate {
-  type: Device['device_type']
-  name: string
-  icon: string
-  defaultProperties: Record<string, any>
-}
-
 export const useDevicesStore = defineStore('devices', () => {
   const devices = ref<Device[]>([])
   const connections = ref<Connection[]>([])
   const selectedDevice = ref<Device | null>(null)
   const loading = ref(false)
-
-  // Device templates for the inventory
-  const deviceTemplates: DeviceTemplate[] = [
-    {
-      type: 'router',
-      name: 'Router',
-      icon: '🔀',
-      defaultProperties: {
-        ports: 4,
-        routing_protocols: ['OSPF', 'BGP']
-      }
-    },
-    {
-      type: 'switch',
-      name: 'Switch',
-      icon: '🔁',
-      defaultProperties: {
-        ports: 24,
-        vlan_support: true
-      }
-    },
-    {
-      type: 'firewall',
-      name: 'Firewall',
-      icon: '🛡️',
-      defaultProperties: {
-        rules_count: 0,
-        intrusion_detection: true
-      }
-    },
-    {
-      type: 'vpn_gateway',
-      name: 'VPN Gateway',
-      icon: '🔐',
-      defaultProperties: {
-        vpn_protocols: ['IPSec', 'SSL'],
-        max_connections: 100
-      }
-    }
-  ]
 
   const fetchDevices = async () => {
     loading.value = true
@@ -180,7 +133,6 @@ export const useDevicesStore = defineStore('devices', () => {
     connections,
     selectedDevice,
     loading,
-    deviceTemplates,
     fetchDevices,
     createDevice,
     updateDevice,

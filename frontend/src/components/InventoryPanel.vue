@@ -77,13 +77,3 @@ onMounted(async () => {
   await settingsStore.loadSettings()
 })
 </script>
-
-<style scoped>
-.device-template {
-  user-select: none;
-}
-
-.device-template:hover {
-  transform: translateY(-1px);
-}
-</style>

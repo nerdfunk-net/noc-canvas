@@ -105,8 +105,8 @@
           <!-- Device Background -->
           <v-rect
             :config="{
-              width: 80,
-              height: 80,
+              width: 60,
+              height: 60,
               fill: getDeviceColor(device.device_type),
               stroke: selectedDevice?.id === device.id || selectedDevices.has(device.id) ? '#1d4ed8' : '#6b7280',
               strokeWidth: selectedDevice?.id === device.id || selectedDevices.has(device.id) ? 3 : 1,
@@ -122,8 +122,8 @@
           <v-image
             v-if="getDeviceIcon(device.device_type)"
             :config="{
-              x: 26,
-              y: 11,
+              x: 16,
+              y: 16,
               width: 28,
               height: 28,
               image: getDeviceIcon(device.device_type)
@@ -133,15 +133,16 @@
           <!-- Device Name -->
           <v-text
             :config="{
-              x: 40,
-              y: 55,
+              x: 30,
+              y: 50,
               text: device.name,
-              fontSize: 10,
+              fontSize: 9,
               align: 'center',
               fill: '#374151',
               fontFamily: 'Arial',
-              offsetX: device.name.length * 3,
-              width: 80,
+              offsetX: device.name.length * 5.5,
+              offsetY: 10,
+              width: 60,
               ellipsis: true
             }"
           />
@@ -355,7 +356,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { useDevicesStore, type Device, type DeviceTemplate } from '@/stores/devices'
+import { useDevicesStore, type Device } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
 import { type NautobotDevice, canvasApi } from '@/services/api'
 import { useDeviceIcons } from '@/composables/useDeviceIcons'
@@ -517,10 +518,10 @@ const renderConnections = computed(() => {
     return {
       id: connection.id,
       points: [
-        sourceDevice.position_x + 40,
-        sourceDevice.position_y + 40,
-        targetDevice.position_x + 40,
-        targetDevice.position_y + 40
+        sourceDevice.position_x + 30,
+        sourceDevice.position_y + 30,
+        targetDevice.position_x + 30,
+        targetDevice.position_y + 30
       ]
     }
   }).filter(Boolean)
@@ -828,10 +829,10 @@ const analyzeDevice = (device: Device) => {
 
 const getConnectionPoints = (device: Device) => {
   return [
-    { x: 0, y: 40 },    // Left
-    { x: 80, y: 40 },   // Right
-    { x: 40, y: 0 },    // Top
-    { x: 40, y: 80 }    // Bottom
+    { x: 0, y: 30 },    // Left (middle of 60px height)
+    { x: 60, y: 30 },   // Right (middle of 60px height)
+    { x: 30, y: 0 },    // Top (middle of 60px width)
+    { x: 30, y: 60 }    // Bottom (middle of 60px width)
   ]
 }
 
@@ -902,37 +903,7 @@ const onDrop = async (event: DragEvent) => {
 
     console.log('📍 Drop position:', { x, y, clientX: event.clientX, clientY: event.clientY })
 
-    if (type === 'device-template') {
-      const { template } = parsedData as { type: string; template: DeviceTemplate }
-      const deviceName = `${template.name}-${Date.now()}`
-
-      // Check for duplicate by name
-      const existingDevice = deviceStore.findDeviceByName(deviceName)
-      if (existingDevice) {
-        // Show duplicate dialog
-        duplicateDeviceName.value = deviceName
-        duplicateExistingDevice.value = existingDevice
-        pendingDeviceData.value = {
-          name: deviceName,
-          device_type: template.type,
-          position_x: x - 40,
-          position_y: y - 40,
-          properties: JSON.stringify(template.defaultProperties)
-        }
-        showDuplicateDialog.value = true
-        return
-      }
-
-      console.log('🏗️ Creating device from template:', deviceName)
-      await deviceStore.createDevice({
-        name: deviceName,
-        device_type: template.type,
-        position_x: x - 40, // Center the device
-        position_y: y - 40,
-        properties: JSON.stringify(template.defaultProperties)
-      })
-      console.log('✅ Device from template created successfully')
-    } else if (type === 'nautobot-device') {
+    if (type === 'nautobot-device') {
       const { device } = parsedData as { type: string; device: NautobotDevice }
       console.log('🏗️ Creating device from Nautobot:', device.name)
 
@@ -952,8 +923,8 @@ const onDrop = async (event: DragEvent) => {
           name: device.name,
           device_type: mapNautobotDeviceType(device),
           ip_address: device.primary_ip4?.address?.split('/')[0],
-          position_x: x - 40,
-          position_y: y - 40,
+          position_x: x - 30,
+          position_y: y - 30,
           properties: JSON.stringify({
             nautobot_id: device.id,
             location: device.location?.name,
@@ -971,8 +942,8 @@ const onDrop = async (event: DragEvent) => {
         name: device.name,
         device_type: mapNautobotDeviceType(device),
         ip_address: device.primary_ip4?.address?.split('/')[0], // Remove CIDR notation
-        position_x: x - 40, // Center the device
-        position_y: y - 40,
+        position_x: x - 30, // Center the device
+        position_y: y - 30,
         properties: JSON.stringify({
           nautobot_id: device.id,
           location: device.location?.name,
@@ -1414,8 +1385,8 @@ const searchAndCenterDevice = () => {
     const containerRect = canvasContainer.value?.getBoundingClientRect()
     if (containerRect) {
       canvasStore.setPosition({
-        x: containerRect.width / 2 - (foundDevice.position_x + 40) * scale.value,
-        y: containerRect.height / 2 - (foundDevice.position_y + 40) * scale.value
+        x: containerRect.width / 2 - (foundDevice.position_x + 30) * scale.value,
+        y: containerRect.height / 2 - (foundDevice.position_y + 30) * scale.value
       })
       
       // Select the device
@@ -1451,7 +1422,7 @@ const showProperties = (device: Device) => {
 
 const startConnection = (device: Device) => {
   connectionMode.value = true
-  connectionStart.value = { device, point: { x: 40, y: 40 } }
+  connectionStart.value = { device, point: { x: 30, y: 30 } }
   hideContextMenu()
 }
 
@@ -1460,8 +1431,8 @@ const centerOnDevice = (device: Device) => {
   if (!containerRect) return
 
   canvasStore.setPosition({
-    x: containerRect.width / 2 - (device.position_x + 40) * scale.value,
-    y: containerRect.height / 2 - (device.position_y + 40) * scale.value
+    x: containerRect.width / 2 - (device.position_x + 30) * scale.value,
+    y: containerRect.height / 2 - (device.position_y + 30) * scale.value
   })
   hideContextMenu()
 }

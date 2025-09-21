@@ -4,20 +4,62 @@ from contextlib import asynccontextmanager
 from .core.database import engine, Base
 from .core.config import settings
 from .core.cache import cache_service
-from .api import auth, devices, nautobot, checkmk, settings_local as settings_api, jobs
+from .core.db_init import full_database_setup
+from .api import auth, devices, nautobot, checkmk, settings as settings_api, jobs
+import logging
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
+    logger.info("Starting NOC Canvas application...")
+
+    # Check database configuration
+    logger.info("Checking database configuration...")
+    try:
+        from .core.yaml_config import load_database_config, validate_database_config
+        config = load_database_config()
+
+        if not config or not validate_database_config(config):
+            error_msg = (
+                "❌ CRITICAL: No valid database configuration found!\n"
+                "Database is required to run this application.\n"
+                "Please configure database settings using one of these methods:\n"
+                "1. Environment variables: NOC_DATABASE, NOC_USERNAME, NOC_PASSWORD\n"
+                "2. YAML file: ./data/settings/database.yaml\n"
+                "3. Use the settings page in the application"
+            )
+            logger.error(error_msg)
+            raise RuntimeError("Database configuration required")
+
+        logger.info("✅ Database configuration found and valid")
+
+        # Initialize database
+        logger.info("Initializing database...")
+        success = full_database_setup()
+        if success:
+            logger.info("✅ Database initialization completed successfully")
+        else:
+            logger.error("❌ Database initialization failed - application may not work correctly")
+            raise RuntimeError("Database initialization failed")
+
+    except Exception as e:
+        logger.error(f"❌ Database setup error: {e}")
+        raise
+
+    # Connect to cache
     await cache_service.connect()
+    logger.info("✅ Application startup completed")
+
     yield
+
     # Shutdown
+    logger.info("Shutting down NOC Canvas application...")
     await cache_service.disconnect()
+    logger.info("✅ Application shutdown completed")
 
 
 app = FastAPI(

@@ -23,10 +23,20 @@ export interface CanvasSettings {
   gridEnabled: boolean
 }
 
+export interface DatabaseSettings {
+  host: string
+  port: number
+  database: string
+  username: string
+  password: string
+  ssl: boolean
+}
+
 export interface Settings {
   nautobot: NautobotSettings
   checkmk: CheckMKSettings
   canvas: CanvasSettings
+  database: DatabaseSettings
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -51,6 +61,14 @@ export const useSettingsStore = defineStore('settings', () => {
     canvas: {
       autoSaveInterval: 60,
       gridEnabled: true
+    },
+    database: {
+      host: '',
+      port: 5432,
+      database: 'noc_canvas',
+      username: '',
+      password: '',
+      ssl: false
     }
   })
 

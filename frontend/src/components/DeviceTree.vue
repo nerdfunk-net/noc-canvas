@@ -1,12 +1,12 @@
 <template>
-  <div class="device-tree">
+  <div class="device-tree w-full h-full bg-white border-r border-gray-200 flex flex-col">
     <!-- Tree Controls -->
-    <div class="mb-4 space-y-2">
+    <div class="bg-white border-b border-gray-200 p-2 space-y-2 flex-shrink-0">
       <!-- Filter Input -->
       <div class="flex space-x-2">
         <select
           v-model="filterType"
-          class="px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+          class="px-2 py-1 text-xs bg-white border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-gray-50 disabled:cursor-not-allowed"
           :disabled="!isNautobotConfigured"
         >
           <option value="name">Name</option>
@@ -18,70 +18,80 @@
         <input
           v-model="filterValue"
           type="text"
-          placeholder="Enter search value..."
-          class="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500"
+          placeholder="Search..."
+          class="flex-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 placeholder-gray-400"
         />
       </div>
 
       <!-- Group By Selection -->
       <div class="flex items-center space-x-2" :class="{ 'opacity-50': !isNautobotConfigured }">
-        <span class="text-xs text-gray-600">Group by:</span>
+        <span class="text-xs text-gray-600">Group:</span>
         <select
           v-model="groupBy"
-          class="px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+          class="px-2 py-1 text-xs bg-white border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-gray-50 disabled:cursor-not-allowed"
           :disabled="!isNautobotConfigured"
         >
           <option value="location">Location</option>
           <option value="role">Role</option>
           <option value="status">Status</option>
-          <option value="device_type">Device Type</option>
+          <option value="device_type">Type</option>
         </select>
       </div>
     </div>
 
     <!-- Loading State -->
-    <div v-if="loading && devices.length === 0" class="text-center py-4">
-      <i class="fas fa-spinner fa-spin text-gray-400 mb-2"></i>
-      <p class="text-xs text-gray-500">Loading devices...</p>
+    <div v-if="loading && devices.length === 0" class="flex-1 flex items-center justify-center">
+      <div class="text-center">
+        <svg class="w-6 h-6 text-blue-500 animate-spin mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="text-xs text-gray-500">Loading...</p>
+      </div>
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error" class="text-center py-4">
-      <i class="fas fa-exclamation-triangle text-red-400 mb-2"></i>
-      <p class="text-xs text-red-600">{{ error }}</p>
+    <div v-else-if="error" class="flex-1 flex items-center justify-center">
+      <div class="text-center px-2">
+        <svg class="w-6 h-6 text-red-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="text-xs font-medium text-red-600">Error</p>
+        <p class="text-xs text-red-500 mt-1">{{ error }}</p>
+      </div>
     </div>
 
     <!-- Not Configured State -->
-    <div v-else-if="!isNautobotConfigured" class="text-center py-6">
-      <i class="fas fa-cog text-gray-400 text-2xl mb-3"></i>
-      <p class="text-xs text-gray-500 mb-2">Nautobot not configured</p>
-      <p class="text-xs text-gray-400 mb-3">Configure Nautobot settings to load devices</p>
-      <router-link
-        to="/settings"
-        class="inline-flex items-center px-3 py-1.5 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors"
-      >
-        <i class="fas fa-cog mr-1"></i>
-        Go to Settings
-      </router-link>
+    <div v-else-if="!isNautobotConfigured" class="flex-1 flex items-center justify-center">
+      <div class="text-center px-2">
+        <svg class="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <p class="text-xs font-medium text-gray-600 mb-2">Not Configured</p>
+        <router-link
+          to="/settings"
+          class="inline-flex items-center px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+        >
+          Settings
+        </router-link>
+      </div>
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="filteredDevices.length === 0 && !loading" class="text-center py-4">
-      <i class="fas fa-search text-gray-400 mb-2"></i>
-      <p class="text-xs text-gray-500">
-        {{ devices.length === 0 ? 'No devices found' : 'No devices match your search' }}
-      </p>
-      <div class="text-xs text-gray-400 mt-2">
-        <div>Total devices: {{ devices.length }}</div>
-        <div>Filtered devices: {{ filteredDevices.length }}</div>
-        <div>Groups: {{ Object.keys(groupedDevices).length }}</div>
-        <div>Expanded: {{ expandedGroups.size }}</div>
-        <div>Filter: "{{ debouncedFilterValue }}"</div>
+    <div v-else-if="filteredDevices.length === 0 && !loading" class="flex-1 flex items-center justify-center">
+      <div class="text-center px-2">
+        <svg class="w-6 h-6 text-gray-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <p class="text-xs font-medium text-gray-600">
+          {{ devices.length === 0 ? 'No devices' : 'No matches' }}
+        </p>
       </div>
     </div>
 
     <!-- Device Tree -->
-    <div v-if="filteredDevices.length > 0 && !loading" class="overflow-y-auto" style="max-height: calc(100vh - 200px);">
+    <div v-if="filteredDevices.length > 0 && !loading" class="flex-1 overflow-y-auto custom-scrollbar">
       <div
         v-for="(group, groupName) in groupedDevices"
         :key="groupName"
@@ -93,13 +103,18 @@
           class="group-header px-2 py-1.5 bg-gray-50 hover:bg-gray-100 cursor-pointer flex items-center justify-between text-xs font-medium text-gray-700 border-b border-gray-200 sticky top-0 z-10"
         >
           <div class="flex items-center space-x-1.5 min-w-0">
-            <i
-              :class="expandedGroups.has(groupName) ? 'fa-chevron-down' : 'fa-chevron-right'"
-              class="fas text-gray-400 transition-transform text-xs w-2.5 flex-shrink-0"
-            ></i>
-            <i :class="getGroupIcon()" class="text-gray-500 text-xs flex-shrink-0"></i>
+            <svg
+              :class="expandedGroups.has(groupName) ? 'rotate-90' : 'rotate-0'"
+              class="w-3 h-3 text-gray-400 transition-transform duration-150 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+            <span class="text-xs">{{ getGroupEmoji() }}</span>
             <span class="truncate">{{ groupName || 'Unknown' }}</span>
-            <span class="text-gray-400 flex-shrink-0">({{ group.length }})</span>
+            <span class="px-1.5 py-0.5 text-xs bg-gray-200 text-gray-600 rounded-full flex-shrink-0">{{ group.length }}</span>
           </div>
         </div>
 
@@ -114,20 +129,23 @@
             @click="selectDevice(device)"
             @dragstart="startDeviceDrag($event, device)"
             draggable="true"
-            class="device-item px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors group"
-            :class="{ 'bg-primary-50 border-primary-200': selectedDevice?.id === device.id }"
+            class="device-item px-2 py-1.5 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors group"
+            :class="{ 'bg-blue-50 border-blue-200': selectedDevice?.id === device.id }"
           >
             <div class="flex items-center space-x-2 min-w-0">
-              <!-- Device Status Indicator -->
-              <div
-                class="w-2 h-2 rounded-full flex-shrink-0"
-                :class="getStatusColor(device.status?.name)"
-                :title="device.status?.name || 'Unknown Status'"
-              ></div>
+              <!-- Device Status & Icon -->
+              <div class="flex items-center space-x-1 flex-shrink-0">
+                <div
+                  class="w-2 h-2 rounded-full"
+                  :class="getStatusColor(device.status?.name)"
+                  :title="device.status?.name || 'Unknown'"
+                ></div>
+                <span class="text-sm">{{ getDeviceEmoji(device) }}</span>
+              </div>
 
               <!-- Device Info -->
               <div class="flex-1 min-w-0">
-                <div class="font-medium text-sm text-gray-900 truncate">
+                <div class="font-medium text-xs text-gray-900 truncate">
                   {{ device.name }}
                 </div>
                 <div class="text-xs text-gray-500 truncate">
@@ -139,17 +157,22 @@
               <div class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                 <button
                   @click.stop="viewDevice(device)"
-                  class="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-primary-600 transition-colors rounded"
-                  title="View details"
+                  class="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-blue-600 transition-colors rounded"
+                  title="View"
                 >
-                  <i class="fas fa-eye text-xs"></i>
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
                 </button>
                 <button
                   @click.stop="addToCanvas(device)"
                   class="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-green-600 transition-colors rounded"
-                  title="Add to canvas"
+                  title="Add"
                 >
-                  <i class="fas fa-plus text-xs"></i>
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -416,6 +439,38 @@ const getGroupIcon = (): string => {
   }
 }
 
+const getGroupEmoji = (): string => {
+  // Return emoji based on current groupBy setting
+  switch (groupBy.value) {
+    case 'location':
+      return '📍'
+    case 'role':
+      return '👤'
+    case 'status':
+      return '🔄'
+    case 'device_type':
+      return '🖥️'
+    default:
+      return '📁'
+  }
+}
+
+const getDeviceEmoji = (device: any): string => {
+  // Return emoji based on device type or role
+  const deviceType = device.device_type?.model?.toLowerCase() || ''
+  const role = device.role?.name?.toLowerCase() || ''
+
+  if (deviceType.includes('router') || role.includes('router')) return '🔀'
+  if (deviceType.includes('switch') || role.includes('switch')) return '🔁'
+  if (deviceType.includes('firewall') || role.includes('firewall')) return '🛡️'
+  if (deviceType.includes('server') || role.includes('server')) return '🖥️'
+  if (deviceType.includes('access') || role.includes('access')) return '📡'
+  if (deviceType.includes('wireless') || role.includes('wireless')) return '📶'
+  if (deviceType.includes('phone') || role.includes('phone')) return '📞'
+
+  return '📡' // Default network device
+}
+
 const getStatusColor = (status?: string): string => {
   switch (status?.toLowerCase()) {
     case 'active':
@@ -484,11 +539,7 @@ defineExpose({
 <style scoped>
 .device-tree {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-.group-header:hover .fas.fa-chevron-right,
-.group-header:hover .fas.fa-chevron-down {
-  color: #6b7280;
+  background: white;
 }
 
 .group-header {
@@ -496,47 +547,37 @@ defineExpose({
   line-height: 1.2;
 }
 
-.device-item:hover .opacity-0 {
-  opacity: 1;
-}
-
 .device-item {
   user-select: none;
-  min-height: 40px;
+  min-height: 28px;
 }
 
 /* Custom scrollbar */
-.device-tree .overflow-y-auto {
+.custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e0 #f7fafc;
+  scrollbar-color: #cbd5e0 transparent;
 }
 
-.device-tree .overflow-y-auto::-webkit-scrollbar {
+.custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }
 
-.device-tree .overflow-y-auto::-webkit-scrollbar-track {
-  background: #f7fafc;
-  border-radius: 2px;
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.device-tree .overflow-y-auto::-webkit-scrollbar-thumb {
+.custom-scrollbar::-webkit-scrollbar-thumb {
   background: #cbd5e0;
   border-radius: 2px;
 }
 
-.device-tree .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: #a0aec0;
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
-/* Compact spacing for large datasets */
+/* Compact spacing */
 .device-tree .mb-1 {
-  margin-bottom: 2px;
-}
-
-/* Sticky header optimization */
-.sticky {
-  backdrop-filter: blur(2px);
+  margin-bottom: 1px;
 }
 
 /* Text overflow handling */
@@ -546,24 +587,57 @@ defineExpose({
   overflow: hidden;
 }
 
-/* Improve performance for hover effects */
+/* Smooth transitions */
 .transition-colors {
-  transition: background-color 0.1s ease-in-out;
+  transition: background-color 0.15s ease;
 }
 
 .transition-opacity {
-  transition: opacity 0.1s ease-in-out;
+  transition: opacity 0.15s ease;
 }
 
-/* Loading state optimization */
-.loading-skeleton {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: loading 1.5s infinite;
+.transition-transform {
+  transition: transform 0.15s ease;
 }
 
-@keyframes loading {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+/* Rotate utilities */
+.rotate-0 {
+  transform: rotate(0deg);
+}
+
+.rotate-90 {
+  transform: rotate(90deg);
+}
+
+/* Focus states */
+select:focus,
+input:focus {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Remove any yellow or colored backgrounds */
+.device-tree * {
+  background-color: transparent;
+}
+
+.device-tree .bg-white {
+  background-color: white !important;
+}
+
+.device-tree .bg-gray-50 {
+  background-color: #f9fafb !important;
+}
+
+.device-tree .bg-gray-100 {
+  background-color: #f3f4f6 !important;
+}
+
+.device-tree .bg-blue-50 {
+  background-color: #eff6ff !important;
+}
+
+/* Ensure no yellow backgrounds anywhere */
+.device-tree {
+  background-color: white !important;
 }
 </style>

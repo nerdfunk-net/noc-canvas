@@ -7,7 +7,9 @@ class Settings(BaseSettings):
     secret_key: str = "your-secret-key-change-this-in-production"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
-    database_url: str = "sqlite:///./noc_canvas.db"
+
+    # Note: Database configuration now handled via YAML config or environment variables
+    # See: app.core.yaml_config for database configuration
 
     # CORS settings
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
@@ -36,6 +38,8 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        # Ignore extra environment variables (like NOC_* database config vars)
+        extra = "ignore"
 
 
 settings = Settings()

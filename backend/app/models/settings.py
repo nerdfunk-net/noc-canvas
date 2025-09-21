@@ -120,6 +120,14 @@ class UnifiedSettings(BaseModel):
         "autoSaveInterval": 60,
         "gridEnabled": True
     }
+    database: dict = {
+        "host": "",
+        "port": 5432,
+        "database": "noc_canvas",
+        "username": "",
+        "password": "",
+        "ssl": False
+    }
 
 
 class CredentialsSettings(BaseModel):

@@ -67,6 +67,124 @@
                 </div>
               </div>
             </div>
+
+            <!-- Database Settings -->
+            <div class="card p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Database Configuration</h2>
+                <div class="flex items-center space-x-3">
+                  <span class="text-sm text-gray-500">PostgreSQL Required</span>
+                  <button
+                    @click="testDatabaseConnection"
+                    :disabled="testingConnection.database"
+                    class="px-3 py-1 text-sm bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
+                  >
+                    {{ testingConnection.database ? 'Testing...' : 'Test Connection' }}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Host/IP Address <span class="text-red-500">*</span>
+                    </label>
+                    <input
+                      v-model="settings.database.host"
+                      type="text"
+                      placeholder="192.168.1.100 or db.example.com"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Port
+                    </label>
+                    <input
+                      v-model.number="settings.database.port"
+                      type="number"
+                      min="1"
+                      max="65535"
+                      placeholder="5432"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Database Name <span class="text-red-500">*</span>
+                    </label>
+                    <input
+                      v-model="settings.database.database"
+                      type="text"
+                      placeholder="noc_canvas"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Username <span class="text-red-500">*</span>
+                    </label>
+                    <input
+                      v-model="settings.database.username"
+                      type="text"
+                      placeholder="database_user"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
+                  <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Password <span class="text-red-500">*</span>
+                    </label>
+                    <input
+                      v-model="settings.database.password"
+                      type="password"
+                      placeholder="Enter database password"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
+                  <div class="md:col-span-2">
+                    <label class="flex items-center">
+                      <input
+                        v-model="settings.database.ssl"
+                        type="checkbox"
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span class="ml-2 text-sm text-gray-700">Use SSL Connection</span>
+                    </label>
+                  </div>
+                </div>
+                <div class="mt-4 flex space-x-3">
+                  <button
+                    @click="testConnection('database')"
+                    class="btn-secondary"
+                    :disabled="testingConnection.database"
+                  >
+                    <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 1.79 4 4 4h8c0-2.21-1.79-4-4-4H4V7z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7c0-2.21 1.79-4 4-4h8c2.21 0 4 1.79 4 4v10c0 2.21-1.79 4-4 4" />
+                    </svg>
+                    {{ testingConnection.database ? 'Testing...' : 'Test Connection' }}
+                  </button>
+                  <div v-if="connectionStatus.database" class="flex items-center">
+                    <i :class="connectionStatus.database.success ? 'fas fa-check-circle text-green-500' : 'fas fa-times-circle text-red-500'" class="mr-2"></i>
+                    <span :class="connectionStatus.database.success ? 'text-green-700' : 'text-red-700'" class="text-sm">
+                      {{ connectionStatus.database.message }}
+                    </span>
+                  </div>
+                </div>
+                <div class="mt-4 bg-amber-50 border border-amber-200 rounded-md p-4">
+                  <div class="flex">
+                    <svg class="w-5 h-5 text-amber-400 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 19.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <div class="text-sm text-amber-700">
+                      <p class="font-medium">Database Configuration</p>
+                      <p>Configure your external database connection for storing application data. Supports PostgreSQL, MySQL, and other SQL databases.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Plugins Tab -->
@@ -415,11 +533,13 @@ const savingProfile = ref(false)
 const changingPassword = ref(false)
 const testingConnection = reactive({
   nautobot: false,
-  checkmk: false
+  checkmk: false,
+  database: false
 })
 const connectionStatus = reactive({
   nautobot: null as { success: boolean; message: string } | null,
-  checkmk: null as { success: boolean; message: string } | null
+  checkmk: null as { success: boolean; message: string } | null,
+  database: null as { success: boolean; message: string } | null
 })
 
 const tabs = [
@@ -447,6 +567,14 @@ const settings = reactive({
   canvas: {
     autoSaveInterval: 60,
     gridEnabled: true
+  },
+  database: {
+    host: '',
+    port: 5432,
+    database: '',
+    username: '',
+    password: '',
+    ssl: false
   },
   credentials: [] as Array<{
     name: string
@@ -487,26 +615,42 @@ const removeLastCredential = () => {
   }
 }
 
-const testConnection = async (service: 'nautobot' | 'checkmk') => {
+const testConnection = async (service: 'nautobot' | 'checkmk' | 'database') => {
   testingConnection[service] = true
   connectionStatus[service] = null
 
   try {
-    const endpoint = service === 'nautobot' ? '/api/settings/test-nautobot' : '/api/settings/test-checkmk'
-    const payload = service === 'nautobot'
-      ? {
-          url: settings.nautobot.url,
-          token: settings.nautobot.token,
-          verify_ssl: settings.nautobot.verifyTls,
-          timeout: settings.nautobot.timeout
-        }
-      : {
-          url: settings.checkmk.url,
-          site: settings.checkmk.site,
-          username: settings.checkmk.username,
-          password: settings.checkmk.password,
-          verify_ssl: settings.checkmk.verifyTls
-        }
+    let endpoint = ''
+    let payload = {}
+
+    if (service === 'nautobot') {
+      endpoint = '/api/settings/test-nautobot'
+      payload = {
+        url: settings.nautobot.url,
+        token: settings.nautobot.token,
+        verify_ssl: settings.nautobot.verifyTls,
+        timeout: settings.nautobot.timeout
+      }
+    } else if (service === 'checkmk') {
+      endpoint = '/api/settings/test-checkmk'
+      payload = {
+        url: settings.checkmk.url,
+        site: settings.checkmk.site,
+        username: settings.checkmk.username,
+        password: settings.checkmk.password,
+        verify_ssl: settings.checkmk.verifyTls
+      }
+    } else if (service === 'database') {
+      endpoint = '/api/settings/test-database'
+      payload = {
+        host: settings.database.host,
+        port: settings.database.port,
+        database: settings.database.database,
+        username: settings.database.username,
+        password: settings.database.password,
+        ssl: settings.database.ssl
+      }
+    }
 
     const response = await fetch(`http://localhost:8000${endpoint}`, {
       method: 'POST',
@@ -540,6 +684,10 @@ const testConnection = async (service: 'nautobot' | 'checkmk') => {
   }
 }
 
+const testDatabaseConnection = async () => {
+  await testConnection('database')
+}
+
 const saveSettings = async () => {
   saving.value = true
   try {
@@ -552,7 +700,8 @@ const saveSettings = async () => {
       body: JSON.stringify({
         nautobot: settings.nautobot,
         checkmk: settings.checkmk,
-        canvas: settings.canvas
+        canvas: settings.canvas,
+        database: settings.database
       })
     })
 

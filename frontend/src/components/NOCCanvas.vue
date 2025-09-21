@@ -182,50 +182,66 @@
     </v-stage>
 
     <!-- Context Menu -->
-    <div
-      v-if="contextMenu.show"
-      :style="{
-        position: 'absolute',
-        left: contextMenu.x + 'px',
-        top: contextMenu.y + 'px',
-        zIndex: 1000
-      }"
-      class="bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-48"
+    <Transition
+      enter-active-class="transition-all duration-200 ease-out"
+      enter-from-class="opacity-0 scale-95 translate-y-1"
+      enter-to-class="opacity-100 scale-100 translate-y-0"
+      leave-active-class="transition-all duration-150 ease-in"
+      leave-from-class="opacity-100 scale-100 translate-y-0"
+      leave-to-class="opacity-0 scale-95 translate-y-1"
     >
       <div
-        v-for="item in contextMenuItems"
-        :key="item.label"
-        class="relative group"
+        v-if="contextMenu.show"
+        :style="{
+          position: 'absolute',
+          left: contextMenu.x + 'px',
+          top: contextMenu.y + 'px',
+          zIndex: 1000
+        }"
+        class="bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-44 overflow-hidden"
       >
-        <button
-          @click="item.submenu ? null : item.action()"
-          class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center justify-between"
-          :class="{ 'cursor-default': item.submenu }"
-        >
-          <div class="flex items-center space-x-2">
-            <span>{{ item.icon }}</span>
-            <span>{{ item.label }}</span>
-          </div>
-          <span v-if="item.submenu" class="text-gray-400">▶</span>
-        </button>
-        
-        <!-- Submenu -->
         <div
-          v-if="item.submenu"
-          class="absolute left-full top-0 ml-1 bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-40 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200"
+          v-for="item in contextMenuItems"
+          :key="item.label"
+          class="relative group"
         >
           <button
-            v-for="subItem in item.submenu"
-            :key="subItem.label"
-            @click="subItem.action()"
-            class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+            @click="item.submenu ? null : item.action()"
+            class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-blue-50/80 hover:text-blue-900 flex items-center justify-between transition-all duration-150 ease-out"
+            :class="{
+              'cursor-default': item.submenu,
+              'hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/80': !item.submenu
+            }"
           >
-            <span>{{ subItem.icon }}</span>
-            <span>{{ subItem.label }}</span>
+            <div class="flex items-center space-x-2">
+              <span class="text-sm opacity-70 group-hover:opacity-100 transition-opacity">{{ item.icon }}</span>
+              <span class="font-medium">{{ item.label }}</span>
+            </div>
+            <span v-if="item.submenu" class="text-gray-400 group-hover:text-blue-600 transition-colors">
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </span>
           </button>
+
+          <!-- Submenu -->
+          <div
+            v-if="item.submenu"
+            class="absolute left-full top-0 ml-1 bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-36 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out transform group-hover:translate-x-0 translate-x-1 overflow-hidden"
+          >
+            <button
+              v-for="subItem in item.submenu"
+              :key="subItem.label"
+              @click="subItem.action()"
+              class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/80 hover:text-blue-900 flex items-center space-x-2 transition-all duration-150 ease-out"
+            >
+              <span class="text-xs opacity-70">{{ subItem.icon }}</span>
+              <span class="font-medium">{{ subItem.label }}</span>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
 
     <!-- Canvas Controls -->
     <div class="absolute bottom-4 right-4 flex flex-col space-y-2">
@@ -275,6 +291,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useDevicesStore, type Device, type DeviceTemplate } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
+import { type NautobotDevice } from '@/services/api'
 
 const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
@@ -366,15 +383,15 @@ const contextMenuItems = computed(() => {
   if (!contextMenu.target) {
     if (contextMenu.targetType === 'canvas') {
       return [
-        { icon: '▫', label: 'Fit to Screen', action: fitToScreen },
-        { icon: '↻', label: 'Reset View', action: resetView },
-        { 
-          icon: '■', 
+        { icon: '🖼️', label: 'Fit to Screen', action: fitToScreen },
+        { icon: '🏠', label: 'Reset View', action: resetView },
+        {
+          icon: '🎨',
           label: 'Canvas',
           submenu: [
-            { icon: '↑', label: 'Load', action: loadCanvas },
-            { icon: '↓', label: 'Save', action: saveCanvas },
-            { icon: '×', label: 'Clear', action: clearCanvas }
+            { icon: '📂', label: 'Load', action: loadCanvas },
+            { icon: '💾', label: 'Save', action: saveCanvas },
+            { icon: '🗑️', label: 'Clear', action: clearCanvas }
           ]
         }
       ]
@@ -384,18 +401,18 @@ const contextMenuItems = computed(() => {
 
   // Device context menu
   return [
-    { icon: '○', label: 'Overview', action: () => showDeviceOverview(contextMenu.target!) },
+    { icon: '📊', label: 'Overview', action: () => showDeviceOverview(contextMenu.target!) },
     {
-      icon: '⚙',
+      icon: '⚙️',
       label: 'Config',
       submenu: [
-        { icon: '□', label: 'Show', action: () => showDeviceConfig(contextMenu.target!) },
-        { icon: '≡', label: 'Show Changes', action: () => showDeviceChanges(contextMenu.target!) }
+        { icon: '👁️', label: 'Show', action: () => showDeviceConfig(contextMenu.target!) },
+        { icon: '📝', label: 'Show Changes', action: () => showDeviceChanges(contextMenu.target!) }
       ]
     },
-    { icon: '‣', label: 'Commands', action: () => showDeviceCommands(contextMenu.target!) },
-    { icon: '◊', label: 'Neighbors', action: () => showDeviceNeighbors(contextMenu.target!) },
-    { icon: '◉', label: 'Analyze', action: () => analyzeDevice(contextMenu.target!) }
+    { icon: '💻', label: 'Commands', action: () => showDeviceCommands(contextMenu.target!) },
+    { icon: '🔗', label: 'Neighbors', action: () => showDeviceNeighbors(contextMenu.target!) },
+    { icon: '🔍', label: 'Analyze', action: () => analyzeDevice(contextMenu.target!) }
   ]
 })
 
@@ -467,6 +484,29 @@ const getConnectionPoints = (device: Device) => {
   ]
 }
 
+// Helper function to map Nautobot device types to canvas device types
+const mapNautobotDeviceType = (nautobotDevice: NautobotDevice): Device['device_type'] => {
+  const role = nautobotDevice.role?.name?.toLowerCase() || ''
+  const deviceType = nautobotDevice.device_type?.model?.toLowerCase() || ''
+
+  // Map based on role first, then device type
+  if (role.includes('router') || deviceType.includes('router')) {
+    return 'router'
+  }
+  if (role.includes('switch') || deviceType.includes('switch')) {
+    return 'switch'
+  }
+  if (role.includes('firewall') || deviceType.includes('firewall')) {
+    return 'firewall'
+  }
+  if (role.includes('vpn') || deviceType.includes('vpn')) {
+    return 'vpn_gateway'
+  }
+
+  // Default to router for network devices
+  return 'router'
+}
+
 // Event handlers
 const onDragEnter = (event: DragEvent) => {
   console.log('🎯 Drag enter canvas')
@@ -496,24 +536,26 @@ const onDrop = async (event: DragEvent) => {
   }
 
   try {
-    const { type, template } = JSON.parse(data) as { type: string; template: DeviceTemplate }
-    console.log('🔍 Parsed drop data:', { type, template })
+    const parsedData = JSON.parse(data)
+    const { type } = parsedData
+    console.log('🔍 Parsed drop data:', parsedData)
+
+    const rect = canvasContainer.value?.getBoundingClientRect()
+    if (!rect) {
+      console.log('❌ No canvas container rect')
+      return
+    }
+
+    const x = (event.clientX - rect.left - position.value.x) / scale.value
+    const y = (event.clientY - rect.top - position.value.y) / scale.value
+
+    console.log('📍 Drop position:', { x, y, clientX: event.clientX, clientY: event.clientY })
 
     if (type === 'device-template') {
-      const rect = canvasContainer.value?.getBoundingClientRect()
-      if (!rect) {
-        console.log('❌ No canvas container rect')
-        return
-      }
-
-      const x = (event.clientX - rect.left - position.x) / scale.value
-      const y = (event.clientY - rect.top - position.y) / scale.value
-
-      console.log('📍 Drop position:', { x, y, clientX: event.clientX, clientY: event.clientY })
-
+      const { template } = parsedData as { type: string; template: DeviceTemplate }
       const deviceName = `${template.name}-${Date.now()}`
 
-      console.log('🏗️ Creating device:', deviceName)
+      console.log('🏗️ Creating device from template:', deviceName)
       await deviceStore.createDevice({
         name: deviceName,
         device_type: template.type,
@@ -521,7 +563,29 @@ const onDrop = async (event: DragEvent) => {
         position_y: y - 40,
         properties: JSON.stringify(template.defaultProperties)
       })
-      console.log('✅ Device created successfully')
+      console.log('✅ Device from template created successfully')
+    } else if (type === 'nautobot-device') {
+      const { device } = parsedData as { type: string; device: NautobotDevice }
+      console.log('🏗️ Creating device from Nautobot:', device.name)
+      
+      await deviceStore.createDevice({
+        name: device.name,
+        device_type: mapNautobotDeviceType(device),
+        ip_address: device.primary_ip4?.address?.split('/')[0], // Remove CIDR notation
+        position_x: x - 40, // Center the device
+        position_y: y - 40,
+        properties: JSON.stringify({
+          nautobot_id: device.id,
+          location: device.location?.name,
+          role: device.role?.name,
+          status: device.status?.name,
+          device_model: device.device_type?.model,
+          last_backup: device.cf_last_backup
+        })
+      })
+      console.log('✅ Device from Nautobot created successfully')
+    } else {
+      console.log('❌ Unknown drop data type:', type)
     }
   } catch (error) {
     console.error('❌ Failed to create device:', error)

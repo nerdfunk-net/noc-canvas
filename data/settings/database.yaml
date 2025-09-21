@@ -1,0 +1,6 @@
+database: noc
+host: localhost
+password: postgres
+port: 5432
+ssl: false
+username: postgres

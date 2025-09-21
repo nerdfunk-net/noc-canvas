@@ -15,3 +15,7 @@ celery>=5.3.0
 websockets>=11.0
 httpx>=0.25.0
 cryptography>=41.0.0
+# PostgreSQL support
+psycopg2-binary>=2.9.0
+# YAML configuration support
+PyYAML>=6.0.0

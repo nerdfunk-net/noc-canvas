@@ -67,42 +67,7 @@ async def test_nautobot_connection(
     """Test current Nautobot connection using configured settings."""
     try:
         from ..core.config import settings
-        from ..models.local_settings import get_user_settings
-
-        username = current_user.get("username") if isinstance(current_user, dict) else current_user.username
-
-        # Try to get settings from local database first
-        try:
-            settings_data = get_user_settings(username, "nautobot")
-            nautobot_settings = settings_data.get("nautobot", {})
-
-            if nautobot_settings.get("url") and nautobot_settings.get("token"):
-                # Use local database settings
-                verify_ssl = nautobot_settings.get("verifyTls", True)
-                if isinstance(verify_ssl, str):
-                    verify_ssl = verify_ssl.lower() == "true"
-
-                timeout = nautobot_settings.get("timeout", 30)
-                if isinstance(timeout, str):
-                    timeout = int(timeout) if timeout.isdigit() else 30
-
-                success, message = await nautobot_service.test_connection(
-                    nautobot_settings.get("url"),
-                    nautobot_settings.get("token"),
-                    timeout,
-                    verify_ssl,
-                )
-
-                return ConnectionTestResponse(
-                    success=success,
-                    message=message,
-                    nautobot_url=nautobot_settings.get("url"),
-                    connection_source="local_database",
-                )
-        except Exception as e:
-            logger.warning(f"Failed to get settings from local database: {e}")
-
-        # Fallback to environment settings
+        # Use global environment settings
         if not settings.nautobot_url or not settings.nautobot_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

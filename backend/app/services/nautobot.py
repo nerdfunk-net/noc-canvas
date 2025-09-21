@@ -19,43 +19,39 @@ class NautobotService:
         self.config_cache = None
 
     def _get_config(self, username: Optional[str] = None) -> Dict[str, Any]:
-        """Get Nautobot configuration from local database settings or environment."""
-        # Try to get settings from local database first
-        if username:
-            try:
-                from ..models.local_settings import get_user_settings
-                settings_data = get_user_settings(username, "nautobot")
-                nautobot_settings = settings_data.get("nautobot", {})
+        """Get Nautobot configuration from database or global settings."""
+        try:
+            # Try to get settings from database first
+            from sqlalchemy.orm import sessionmaker
+            from ..core.database import engine
+            from ..models.settings import AppSettings
 
-                logger.info(f"Retrieved settings for user {username}: {list(nautobot_settings.keys())}")
-                logger.info(f"URL present: {bool(nautobot_settings.get('url'))}")
-                logger.info(f"Token present: {bool(nautobot_settings.get('token'))}")
+            SessionLocal = sessionmaker(bind=engine)
+            with SessionLocal() as session:
+                db_settings = {}
+                app_settings = session.query(AppSettings).all()
+                for setting in app_settings:
+                    db_settings[setting.key] = setting.value
 
-                if nautobot_settings.get("url") and nautobot_settings.get("token"):
-                    # Convert string boolean values
-                    verify_ssl = nautobot_settings.get("verifyTls", True)
-                    if isinstance(verify_ssl, str):
-                        verify_ssl = verify_ssl.lower() == "true"
+                # Check if we have Nautobot config in database
+                nautobot_url = db_settings.get("nautobot_url")
+                nautobot_token = db_settings.get("nautobot_token")
 
-                    timeout = nautobot_settings.get("timeout", 30)
-                    if isinstance(timeout, str):
-                        timeout = int(timeout) if timeout.isdigit() else 30
-
+                if nautobot_url and nautobot_token:
                     config = {
-                        "url": nautobot_settings.get("url"),
-                        "token": nautobot_settings.get("token"),
-                        "timeout": timeout,
-                        "verify_ssl": verify_ssl,
-                        "_source": "local_database",
+                        "url": nautobot_url,
+                        "token": nautobot_token,
+                        "timeout": int(db_settings.get("nautobot_timeout", "30")),
+                        "verify_ssl": db_settings.get("nautobot_verify_tls", "true").lower() == "true",
+                        "_source": "database",
                     }
-                    logger.info(f"Using Nautobot settings from local database: {config['url']}")
+                    logger.info(f"Using Nautobot settings from database: {config['url']}")
                     return config
-                else:
-                    logger.warning(f"Nautobot settings incomplete for user {username}. URL: {nautobot_settings.get('url')}, Token present: {bool(nautobot_settings.get('token'))}")
-            except Exception as e:
-                logger.error(f"Failed to get Nautobot settings from local database for user {username}: {e}")
 
-        # Fallback to environment settings
+        except Exception as e:
+            logger.warning(f"Failed to get Nautobot settings from database: {e}")
+
+        # Fallback to environment/global settings
         config = {
             "url": settings.nautobot_url,
             "token": settings.nautobot_token,

@@ -1,9 +1,8 @@
 """
-Credential models for storing user credentials in separate database.
+Credential models for storing user credentials in PostgreSQL database.
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, Text, DateTime
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import func
 from pydantic import BaseModel
@@ -11,9 +10,10 @@ from typing import Optional, List
 import os
 from cryptography.fernet import Fernet
 import base64
+from ..core.database import Base, engine
 
-# Create separate base for credentials database
-CredentialsBase = declarative_base()
+# Use main database Base for credentials
+CredentialsBase = Base
 
 class UserCredential(CredentialsBase):
     """User credentials stored in separate database."""
@@ -28,31 +28,14 @@ class UserCredential(CredentialsBase):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
-# Database setup for credentials
-def get_credentials_db_path():
-    """Get path to credentials database."""
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    db_dir = os.path.join(base_dir, "data", "settings")
-    os.makedirs(db_dir, exist_ok=True)
-    return os.path.join(db_dir, "credentials.db")
-
-
-def get_credentials_engine():
-    """Create SQLAlchemy engine for credentials database."""
-    db_path = get_credentials_db_path()
-    database_url = f"sqlite:///{db_path}"
-    return create_engine(database_url, connect_args={"check_same_thread": False})
-
-
+# Database setup for credentials using main PostgreSQL database
 def create_credentials_tables():
     """Create credentials database tables."""
-    engine = get_credentials_engine()
     CredentialsBase.metadata.create_all(bind=engine)
 
 
 def get_credentials_session():
     """Get database session for credentials."""
-    engine = get_credentials_engine()
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     return SessionLocal()
 
@@ -60,9 +43,10 @@ def get_credentials_session():
 # Encryption utilities
 def get_or_create_encryption_key():
     """Get or create encryption key for passwords."""
-    key_dir = os.path.dirname(get_credentials_db_path())
+    key_dir = "./data/settings"
+    os.makedirs(key_dir, exist_ok=True)
     key_file = os.path.join(key_dir, ".encryption_key")
-    
+
     if os.path.exists(key_file):
         with open(key_file, 'rb') as f:
             return f.read()
@@ -140,5 +124,4 @@ class CredentialsListWithPasswords(BaseModel):
     credentials: List[CredentialWithPassword]
 
 
-# Initialize credentials database on import
-create_credentials_tables()
+# Note: Database tables will be initialized during application startup

@@ -96,7 +96,7 @@
             draggable: true
           }"
           @dragend="onDeviceDragEnd(device, $event)"
-          @click="onDeviceClick(device)"
+          @click="onDeviceClick(device, $event)"
           @dblclick="onDeviceDoubleClick(device)"
           @mousedown="onDeviceMouseDown(device, $event)"
         >
@@ -106,8 +106,8 @@
               width: 80,
               height: 80,
               fill: getDeviceColor(device.device_type),
-              stroke: selectedDevice?.id === device.id ? '#1d4ed8' : '#6b7280',
-              strokeWidth: selectedDevice?.id === device.id ? 3 : 1,
+              stroke: selectedDevice?.id === device.id || selectedDevices.has(device.id) ? '#1d4ed8' : '#6b7280',
+              strokeWidth: selectedDevice?.id === device.id || selectedDevices.has(device.id) ? 3 : 1,
               cornerRadius: 8,
               shadowColor: 'black',
               shadowBlur: 4,
@@ -358,6 +358,57 @@ const selectionBox = ref<{
   endX: number
   endY: number
 } | null>(null)
+
+// Selected devices for multi-selection
+const selectedDevices = ref<Set<number>>(new Set())
+
+// Function to select devices within a selection box
+const selectDevicesInBox = (box: { startX: number; startY: number; endX: number; endY: number }) => {
+  const minX = Math.min(box.startX, box.endX)
+  const maxX = Math.max(box.startX, box.endX)
+  const minY = Math.min(box.startY, box.endY)
+  const maxY = Math.max(box.startY, box.endY)
+  
+  console.log('🔍 Selecting devices in box:', { minX, minY, maxX, maxY })
+  
+  // Start with current selection (additive selection with Shift+drag)
+  const newSelection = new Set(selectedDevices.value)
+  const deviceSize = 80 // Device width/height
+  
+  deviceStore.devices.forEach(device => {
+    // Check if device overlaps with selection box
+    const deviceLeft = device.position_x
+    const deviceRight = device.position_x + deviceSize
+    const deviceTop = device.position_y
+    const deviceBottom = device.position_y + deviceSize
+    
+    // Check if device overlaps with selection box
+    const overlapsX = deviceLeft < maxX && deviceRight > minX
+    const overlapsY = deviceTop < maxY && deviceBottom > minY
+    
+    if (overlapsX && overlapsY) {
+      newSelection.add(device.id)
+      console.log('✅ Selected device:', device.name, 'at', device.position_x, device.position_y)
+    }
+  })
+  
+  selectedDevices.value = newSelection
+  
+  // Update single selection based on multi-selection
+  if (selectedDevices.value.size === 1) {
+    const singleDeviceId = Array.from(selectedDevices.value)[0]
+    const device = deviceStore.devices.find(d => d.id === singleDeviceId)
+    if (device) {
+      selectedDevice.value = device
+      deviceStore.setSelectedDevice(device)
+    }
+  } else {
+    selectedDevice.value = null
+    deviceStore.setSelectedDevice(null)
+  }
+  
+  console.log(`🎯 Total devices selected: ${selectedDevices.value.size}`)
+}
 
 // Context menu state
 const contextMenu = reactive({
@@ -882,6 +933,8 @@ const onStageMouseDown = (event: any) => {
       }
     } else {
       selectionBox.value = null
+      // Clear multi-selection when not holding shift
+      selectedDevices.value.clear()
     }
 
     // Debug: console.log('🖱️ Mouse down - Mode:', event.evt.shiftKey ? 'Selection' : 'Panning')
@@ -927,6 +980,11 @@ const onStageMouseMove = (event: any) => {
 }
 
 const onStageMouseUp = () => {
+  // If we had a selection box, select devices within it
+  if (selectionBox.value) {
+    selectDevicesInBox(selectionBox.value)
+  }
+  
   mouseState.isDown = false
   mouseState.isDragging = false
   selectionBox.value = null
@@ -993,11 +1051,39 @@ const onRightClick = (event: MouseEvent) => {
   console.log('✅ Canvas context menu shown at:', { x: menuX, y: menuY })
 }
 
-const onDeviceClick = (device: Device) => {
-  console.log('🖱️ Device click detected for:', device.name, 'context menu showing:', contextMenu.show, 'target type:', contextMenu.targetType)
+const onDeviceClick = (device: Device, event: any) => {
+  console.log('🖱️ Device click detected for:', device.name, 'shift key:', event.evt?.shiftKey, 'context menu showing:', contextMenu.show, 'target type:', contextMenu.targetType)
 
-  selectedDevice.value = device
-  deviceStore.setSelectedDevice(device)
+  // Handle Shift+Click for multi-selection
+  if (event.evt?.shiftKey) {
+    // Toggle device in multi-selection
+    if (selectedDevices.value.has(device.id)) {
+      selectedDevices.value.delete(device.id)
+      console.log('➖ Removed device from selection:', device.name)
+    } else {
+      selectedDevices.value.add(device.id)
+      console.log('➕ Added device to selection:', device.name)
+    }
+    console.log(`🎯 Total devices in multi-selection: ${selectedDevices.value.size}`)
+    
+    // Also add to single selection if it's the only one, otherwise clear it
+    if (selectedDevices.value.size === 1 && selectedDevices.value.has(device.id)) {
+      selectedDevice.value = device
+      deviceStore.setSelectedDevice(device)
+    } else {
+      selectedDevice.value = null
+      deviceStore.setSelectedDevice(null)
+    }
+  } else {
+    // Normal click - replace selection
+    selectedDevice.value = device
+    deviceStore.setSelectedDevice(device)
+    
+    // Clear multi-selection and set only this device
+    selectedDevices.value.clear()
+    selectedDevices.value.add(device.id)
+    console.log('🎯 Single device selected:', device.name)
+  }
 
   // Don't hide context menu if it's showing a device context menu for this device
   if (contextMenu.show && contextMenu.targetType === 'device' && contextMenu.target?.id === device.id) {

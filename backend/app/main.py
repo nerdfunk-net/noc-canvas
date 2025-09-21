@@ -5,7 +5,7 @@ from .core.database import engine, Base
 from .core.config import settings
 from .core.cache import cache_service
 from .core.db_init import full_database_setup
-from .api import auth, devices, nautobot, checkmk, settings as settings_api, jobs
+from .api import auth, devices, nautobot, checkmk, settings as settings_api, jobs, canvas
 import logging
 
 logger = logging.getLogger(__name__)
@@ -81,6 +81,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(devices.router, prefix="/api/devices", tags=["devices"])
+app.include_router(canvas.router, prefix="/api/canvas", tags=["canvas"])
 app.include_router(nautobot.router, prefix="/api/nautobot", tags=["nautobot"])
 app.include_router(checkmk.router, prefix="/api/checkmk", tags=["checkmk"])
 app.include_router(settings_api.router, prefix="/api/settings", tags=["settings"])
@@ -96,6 +97,7 @@ async def root():
         "endpoints": {
             "auth": "/api/auth",
             "devices": "/api/devices",
+            "canvas": "/api/canvas",
             "nautobot": "/api/nautobot",
             "checkmk": "/api/checkmk",
             "settings": "/api/settings",

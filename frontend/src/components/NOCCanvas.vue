@@ -284,6 +284,27 @@
         <div>• Top menu: Zoom slider & presets</div>
       </div>
     </div>
+
+    <!-- Save Canvas Modal -->
+    <SaveCanvasModal
+      ref="saveModalRef"
+      :show="showSaveModal"
+      :device-count="deviceStore.devices.length"
+      :connection-count="deviceStore.connections.length"
+      @close="closeSaveModal"
+      @save="handleCanvasSave"
+    />
+
+    <!-- Clear Canvas Confirmation Dialog -->
+    <ConfirmDialog
+      :show="showClearDialog"
+      title="Clear Canvas"
+      message="Are you sure you want to clear the canvas? This will permanently remove all devices and connections from the current view."
+      confirm-text="Clear Canvas"
+      cancel-text="Cancel"
+      @confirm="handleClearConfirm"
+      @cancel="handleClearCancel"
+    />
   </div>
 </template>
 
@@ -292,6 +313,8 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useDevicesStore, type Device, type DeviceTemplate } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
 import { type NautobotDevice } from '@/services/api'
+import SaveCanvasModal from './SaveCanvasModal.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 
 const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
@@ -331,6 +354,13 @@ const connectionStart = ref<{
   device: Device
   point: { x: number; y: number }
 } | null>(null)
+
+// Save Canvas Modal state
+const showSaveModal = ref(false)
+const saveModalRef = ref()
+
+// Clear Canvas Confirmation Dialog state
+const showClearDialog = ref(false)
 
 // Mouse state
 const mouseState = reactive({
@@ -449,12 +479,87 @@ const loadCanvas = () => {
 }
 
 const saveCanvas = () => {
-  console.log('Save Canvas')  
+  console.log('Save Canvas')
+  showSaveModal.value = true
 }
 
 const clearCanvas = () => {
-  console.log('Clear Canvas')
-  // deviceStore.clearDevices() // TODO: Implement clearDevices method in store
+  console.log('Clear Canvas - showing confirmation dialog')
+  showClearDialog.value = true
+}
+
+// Clear Canvas Confirmation Dialog functions
+const handleClearConfirm = async () => {
+  console.log('✅ User confirmed canvas clear')
+  showClearDialog.value = false
+  
+  try {
+    await deviceStore.clearDevices()
+    console.log('✅ Canvas cleared successfully')
+    // notificationStore.showSuccess('Canvas cleared successfully')
+  } catch (error) {
+    console.error('❌ Failed to clear canvas:', error)
+    // notificationStore.showError('Failed to clear canvas')
+  }
+}
+
+const handleClearCancel = () => {
+  console.log('❌ User cancelled canvas clear')
+  showClearDialog.value = false
+}
+
+// Save Canvas Modal functions
+const closeSaveModal = () => {
+  showSaveModal.value = false
+}
+
+const handleCanvasSave = async (data: { name: string; sharable: boolean }) => {
+  try {
+    // Import the canvas API
+    const { canvasApi } = await import('@/services/api')
+    
+    // Collect current canvas state
+    const canvasData = {
+      devices: deviceStore.devices.map(device => ({
+        id: device.id,
+        name: device.name,
+        device_type: device.device_type,
+        ip_address: device.ip_address,
+        position_x: device.position_x,
+        position_y: device.position_y,
+        properties: device.properties
+      })),
+      connections: deviceStore.connections.map(connection => ({
+        id: connection.id,
+        source_device_id: connection.source_device_id,
+        target_device_id: connection.target_device_id,
+        connection_type: connection.connection_type,
+        properties: connection.properties
+      }))
+    }
+
+    // Save canvas to backend
+    const response = await canvasApi.saveCanvas({
+      name: data.name,
+      sharable: data.sharable,
+      canvas_data: canvasData
+    })
+
+    console.log('✅ Canvas saved successfully:', response)
+    showSaveModal.value = false
+
+    // TODO: Show success notification
+    // notificationStore.showSuccess(`Canvas "${data.name}" saved successfully`)
+    
+  } catch (error) {
+    console.error('❌ Failed to save canvas:', error)
+    
+    // Show error to user via modal
+    if (saveModalRef.value) {
+      saveModalRef.value.setError(error instanceof Error ? error.message : 'Failed to save canvas')
+      saveModalRef.value.setSaving(false)
+    }
+  }
 }
 
 const showDeviceOverview = (device: Device) => {

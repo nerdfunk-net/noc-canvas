@@ -142,6 +142,23 @@ export const useDevicesStore = defineStore('devices', () => {
     selectedDevice.value = device
   }
 
+  const clearDevices = async () => {
+    // Clear all devices from the canvas
+    try {
+      // Delete all devices via API
+      for (const device of devices.value) {
+        await devicesApi.deleteDevice(device.id)
+      }
+      // Clear the local store
+      devices.value = []
+      connections.value = []
+      selectedDevice.value = null
+    } catch (error) {
+      console.error('Failed to clear devices:', error)
+      throw error
+    }
+  }
+
   return {
     devices,
     connections,
@@ -154,6 +171,7 @@ export const useDevicesStore = defineStore('devices', () => {
     deleteDevice,
     fetchConnections,
     createConnection,
-    setSelectedDevice
+    setSelectedDevice,
+    clearDevices
   }
 })

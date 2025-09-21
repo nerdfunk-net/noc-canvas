@@ -1,6 +1,46 @@
 import type { User } from '@/stores/auth'
 import type { Device, Connection } from '@/stores/devices'
 
+// Canvas interfaces
+export interface CanvasDeviceData {
+  id: number
+  name: string
+  device_type: string
+  ip_address?: string
+  position_x: number
+  position_y: number
+  properties?: string
+}
+
+export interface CanvasConnectionData {
+  id: number
+  source_device_id: number
+  target_device_id: number
+  connection_type: string
+  properties?: string
+}
+
+export interface CanvasData {
+  devices: CanvasDeviceData[]
+  connections: CanvasConnectionData[]
+}
+
+export interface CanvasCreateRequest {
+  name: string
+  sharable: boolean
+  canvas_data: CanvasData
+}
+
+export interface CanvasResponse {
+  id: number
+  name: string
+  owner_id: number
+  sharable: boolean
+  canvas_data: CanvasData
+  created_at: string
+  updated_at: string
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 class ApiClient {
@@ -171,5 +211,28 @@ export const nautobotApi = {
       filter_value: query,
       limit: 100
     })
+  }
+}
+
+// Canvas API
+export const canvasApi = {
+  async saveCanvas(canvasData: CanvasCreateRequest) {
+    return apiClient.post<CanvasResponse>('/api/canvas', canvasData)
+  },
+
+  async getCanvases() {
+    return apiClient.get<CanvasResponse[]>('/api/canvas')
+  },
+
+  async getCanvas(canvasId: number) {
+    return apiClient.get<CanvasResponse>(`/api/canvas/${canvasId}`)
+  },
+
+  async updateCanvas(canvasId: number, canvasData: Partial<CanvasCreateRequest>) {
+    return apiClient.put<CanvasResponse>(`/api/canvas/${canvasId}`, canvasData)
+  },
+
+  async deleteCanvas(canvasId: number) {
+    return apiClient.delete(`/api/canvas/${canvasId}`)
   }
 }

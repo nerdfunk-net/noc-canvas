@@ -72,7 +72,6 @@ def initialize_tables() -> bool:
         from ..models.user import User
         from ..models.settings import AppSettings
         from ..models.canvas import Canvas
-        from ..models.device import Device, Connection
         from ..models.credential import UserCredential
         
         logger.info(f"Creating tables for models: {list(Base.metadata.tables.keys())}")

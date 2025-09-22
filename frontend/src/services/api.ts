@@ -1,5 +1,4 @@
 import type { User } from '@/stores/auth'
-import type { Device, Connection } from '@/stores/devices'
 import secureStorage from './secureStorage'
 
 // Canvas interfaces
@@ -149,32 +148,6 @@ export const authApi = {
 
   async getMe() {
     return apiClient.get<User>('/api/auth/me')
-  },
-}
-
-export const devicesApi = {
-  async getDevices() {
-    return apiClient.get<Device[]>('/api/devices/')
-  },
-
-  async createDevice(device: Omit<Device, 'id'>) {
-    return apiClient.post<Device>('/api/devices/', device)
-  },
-
-  async updateDevice(deviceId: number, updates: Partial<Device>) {
-    return apiClient.put<Device>(`/api/devices/${deviceId}`, updates)
-  },
-
-  async deleteDevice(deviceId: number) {
-    return apiClient.delete(`/api/devices/${deviceId}`)
-  },
-
-  async getConnections() {
-    return apiClient.get<Connection[]>('/api/devices/connections')
-  },
-
-  async createConnection(connection: Omit<Connection, 'id'>) {
-    return apiClient.post<Connection>('/api/devices/connections', connection)
   },
 }
 

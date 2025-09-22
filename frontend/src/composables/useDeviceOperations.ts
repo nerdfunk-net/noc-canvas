@@ -1,6 +1,5 @@
 import { ref, computed } from 'vue'
 import { useDevicesStore, type Device } from '@/stores/devices'
-import { devicesApi } from '@/services/api'
 
 export function useDeviceOperations() {
   const deviceStore = useDevicesStore()
@@ -39,13 +38,7 @@ export function useDeviceOperations() {
     console.log('Confirm Delete Device:', currentDevice.value.name)
     
     try {
-      // Delete from API if it has a server ID
-      if (currentDevice.value.id && currentDevice.value.id > 0) {
-        await devicesApi.deleteDevice(currentDevice.value.id)
-        console.log('✅ Device deleted from server')
-      }
-
-      // Remove from store
+      // Remove device from local store (devices are managed locally)
       deviceStore.deleteDevice(currentDevice.value.id)
       console.log('✅ Device removed from canvas')
 

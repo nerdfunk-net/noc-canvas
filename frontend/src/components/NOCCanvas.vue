@@ -216,6 +216,7 @@
           zIndex: 1000,
         }"
         class="bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-44"
+        data-context-menu="true"
       >
         <div v-for="item in contextMenuItems" :key="item.label" class="relative context-menu-item">
           <button
@@ -246,6 +247,7 @@
           <div
             v-if="item.submenu"
             class="submenu absolute left-full top-0 bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-36 z-10"
+            data-context-menu="true"
           >
             <button
               v-for="subItem in item.submenu"
@@ -561,8 +563,11 @@ const contextMenu = reactive({
   x: 0,
   y: 0,
   target: null as Device | null,
-  targetType: 'canvas' as 'canvas' | 'device',
+  targetType: 'canvas' as 'canvas' | 'device' | 'multi-device',
 })
+
+// Context menu just shown timestamp to prevent immediate hiding
+const contextMenuShownAt = ref(0)
 
 // Connection state
 const connectionStart = ref<{
@@ -671,7 +676,37 @@ const contextMenuItems = computed(() => {
     return []
   }
 
-  // Device context menu
+  // Multi-device context menu
+  if (contextMenu.targetType === 'multi-device') {
+    const selectedCount = selectedDevices.value.size
+    const items = [
+      { 
+        icon: '📊', 
+        label: `Overview (${selectedCount} devices)`, 
+        action: () => showMultiDeviceOverview() 
+      },
+      {
+        icon: '⚙️',
+        label: 'Config',
+        submenu: [
+          { icon: '👁️', label: 'Show All', action: () => showMultiDeviceConfig() },
+          { icon: '📝', label: 'Show All Changes', action: () => showMultiDeviceChanges() },
+        ],
+      },
+      { icon: '💻', label: 'Commands', action: () => showMultiDeviceCommands() },
+      { icon: '🔗', label: 'Show All Neighbors', action: () => showMultiDeviceNeighbors() },
+      { icon: '🔍', label: 'Analyze All', action: () => analyzeMultiDevices() },
+      { 
+        icon: '🗑️', 
+        label: `Remove ${selectedCount} devices`, 
+        action: () => deleteMultiDevices() 
+      },
+    ]
+    console.log('🐛 Multi-device context menu items:', items, 'selected devices:', selectedCount)
+    return items
+  }
+
+  // Single device context menu
   const items = [
     { icon: '📊', label: 'Overview', action: () => showDeviceOverview(contextMenu.target!) },
     {
@@ -1027,6 +1062,97 @@ const analyzeDevice = (device: Device) => {
   console.log('Analyze Device:', device.name)
 }
 
+// Multi-device action functions
+const showMultiDeviceOverview = () => {
+  const selectedDevicesArray = Array.from(selectedDevices.value)
+    .map(id => deviceStore.devices.find(d => d.id === id))
+    .filter((device): device is Device => device !== undefined)
+  
+  console.log(`Show Overview for ${selectedDevicesArray.length} devices:`, selectedDevicesArray.map(d => d.name))
+  hideContextMenu()
+}
+
+const showMultiDeviceConfig = () => {
+  const selectedDevicesArray = Array.from(selectedDevices.value)
+    .map(id => deviceStore.devices.find(d => d.id === id))
+    .filter((device): device is Device => device !== undefined)
+  
+  console.log(`Show Config for ${selectedDevicesArray.length} devices:`, selectedDevicesArray.map(d => d.name))
+  hideContextMenu()
+}
+
+const showMultiDeviceChanges = () => {
+  const selectedDevicesArray = Array.from(selectedDevices.value)
+    .map(id => deviceStore.devices.find(d => d.id === id))
+    .filter((device): device is Device => device !== undefined)
+  
+  console.log(`Show Changes for ${selectedDevicesArray.length} devices:`, selectedDevicesArray.map(d => d.name))
+  hideContextMenu()
+}
+
+const showMultiDeviceCommands = () => {
+  const selectedDevicesArray = Array.from(selectedDevices.value)
+    .map(id => deviceStore.devices.find(d => d.id === id))
+    .filter((device): device is Device => device !== undefined)
+  
+  console.log(`Show Commands for ${selectedDevicesArray.length} devices:`, selectedDevicesArray.map(d => d.name))
+  hideContextMenu()
+}
+
+const showMultiDeviceNeighbors = () => {
+  const selectedDevicesArray = Array.from(selectedDevices.value)
+    .map(id => deviceStore.devices.find(d => d.id === id))
+    .filter((device): device is Device => device !== undefined)
+  
+  console.log(`Show Neighbors for ${selectedDevicesArray.length} devices:`, selectedDevicesArray.map(d => d.name))
+  hideContextMenu()
+}
+
+const analyzeMultiDevices = () => {
+  const selectedDevicesArray = Array.from(selectedDevices.value)
+    .map(id => deviceStore.devices.find(d => d.id === id))
+    .filter((device): device is Device => device !== undefined)
+  
+  console.log(`Analyze ${selectedDevicesArray.length} devices:`, selectedDevicesArray.map(d => d.name))
+  hideContextMenu()
+}
+
+const deleteMultiDevices = () => {
+  const selectedDevicesArray = Array.from(selectedDevices.value)
+    .map(id => deviceStore.devices.find(d => d.id === id))
+    .filter((device): device is Device => device !== undefined)
+
+  const deviceNames = selectedDevicesArray.map(d => d.name).join(', ')
+  console.log(`🗑️ Remove ${selectedDevicesArray.length} devices requested:`, deviceNames)
+
+  if (confirm(`Are you sure you want to remove ${selectedDevicesArray.length} devices from the canvas?\n\nDevices: ${deviceNames}`)) {
+    try {
+      let successCount = 0
+      const deviceIds = [...selectedDevices.value] // Copy the set to iterate safely
+      
+      for (const deviceId of deviceIds) {
+        const success = deviceStore.deleteDevice(deviceId)
+        if (success) {
+          successCount++
+        }
+      }
+
+      // Clear selections after deletion
+      selectedDevices.value.clear()
+      selectedDevice.value = null
+      deviceStore.setSelectedDevice(null)
+
+      console.log(`✅ Successfully removed ${successCount} of ${selectedDevicesArray.length} devices`)
+    } catch (error) {
+      console.error('❌ Failed to delete multiple devices:', error)
+    }
+  } else {
+    console.log('❌ Multi-device removal cancelled by user')
+  }
+
+  hideContextMenu()
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const getConnectionPoints = (device: Device) => {
   return [
@@ -1277,6 +1403,12 @@ const onStageMouseMove = (event: any) => {
 }
 
 const onStageMouseUp = () => {
+  console.log('🎭 STAGE MOUSE UP EVENT:', {
+    hadSelectionBox: !!selectionBox.value,
+    contextMenuVisible: contextMenu.show,
+    timestamp: Date.now()
+  })
+
   // If we had a selection box, select devices within it
   if (selectionBox.value) {
     selectDevicesInBox(selectionBox.value)
@@ -1288,7 +1420,12 @@ const onStageMouseUp = () => {
 }
 
 const onCanvasMouseUp = (event: MouseEvent) => {
-  console.log('🖱️ Canvas mouse up, button:', event.button)
+  console.log('🖱️ CANVAS MOUSE UP EVENT:', {
+    button: event.button,
+    target: (event.target as Element)?.tagName,
+    contextMenuVisible: contextMenu.show,
+    timestamp: Date.now()
+  })
 
   // Don't hide context menu on right-click release
   if (event.button === 2) {
@@ -1296,6 +1433,7 @@ const onCanvasMouseUp = (event: MouseEvent) => {
     return
   }
 
+  console.log('📝 Canvas mouseup - other button released normally')
   // Only handle other mouse button releases normally
 }
 
@@ -1309,9 +1447,9 @@ const onRightClick = (event: MouseEvent) => {
 
   event.preventDefault()
 
-  // If we already have a device context menu showing, don't override it
-  if (contextMenu.show && contextMenu.targetType === 'device') {
-    console.log('🚫 Device context menu already showing, ignoring canvas right-click')
+  // If we already have a device or multi-device context menu showing, don't override it
+  if (contextMenu.show && (contextMenu.targetType === 'device' || contextMenu.targetType === 'multi-device')) {
+    console.log('🚫 Device/multi-device context menu already showing, ignoring canvas right-click')
     return
   }
 
@@ -1344,6 +1482,9 @@ const onRightClick = (event: MouseEvent) => {
   contextMenu.y = menuY
   contextMenu.target = null
   contextMenu.targetType = 'canvas'
+  
+  // Set timestamp to prevent immediate hiding
+  contextMenuShownAt.value = Date.now()
 
   console.log('✅ Canvas context menu shown at:', { x: menuX, y: menuY })
 }
@@ -1352,6 +1493,8 @@ const onDeviceClick = (device: Device, event: any) => {
   console.log(
     '🖱️ Device click detected for:',
     device.name,
+    'button:',
+    event.evt?.button,
     'shift key:',
     event.evt?.shiftKey,
     'context menu showing:',
@@ -1359,6 +1502,12 @@ const onDeviceClick = (device: Device, event: any) => {
     'target type:',
     contextMenu.targetType
   )
+
+  // Don't handle right-clicks in the click handler - they should be handled by mousedown only
+  if (event.evt?.button === 2) {
+    console.log('🔴 Ignoring right-click in device click handler')
+    return
+  }
 
   // Handle Shift+Click for multi-selection
   if (event.evt?.shiftKey) {
@@ -1392,16 +1541,24 @@ const onDeviceClick = (device: Device, event: any) => {
   }
 
   // Don't hide context menu if it's showing a device context menu for this device
+  // or if it's a multi-device menu and this device is part of the selection
   if (
     contextMenu.show &&
-    contextMenu.targetType === 'device' &&
-    contextMenu.target?.id === device.id
+    ((contextMenu.targetType === 'device' && contextMenu.target?.id === device.id) ||
+     (contextMenu.targetType === 'multi-device' && selectedDevices.value.has(device.id)))
   ) {
-    console.log('🔒 Keeping device context menu visible for:', device.name)
+    console.log('🔒 Keeping context menu visible for:', device.name)
     return
   }
 
   // Hide context menu for other cases (canvas menu, or clicking different device)
+  console.log('🔥 onDeviceClick will hide context menu because:', {
+    contextMenuShow: contextMenu.show,
+    contextMenuTargetType: contextMenu.targetType,
+    contextMenuTargetId: contextMenu.target?.id,
+    clickedDeviceId: device.id,
+    deviceInSelection: selectedDevices.value.has(device.id)
+  })
   hideContextMenu()
 }
 
@@ -1410,16 +1567,23 @@ const onDeviceDoubleClick = (device: Device) => {
 }
 
 const onDeviceMouseDown = (device: Device, event: any) => {
-  console.log('🖱️ Device mouse down event:', {
+  console.log('🖱️ DEVICE MOUSE DOWN EVENT:', {
     deviceName: device.name,
     button: event.evt.button,
     eventType: event.type,
     target: event.target?.constructor?.name,
+    timestamp: Date.now()
   })
 
   // Check if it's a right-click (button 2)
   if (event.evt.button === 2) {
-    console.log('🎯 Right-click detected on device:', device.name)
+    console.log('🎯 RIGHT-CLICK DETECTED on device:', device.name)
+    console.log('📊 Current selection state:', {
+      selectedDevicesCount: selectedDevices.value.size,
+      selectedDeviceIds: Array.from(selectedDevices.value),
+      isDeviceInSelection: selectedDevices.value.has(device.id),
+      currentContextMenuShow: contextMenu.show
+    })
 
     // Prevent all event propagation
     event.evt.preventDefault()
@@ -1429,6 +1593,22 @@ const onDeviceMouseDown = (device: Device, event: any) => {
     // Also stop immediate propagation to prevent other handlers
     if (event.evt.stopImmediatePropagation) {
       event.evt.stopImmediatePropagation()
+    }
+
+    // Check if the device is already part of a multi-selection
+    const isDeviceInSelection = selectedDevices.value.has(device.id)
+    const hasMultiSelection = selectedDevices.value.size > 1
+
+    // If device is not in selection, or if it's a single selection, update selection
+    if (!isDeviceInSelection || !hasMultiSelection) {
+      // Clear current selection and select only this device
+      selectedDevices.value.clear()
+      selectedDevices.value.add(device.id)
+      selectedDevice.value = device
+      deviceStore.setSelectedDevice(device)
+      console.log('🎯 Single device selected for context menu:', device.name)
+    } else {
+      console.log('🎯 Keeping multi-selection for context menu, device count:', selectedDevices.value.size)
     }
 
     // Get the canvas container's bounding rect to calculate relative position
@@ -1458,17 +1638,33 @@ const onDeviceMouseDown = (device: Device, event: any) => {
     menuX = Math.max(0, menuX)
     menuY = Math.max(0, menuY)
 
+    console.log('🎬 ABOUT TO SHOW CONTEXT MENU:', {
+      device: device.name,
+      menuX,
+      menuY,
+      multiDevice: selectedDevices.value.size > 1,
+      currentTime: Date.now()
+    })
+
     contextMenu.show = true
     contextMenu.x = menuX
     contextMenu.y = menuY
     contextMenu.target = device
-    contextMenu.targetType = 'device'
+    contextMenu.targetType = selectedDevices.value.size > 1 ? 'multi-device' : 'device'
+    
+    // Set timestamp to prevent immediate hiding
+    contextMenuShownAt.value = Date.now()
 
-    console.log('✅ Device context menu shown for:', device.name, {
-      x: menuX,
-      y: menuY,
-      contextMenuState: contextMenu,
-    })
+    console.log('✅ CONTEXT MENU SHOWN FOR:', 
+      selectedDevices.value.size > 1 ? `${selectedDevices.value.size} devices` : device.name, 
+      {
+        x: menuX,
+        y: menuY,
+        contextMenuState: contextMenu,
+        multiSelection: selectedDevices.value.size > 1,
+        shownAt: contextMenuShownAt.value
+      }
+    )
   } else {
     console.log('🔘 Non-right-click on device:', device.name, 'button:', event.evt.button)
   }
@@ -1623,8 +1819,14 @@ const searchAndCenterDevice = () => {
 }
 
 const hideContextMenu = () => {
-  console.log('🚫 Hiding context menu')
+  console.log('🚫 hideContextMenu() called - HIDING CONTEXT MENU')
   console.trace('🔍 hideContextMenu called from:')
+  console.log('📊 Context menu state before hiding:', {
+    show: contextMenu.show,
+    targetType: contextMenu.targetType,
+    target: contextMenu.target?.name,
+    timeSinceShown: Date.now() - contextMenuShownAt.value
+  })
   contextMenu.show = false
 }
 
@@ -1711,33 +1913,63 @@ const handleResize = () => {
 
 // Global click handler to hide context menu
 const handleGlobalClick = (event: MouseEvent) => {
+  console.log('🌍 GLOBAL CLICK EVENT:', {
+    button: event.button,
+    target: (event.target as Element)?.tagName,
+    className: (event.target as Element)?.className,
+    contextMenuVisible: contextMenu.show,
+    timestamp: Date.now()
+  })
+
   // Don't handle right-clicks - they should show context menus, not hide them
   if (event.button === 2) {
     console.log('🔴 Global click handler ignoring right-click')
     return
   }
 
-  console.log('🖱️ Global click detected, context menu visible:', contextMenu.show)
+  console.log('🖱️ Global CLICK detected, context menu visible:', contextMenu.show)
   if (contextMenu.show) {
-    // Find the context menu element
-    const contextMenuElement = document.querySelector(
-      '.bg-white.border.border-gray-200.rounded-lg.shadow-lg'
-    )
+    // Prevent hiding context menu too soon after it was shown (race condition)
+    const timeSinceShown = Date.now() - contextMenuShownAt.value
+    console.log('⏱️ Time since context menu shown:', timeSinceShown, 'ms')
+    
+    if (timeSinceShown < 100) {
+      console.log('🕒 Context menu shown too recently, ignoring hide request')
+      return
+    }
+
+    // Find the context menu element using data attribute
+    const contextMenuElement = document.querySelector('[data-context-menu="true"]')
     const clickedInsideMenu = contextMenuElement?.contains(event.target as Node)
 
-    console.log('📍 Click details:', {
+    console.log('📍 GLOBAL CLICK details:', {
       clickedInsideMenu,
       targetElement: (event.target as Element)?.tagName,
+      targetClassName: (event.target as Element)?.className,
+      contextMenuFound: !!contextMenuElement,
+      timeSinceShown,
+      willHideMenu: !clickedInsideMenu
     })
 
     if (!clickedInsideMenu) {
+      console.log('🔥 GLOBAL CLICK will hide context menu')
       hideContextMenu()
+    } else {
+      console.log('✅ GLOBAL CLICK inside menu, keeping visible')
     }
   }
 }
 
 // Global mouseup handler to hide context menu on left-click release only
 const handleGlobalMouseUp = (event: MouseEvent) => {
+  console.log('🌍 GLOBAL MOUSEUP EVENT:', {
+    button: event.button,
+    target: (event.target as Element)?.tagName,
+    className: (event.target as Element)?.className,
+    contextMenuVisible: contextMenu.show,
+    timestamp: Date.now()
+  })
+
   console.log(
     '🖱️ Global mouseup detected, button:',
     event.button,
@@ -1747,22 +1979,38 @@ const handleGlobalMouseUp = (event: MouseEvent) => {
 
   // Only hide context menu on left-click mouseup, never on right-click
   if (event.button === 0 && contextMenu.show) {
-    // Find the context menu element
-    const contextMenuElement = document.querySelector(
-      '.bg-white.border.border-gray-200.rounded-lg.shadow-lg'
-    )
+    console.log('👆 LEFT-CLICK MOUSEUP with context menu visible')
+    
+    // Prevent hiding context menu too soon after it was shown (race condition)
+    const timeSinceShown = Date.now() - contextMenuShownAt.value
+    console.log('⏱️ Time since context menu shown:', timeSinceShown, 'ms')
+    
+    if (timeSinceShown < 100) {
+      console.log('🕒 Context menu shown too recently, ignoring mouseup hide request')
+      return
+    }
+
+    // Find the context menu element using data attribute
+    const contextMenuElement = document.querySelector('[data-context-menu="true"]')
     const clickedInsideMenu = contextMenuElement?.contains(event.target as Node)
 
-    console.log('📍 Left MouseUp details:', {
+    console.log('📍 LEFT MOUSEUP details:', {
       clickedInsideMenu,
       targetElement: (event.target as Element)?.tagName,
+      targetClassName: (event.target as Element)?.className,
+      contextMenuFound: !!contextMenuElement,
+      timeSinceShown,
+      willHideMenu: !clickedInsideMenu
     })
 
     if (!clickedInsideMenu) {
+      console.log('🔥 LEFT MOUSEUP will hide context menu')
       hideContextMenu()
+    } else {
+      console.log('✅ LEFT MOUSEUP inside menu, keeping visible')
     }
   } else if (event.button === 2) {
-    console.log('🔴 Right-click mouseup detected, keeping context menu visible')
+    console.log('🔴 RIGHT-CLICK MOUSEUP detected, keeping context menu visible')
   }
 }
 

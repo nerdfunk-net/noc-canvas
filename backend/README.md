@@ -157,13 +157,12 @@ Once running, visit:
 
 ### Background Jobs
 
-- `POST /api/jobs/submit` - Submit generic job
-- `GET /api/jobs/{job_id}/status` - Get job status
-- `POST /api/jobs/{job_id}/cancel` - Cancel job
-- `POST /api/jobs/sync/nautobot-devices` - Sync devices from Nautobot
-- `POST /api/jobs/sync/checkmk-hosts` - Sync hosts from CheckMK
-- `POST /api/jobs/bulk/host-operations` - Bulk host operations
-- `POST /api/jobs/cache/warm-up` - Warm up caches
+- `GET /api/jobs/health` - Get job system health status
+- `GET /api/jobs/workers` - Get worker information
+
+**Note**: Job monitoring is now handled via `/api/settings/jobs/*` endpoints:
+- `GET /api/settings/jobs/status` - Get Celery worker status and job queue information  
+- `POST /api/settings/jobs/test` - Submit a test job to verify worker functionality
 
 ### Settings Management
 

@@ -683,3 +683,143 @@ async def save_user_credentials(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to save credentials: {str(e)}",
         )
+
+
+@router.get("/jobs/status")
+async def get_job_status(
+    current_user: User = Depends(get_current_user),
+):
+    """Get Celery job status and worker information."""
+    try:
+        from ..services.background_jobs import celery_app, CELERY_AVAILABLE
+        
+        if not CELERY_AVAILABLE or not celery_app:
+            return {
+                "workerActive": False,
+                "queueSize": 0,
+                "activeJobs": 0,
+                "workers": [],
+                "recentJobs": [],
+                "error": "Celery not available"
+            }
+        
+        # Get worker stats with error handling
+        inspect = celery_app.control.inspect()
+        
+        # Initialize default values
+        active_workers = {}
+        stats = {}
+        worker_info = []
+        total_active_jobs = 0
+        
+        try:
+            # Try to get active workers
+            active_workers = inspect.active() or {}
+        except Exception as e:
+            logger.warning(f"Could not get active workers: {e}")
+            
+        try:
+            # Try to get worker stats
+            stats = inspect.stats() or {}
+        except Exception as e:
+            logger.warning(f"Could not get worker stats: {e}")
+        
+        # Check if any workers responded to ping
+        try:
+            ping_response = inspect.ping() or {}
+            available_workers = list(ping_response.keys()) if ping_response else []
+        except Exception as e:
+            logger.warning(f"Could not ping workers: {e}")
+            available_workers = []
+        
+        # Process worker information
+        for worker_name, worker_stats in stats.items():
+            active_jobs_for_worker = len(active_workers.get(worker_name, []))
+            total_active_jobs += active_jobs_for_worker
+            
+            worker_info.append({
+                "name": worker_name,
+                "status": "active" if worker_name in active_workers else "inactive",
+                "loadavg": worker_stats.get("rusage", {}).get("loadavg"),
+                "activeJobs": active_jobs_for_worker
+            })
+        
+        # If we have available workers from ping but no stats, add them
+        for worker_name in available_workers:
+            if worker_name not in [w["name"] for w in worker_info]:
+                active_jobs_for_worker = len(active_workers.get(worker_name, []))
+                total_active_jobs += active_jobs_for_worker
+                worker_info.append({
+                    "name": worker_name,
+                    "status": "active",
+                    "loadavg": None,
+                    "activeJobs": active_jobs_for_worker
+                })
+        
+        # Get queue size (approximate)
+        queue_size = 0
+        try:
+            reserved = inspect.reserved() or {}
+            queue_size = sum(len(jobs) for jobs in reserved.values())
+        except Exception as e:
+            logger.warning(f"Could not get queue size: {e}")
+        
+        # Get recent job results
+        recent_jobs = []
+        try:
+            for worker_name in active_workers.keys():
+                for job in active_workers[worker_name]:
+                    recent_jobs.append({
+                        "id": job.get("id", "unknown"),
+                        "name": job.get("name", "Unknown Task"),
+                        "state": "RUNNING",
+                        "timestamp": job.get("time_start", ""),
+                        "worker": worker_name
+                    })
+        except Exception as e:
+            logger.warning(f"Could not get recent jobs: {e}")
+        
+        return {
+            "workerActive": len(worker_info) > 0,
+            "queueSize": queue_size,
+            "activeJobs": total_active_jobs,
+            "workers": worker_info,
+            "recentJobs": recent_jobs[-10:] if recent_jobs else [],  # Last 10 jobs
+            "availableWorkers": available_workers
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting job status: {str(e)}")
+        return {
+            "workerActive": False,
+            "queueSize": 0,
+            "activeJobs": 0,
+            "workers": [],
+            "recentJobs": [],
+            "error": f"Connection error: {str(e)}"
+        }
+
+
+@router.post("/jobs/test")
+async def submit_test_job(
+    current_user: User = Depends(get_current_user),
+):
+    """Submit a test job to verify Celery worker functionality."""
+    try:
+        from ..services.background_jobs import test_background_task, CELERY_AVAILABLE
+        
+        if not CELERY_AVAILABLE:
+            raise HTTPException(status_code=503, detail="Celery is not available")
+        
+        # Submit test job with a 10-second delay to demonstrate functionality
+        result = test_background_task.delay("Test job from settings", 10)
+        
+        return {
+            "success": True,
+            "jobId": result.id,
+            "message": "Test job submitted successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error submitting test job: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to submit test job: {str(e)}")

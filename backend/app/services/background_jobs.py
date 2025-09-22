@@ -367,6 +367,54 @@ if CELERY_AVAILABLE and celery_app:
             )
             raise
 
+    @celery_app.task(bind=True)
+    def test_background_task(self, message: str = "Test job", duration: int = 10):
+        """Test task for verifying Celery worker functionality."""
+        import time
+        
+        logger.info(f"Starting test task: {message}")
+        
+        try:
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": 0,
+                    "total": duration,
+                    "status": f"Starting test job: {message}",
+                },
+            )
+            
+            # Simulate work by sleeping in chunks and updating progress
+            for i in range(duration):
+                time.sleep(1)
+                progress = i + 1
+                self.update_state(
+                    state="PROGRESS",
+                    meta={
+                        "current": progress,
+                        "total": duration,
+                        "status": f"Processing test job ({progress}/{duration}): {message}",
+                    },
+                )
+            
+            logger.info(f"Completed test task: {message}")
+            return {
+                "status": "SUCCESS",
+                "message": f"Test job completed successfully: {message}",
+                "duration": duration,
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in test_background_task: {str(e)}")
+            self.update_state(
+                state="FAILURE",
+                meta={
+                    "error": str(e),
+                    "status": f"Test job failed: {message}",
+                },
+            )
+            raise
+
 
 # Global service instance
 background_job_service = BackgroundJobService()

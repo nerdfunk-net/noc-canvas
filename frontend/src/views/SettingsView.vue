@@ -464,6 +464,136 @@
             </div>
           </div>
 
+          <!-- Jobs Tab -->
+          <div v-if="activeTab === 'jobs'" class="space-y-6">
+            <!-- Celery Worker Status -->
+            <div class="card p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Worker Status</h2>
+                <div class="flex space-x-2">
+                  <button @click="submitTestJob" class="btn-primary" :disabled="!jobStatus.workerActive || submittingTestJob">
+                    <i class="fas fa-play mr-2" :class="{ 'animate-spin': submittingTestJob }"></i>
+                    {{ submittingTestJob ? 'Starting...' : 'Test Job' }}
+                  </button>
+                  <button @click="refreshJobStatus" class="btn-secondary" :disabled="loadingJobStatus">
+                    <i class="fas fa-sync-alt mr-2" :class="{ 'animate-spin': loadingJobStatus }"></i>
+                    {{ loadingJobStatus ? 'Refreshing...' : 'Refresh' }}
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Worker Information -->
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-600">Worker Status</span>
+                    <div class="flex items-center">
+                      <div 
+                        :class="[
+                          'w-3 h-3 rounded-full mr-2',
+                          jobStatus.workerActive ? 'bg-green-500' : 'bg-red-500'
+                        ]"
+                      ></div>
+                      <span :class="jobStatus.workerActive ? 'text-green-700' : 'text-red-700'">
+                        {{ jobStatus.workerActive ? 'Active' : 'Inactive' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="bg-gray-50 p-4 rounded-lg">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-600">Queue Size</span>
+                    <span class="text-xl font-bold text-blue-600">{{ jobStatus.queueSize || 0 }}</span>
+                  </div>
+                </div>
+                
+                <div class="bg-gray-50 p-4 rounded-lg">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-600">Running Jobs</span>
+                    <span class="text-xl font-bold text-orange-600">{{ jobStatus.activeJobs || 0 }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Worker Details -->
+              <div v-if="jobStatus.workers && jobStatus.workers.length > 0" class="space-y-3">
+                <h3 class="text-md font-semibold text-gray-900">Connected Workers</h3>
+                <div class="space-y-2">
+                  <div 
+                    v-for="worker in jobStatus.workers" 
+                    :key="worker.name"
+                    class="bg-white border border-gray-200 rounded-lg p-3"
+                  >
+                    <div class="flex items-center justify-between">
+                      <div>
+                        <span class="font-medium text-gray-900">{{ worker.name }}</span>
+                        <span class="text-sm text-gray-500 ml-2">{{ worker.status }}</span>
+                      </div>
+                      <div class="text-sm text-gray-600">
+                        Load: {{ worker.loadavg ? worker.loadavg.join(', ') : 'N/A' }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- No Workers Message -->
+              <div v-else class="text-center py-8">
+                <div class="text-4xl mb-4">⚠️</div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No Workers Connected</h3>
+                <p class="text-gray-600">Make sure the Celery worker is running.</p>
+              </div>
+            </div>
+
+            <!-- Recent Jobs -->
+            <div class="card p-6">
+              <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Jobs</h2>
+              
+              <div v-if="jobStatus.recentJobs && jobStatus.recentJobs.length > 0" class="space-y-3">
+                <div 
+                  v-for="job in jobStatus.recentJobs" 
+                  :key="job.id"
+                  class="bg-white border border-gray-200 rounded-lg p-4"
+                >
+                  <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center">
+                      <span class="font-medium text-gray-900">{{ job.name || job.id }}</span>
+                      <span 
+                        :class="[
+                          'ml-2 px-2 py-1 text-xs rounded-full',
+                          job.state === 'SUCCESS' ? 'bg-green-100 text-green-800' :
+                          job.state === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                          job.state === 'STARTED' ? 'bg-blue-100 text-blue-800' :
+                          job.state === 'FAILURE' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        ]"
+                      >
+                        {{ job.state }}
+                      </span>
+                    </div>
+                    <span class="text-sm text-gray-500">{{ formatJobTime(job.timestamp) }}</span>
+                  </div>
+                  
+                  <div v-if="job.result" class="text-sm text-gray-600 mt-2">
+                    <strong>Result:</strong> {{ JSON.stringify(job.result) }}
+                  </div>
+                  
+                  <div v-if="job.traceback" class="text-sm text-red-600 mt-2 bg-red-50 p-2 rounded">
+                    <strong>Error:</strong>
+                    <pre class="whitespace-pre-wrap text-xs mt-1">{{ job.traceback }}</pre>
+                  </div>
+                </div>
+              </div>
+              
+              <div v-else class="text-center py-8">
+                <div class="text-4xl mb-4">📋</div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No Recent Jobs</h3>
+                <p class="text-gray-600">Job history will appear here when tasks are executed.</p>
+              </div>
+            </div>
+          </div>
+
           <!-- Profile Tab -->
           <div v-if="activeTab === 'profile'" class="space-y-6">
             <!-- Personal Credentials -->
@@ -1098,10 +1228,33 @@ const connectionStatus = reactive({
   database: null as { success: boolean; message: string } | null,
 })
 
+// Job monitoring state
+const loadingJobStatus = ref(false)
+const submittingTestJob = ref(false)
+const jobStatus = reactive({
+  workerActive: false,
+  queueSize: 0,
+  activeJobs: 0,
+  workers: [] as Array<{
+    name: string,
+    status: string,
+    loadavg: number[] | null
+  }>,
+  recentJobs: [] as Array<{
+    id: string,
+    name?: string,
+    state: string,
+    timestamp: string,
+    result?: any,
+    traceback?: string
+  }>
+})
+
 const tabs = [
   { id: 'general', name: 'General', icon: 'fas fa-cog' },
   { id: 'plugins', name: 'Plugins', icon: 'fas fa-plug' },
   { id: 'canvas', name: 'Canvas', icon: 'fas fa-layer-group' },
+  { id: 'jobs', name: 'Jobs', icon: 'fas fa-tasks' },
   { id: 'profile', name: 'Profile', icon: 'fas fa-user' },
 ]
 
@@ -1434,8 +1587,15 @@ const loadCanvasesIfNeeded = async () => {
   }
 }
 
-// Watch activeTab to load canvases
+// Watch activeTab to load canvases and job status
 watch(activeTab, loadCanvasesIfNeeded)
+
+// Auto-refresh job status when Jobs tab is selected
+watch(activeTab, async (newTab) => {
+  if (newTab === 'jobs') {
+    await refreshJobStatus()
+  }
+})
 
 const addCredential = () => {
   settings.credentials.push({
@@ -1624,6 +1784,83 @@ const changePassword = async () => {
     })
   } finally {
     changingPassword.value = false
+  }
+}
+
+// Job monitoring functions
+const refreshJobStatus = async () => {
+  loadingJobStatus.value = true
+  try {
+    const response = await makeAuthenticatedRequest('/api/settings/jobs/status')
+    
+    if (response.ok) {
+      const data = await response.json()
+      jobStatus.workerActive = data.workerActive
+      jobStatus.queueSize = data.queueSize
+      jobStatus.activeJobs = data.activeJobs
+      jobStatus.workers = data.workers || []
+      jobStatus.recentJobs = data.recentJobs || []
+      
+      if (data.error) {
+        notificationStore.addNotification({
+          title: 'Job Status Warning',
+          message: data.error,
+          type: 'warning',
+        })
+      }
+    } else {
+      throw new Error('Failed to fetch job status')
+    }
+  } catch (error) {
+    notificationStore.addNotification({
+      title: 'Job Status Error',
+      message: 'Failed to fetch job status. Make sure the backend is running.',
+      type: 'error',
+    })
+    console.error('Failed to fetch job status:', error)
+  } finally {
+    loadingJobStatus.value = false
+  }
+}
+
+const formatJobTime = (timestamp: string): string => {
+  if (!timestamp) return 'Unknown'
+  try {
+    const date = new Date(timestamp)
+    return date.toLocaleString()
+  } catch {
+    return timestamp
+  }
+}
+
+const submitTestJob = async () => {
+  submittingTestJob.value = true
+  try {
+    const response = await makeAuthenticatedRequest('/api/settings/jobs/test', {
+      method: 'POST'
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      notificationStore.addNotification({
+        title: 'Test Job Started',
+        message: `Test job submitted with ID: ${data.jobId}`,
+        type: 'success',
+      })
+      // Refresh job status after a short delay to see the new job
+      setTimeout(() => refreshJobStatus(), 1000)
+    } else {
+      throw new Error('Failed to submit test job')
+    }
+  } catch (error) {
+    notificationStore.addNotification({
+      title: 'Test Job Error',
+      message: 'Failed to submit test job. Make sure the Celery worker is running.',
+      type: 'error',
+    })
+    console.error('Failed to submit test job:', error)
+  } finally {
+    submittingTestJob.value = false
   }
 }
 

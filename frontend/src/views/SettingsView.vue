@@ -1019,7 +1019,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
 import { useNotificationStore } from '@/stores/notification'
-import { canvasApi, type CanvasListItem } from '@/services/api'
+import { canvasApi, type CanvasListItem, makeAuthenticatedRequest } from '@/services/api'
 import { useDevicesStore } from '@/stores/devices'
 
 const notificationStore = useNotificationStore()
@@ -1435,12 +1435,8 @@ const testConnection = async (service: 'nautobot' | 'checkmk' | 'database') => {
       }
     }
 
-    const response = await fetch(`http://localhost:8000${endpoint}`, {
+    const response = await makeAuthenticatedRequest(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-      },
       body: JSON.stringify(payload),
     })
 
@@ -1474,12 +1470,8 @@ const testDatabaseConnection = async () => {
 const saveSettings = async () => {
   saving.value = true
   try {
-    const response = await fetch('http://localhost:8000/api/settings/unified', {
+    const response = await makeAuthenticatedRequest('/api/settings/unified', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-      },
       body: JSON.stringify({
         nautobot: settings.nautobot,
         checkmk: settings.checkmk,
@@ -1513,12 +1505,8 @@ const saveSettings = async () => {
 const saveProfile = async () => {
   savingProfile.value = true
   try {
-    const response = await fetch('http://localhost:8000/api/settings/credentials', {
+    const response = await makeAuthenticatedRequest('/api/settings/credentials', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-      },
       body: JSON.stringify({ credentials: settings.credentials }),
     })
 
@@ -1549,12 +1537,8 @@ const changePassword = async () => {
 
   changingPassword.value = true
   try {
-    const response = await fetch('http://localhost:8000/api/auth/change-password', {
+    const response = await makeAuthenticatedRequest('/api/auth/change-password', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-      },
       body: JSON.stringify({
         current_password: passwordChange.currentPassword,
         new_password: passwordChange.newPassword,
@@ -1589,11 +1573,7 @@ const changePassword = async () => {
 // Load settings on component mount
 const loadSettings = async () => {
   try {
-    const response = await fetch('http://localhost:8000/api/settings/unified', {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-      },
-    })
+    const response = await makeAuthenticatedRequest('/api/settings/unified')
 
     if (response.ok) {
       const data = await response.json()
@@ -1616,11 +1596,7 @@ const loadSettings = async () => {
 
   // Load credentials
   try {
-    const credentialsResponse = await fetch('http://localhost:8000/api/settings/credentials', {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-      },
-    })
+    const credentialsResponse = await makeAuthenticatedRequest('/api/settings/credentials')
 
     if (credentialsResponse.ok) {
       const credentialsData = await credentialsResponse.json()

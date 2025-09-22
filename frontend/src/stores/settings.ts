@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
+import { makeAuthenticatedRequest } from '@/services/api'
 
 export interface NautobotSettings {
   enabled: boolean
@@ -76,11 +77,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const loadSettings = async () => {
     loading.value = true
     try {
-      const response = await fetch('http://localhost:8000/api/settings/unified', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-        },
-      })
+      const response = await makeAuthenticatedRequest('/api/settings/unified')
 
       if (response.ok) {
         const data = await response.json()

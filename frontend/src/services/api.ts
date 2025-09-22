@@ -1,5 +1,6 @@
 import type { User } from '@/stores/auth'
 import type { Device, Connection } from '@/stores/devices'
+import secureStorage from './secureStorage'
 
 // Canvas interfaces
 export interface CanvasDeviceData {
@@ -54,6 +55,27 @@ export interface CanvasListItem {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
+// Helper function to make authenticated requests with proper URL handling
+export const makeAuthenticatedRequest = async (
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<Response> => {
+  const url = `${API_BASE_URL}${endpoint}`
+  // Try secure storage first, fallback to localStorage
+  const token = secureStorage.getToken() || localStorage.getItem('token')
+
+  const config: RequestInit = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...options.headers,
+    },
+    ...options,
+  }
+
+  return fetch(url, config)
+}
+
 class ApiClient {
   private baseURL: string
 
@@ -63,7 +85,8 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseURL}${endpoint}`
-    const token = localStorage.getItem('token')
+    // Try secure storage first, fallback to localStorage
+    const token = secureStorage.getToken() || localStorage.getItem('token')
 
     const config: RequestInit = {
       headers: {

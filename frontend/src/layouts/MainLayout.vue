@@ -1,155 +1,152 @@
 <template>
-  <div class="flex h-screen bg-gray-50">
-    <!-- Left Panel - Only show on Dashboard -->
-    <div
-      v-if="$route.name === 'dashboard'"
-      class="panel relative"
-      :style="`width: ${inventoryPanelWidth}px; min-width: 250px; max-width: 600px; background-color: #f9fafb; border-right: 2px solid #e5e7eb;`"
-    >
-      <div class="p-4 border-b border-gray-200">
-        <h2 class="text-lg font-semibold text-gray-800">Device Inventory</h2>
-      </div>
-      <InventoryPanel />
+  <div class="flex flex-col h-screen bg-gray-50">
+    <!-- Top Navigation - Full Width -->
+    <nav class="bg-white border-b border-gray-200 px-6 py-3 z-10 h-16">
+      <div class="flex items-center justify-between h-full">
+        <div class="flex items-center space-x-6">
+          <h1 class="text-xl font-bold text-gray-900">NOC Canvas</h1>
 
-      <!-- Resize Handle -->
-      <div
-        class="absolute top-0 right-0 w-3 h-full cursor-col-resize bg-transparent hover:bg-blue-100 transition-all duration-200 group flex items-center justify-center z-50"
-        :class="{ 'bg-blue-200': isResizing }"
-        @mousedown="startResize"
-        title="Drag to resize panel"
-        style="right: -1px"
-      >
-        <!-- Visual indicator dots for the drag handle -->
-        <div
-          class="flex flex-col space-y-1 opacity-60 group-hover:opacity-100 transition-opacity duration-200"
-        >
-          <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
-          <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
-          <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
-          <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
-          <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Main Content Area -->
-    <div class="flex-1 flex flex-col">
-      <!-- Top Navigation -->
-      <nav class="bg-white border-b border-gray-200 px-6 py-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-6">
-            <h1 class="text-xl font-bold text-gray-900">NOC Canvas</h1>
-
-            <div class="flex space-x-2">
-              <router-link
-                to="/dashboard"
-                class="px-3 py-2 rounded-md text-sm font-medium"
-                :class="
-                  $route.name === 'dashboard'
-                    ? 'bg-primary-600 text-white'
-                    : 'text-gray-600 hover:text-gray-900'
-                "
-              >
-                Dashboard
-              </router-link>
-              <router-link
-                to="/inventory"
-                class="px-3 py-2 rounded-md text-sm font-medium"
-                :class="
-                  $route.name === 'inventory'
-                    ? 'bg-primary-600 text-white'
-                    : 'text-gray-600 hover:text-gray-900'
-                "
-              >
-                Inventory
-              </router-link>
-              <router-link
-                to="/settings"
-                class="px-3 py-2 rounded-md text-sm font-medium"
-                :class="
-                  $route.name === 'settings'
-                    ? 'bg-primary-600 text-white'
-                    : 'text-gray-600 hover:text-gray-900'
-                "
-              >
-                Settings
-              </router-link>
-            </div>
-          </div>
-
-          <div class="flex items-center space-x-4">
-            <!-- Zoom Controls -->
-            <div
-              v-if="$route.name === 'dashboard'"
-              class="flex items-center space-x-2 px-3 py-1.5 bg-gray-50 rounded-lg border"
+          <div class="flex space-x-2">
+            <router-link
+              to="/dashboard"
+              class="px-3 py-2 rounded-md text-sm font-medium"
+              :class="
+                $route.name === 'dashboard'
+                  ? 'bg-primary-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              "
             >
-              <span class="text-sm font-medium text-gray-700">Zoom:</span>
-
-              <!-- Zoom Dropdown with Text Input -->
-              <div class="relative">
-                <select
-                  :value="Math.round((currentZoom || 1) * 100)"
-                  @change="handleDropdownChange($event)"
-                  class="appearance-none bg-white border border-gray-300 rounded px-2 py-1 text-xs font-mono pr-6 min-w-16"
-                >
-                  <option value="20">20%</option>
-                  <option value="40">40%</option>
-                  <option value="50">50%</option>
-                  <option value="60">60%</option>
-                  <option value="80">80%</option>
-                  <option value="100">100%</option>
-                  <option value="120">120%</option>
-                  <option value="150">150%</option>
-                </select>
-                <div class="absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none">
-                  <svg
-                    class="w-3 h-3 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    ></path>
-                  </svg>
-                </div>
-              </div>
-
-              <!-- Custom Zoom Input -->
-              <input
-                type="number"
-                :value="Math.round((currentZoom || 1) * 100)"
-                @input="handleCustomZoom($event)"
-                @blur="validateCustomZoom($event)"
-                min="10"
-                max="300"
-                class="w-16 px-2 py-1 text-xs font-mono border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500"
-                placeholder="100"
-              />
-              <span class="text-xs text-gray-500">%</span>
-
-              <!-- Zoom Slider -->
-              <input
-                type="range"
-                :value="currentZoom"
-                @input="handleZoomSlider($event)"
-                min="0.1"
-                max="3"
-                step="0.1"
-                class="zoom-slider w-20"
-              />
-            </div>
-
-            <span class="text-sm text-gray-600">{{ authStore.user?.username }}</span>
-            <button @click="logout" class="btn-secondary text-sm">Logout</button>
+              Dashboard
+            </router-link>
+            <router-link
+              to="/inventory"
+              class="px-3 py-2 rounded-md text-sm font-medium"
+              :class="
+                $route.name === 'inventory'
+                  ? 'bg-primary-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              "
+            >
+              Inventory
+            </router-link>
+            <router-link
+              to="/settings"
+              class="px-3 py-2 rounded-md text-sm font-medium"
+              :class="
+                $route.name === 'settings'
+                  ? 'bg-primary-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              "
+            >
+              Settings
+            </router-link>
           </div>
         </div>
-      </nav>
 
-      <!-- Main Canvas Area -->
+        <div class="flex items-center space-x-4">
+          <!-- Zoom Controls -->
+          <div
+            v-if="$route.name === 'dashboard'"
+            class="flex items-center space-x-2 px-3 py-1.5 bg-gray-50 rounded-lg border"
+          >
+            <span class="text-sm font-medium text-gray-700">Zoom:</span>
+
+            <!-- Zoom Dropdown with Text Input -->
+            <div class="relative">
+              <select
+                :value="Math.round((currentZoom || 1) * 100)"
+                @change="handleDropdownChange($event)"
+                class="appearance-none bg-white border border-gray-300 rounded px-2 py-1 text-xs font-mono pr-6 min-w-16"
+              >
+                <option value="20">20%</option>
+                <option value="40">40%</option>
+                <option value="50">50%</option>
+                <option value="60">60%</option>
+                <option value="80">80%</option>
+                <option value="100">100%</option>
+                <option value="120">120%</option>
+                <option value="150">150%</option>
+              </select>
+              <div class="absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none">
+                <svg
+                  class="w-3 h-3 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  ></path>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Custom Zoom Input -->
+            <input
+              type="number"
+              :value="Math.round((currentZoom || 1) * 100)"
+              @input="handleCustomZoom($event)"
+              @blur="validateCustomZoom($event)"
+              min="10"
+              max="300"
+              class="w-16 px-2 py-1 text-xs font-mono border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500"
+              placeholder="100"
+            />
+            <span class="text-xs text-gray-500">%</span>
+
+            <!-- Zoom Slider -->
+            <input
+              type="range"
+              :value="currentZoom"
+              @input="handleZoomSlider($event)"
+              min="0.1"
+              max="3"
+              step="0.1"
+              class="zoom-slider w-20"
+            />
+          </div>
+
+          <span class="text-sm text-gray-600">{{ authStore.user?.username }}</span>
+          <button @click="logout" class="btn-secondary text-sm">Logout</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Content Area with Sidebar -->
+    <div class="flex flex-1 min-h-0">
+      <!-- Left Panel - Only show on Dashboard -->
+      <div
+        v-if="$route.name === 'dashboard'"
+        class="panel relative"
+        :style="`width: ${inventoryPanelWidth}px; min-width: 250px; max-width: 600px; background-color: #f9fafb; border-right: 2px solid #e5e7eb;`"
+      >
+        <InventoryPanel />
+
+        <!-- Resize Handle -->
+        <div
+          class="absolute top-0 right-0 w-3 h-full cursor-col-resize bg-transparent hover:bg-blue-100 transition-all duration-200 group flex items-center justify-center z-50"
+          :class="{ 'bg-blue-200': isResizing }"
+          @mousedown="startResize"
+          title="Drag to resize panel"
+          style="right: -1px"
+        >
+          <!-- Visual indicator dots for the drag handle -->
+          <div
+            class="flex flex-col space-y-1 opacity-60 group-hover:opacity-100 transition-opacity duration-200"
+          >
+            <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
+            <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
+            <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
+            <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
+            <div class="w-1 h-1 bg-gray-400 rounded-full group-hover:bg-blue-600"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content Area -->
       <div class="flex-1 overflow-auto">
         <slot />
       </div>

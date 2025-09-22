@@ -1,31 +1,85 @@
 <template>
   <MainLayout>
-    <div class="p-6">
-      <div class="max-w-6xl mx-auto">
-        <h1 class="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
-
-        <!-- Tab Navigation -->
-        <div class="border-b border-gray-200 mb-6">
-          <nav class="-mb-px flex space-x-8">
-            <button
-              v-for="tab in tabs"
-              :key="tab.id"
-              @click="activeTab = tab.id"
+    <div class="h-full flex bg-white">
+      <!-- Left Sidebar Navigation -->
+      <div class="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col">
+        <!-- Navigation Menu -->
+        <nav class="flex-1 p-3 space-y-1">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            @click="activeTab = tab.id"
+            :class="[
+              'w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 text-left group',
+              activeTab === tab.id
+                ? 'bg-primary-50 text-primary-700 shadow-sm ring-1 ring-primary-200'
+                : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900',
+            ]"
+          >
+            <i 
               :class="[
-                'py-2 px-1 border-b-2 font-medium text-sm transition-colors',
-                activeTab === tab.id
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                tab.icon, 
+                'mr-3 w-4 h-4 flex-shrink-0 transition-colors duration-200',
+                activeTab === tab.id 
+                  ? 'text-primary-600' 
+                  : 'text-gray-500 group-hover:text-gray-700'
               ]"
-            >
-              <i :class="tab.icon" class="mr-2"></i>
-              {{ tab.name }}
-            </button>
-          </nav>
-        </div>
+            ></i>
+            <span class="font-medium">{{ tab.name }}</span>
+          </button>
+        </nav>
+      </div>
 
-        <!-- Tab Content -->
-        <div class="space-y-6">
+      <!-- Mobile Menu Toggle -->
+      <div class="md:hidden w-full">
+        <div class="bg-white border-b border-gray-200 px-4 py-3">
+          <div class="flex items-center justify-end">
+            <button
+              @click="showMobileMenu = !showMobileMenu"
+              class="p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+            >
+              <i class="fas fa-bars"></i>
+            </button>
+          </div>
+          
+          <!-- Mobile Menu Dropdown -->
+          <div v-if="showMobileMenu" class="mt-3 border-t border-gray-200 pt-3">
+            <nav class="space-y-1">
+              <button
+                v-for="tab in tabs"
+                :key="tab.id"
+                @click="activeTab = tab.id; showMobileMenu = false"
+                :class="[
+                  'w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors text-left',
+                  activeTab === tab.id
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-700 hover:bg-gray-50',
+                ]"
+              >
+                <i :class="tab.icon" class="mr-3 w-4 h-4 flex-shrink-0"></i>
+                {{ tab.name }}
+              </button>
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content Area -->
+      <div class="flex-1 overflow-y-auto">
+        <div class="p-4 md:p-6">
+          <div class="max-w-4xl">
+            <!-- Page Header (hidden on mobile when menu is open) -->
+            <div class="mb-6" :class="{ 'hidden md:block': showMobileMenu }">
+              <h2 class="text-xl md:text-2xl font-bold text-gray-900">
+                {{ tabs.find(t => t.id === activeTab)?.name }} Settings
+              </h2>
+              <p class="mt-1 text-sm text-gray-500">
+                Manage your {{ tabs.find(t => t.id === activeTab)?.name.toLowerCase() }} configuration and preferences.
+              </p>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="space-y-6" :class="{ 'hidden md:block': showMobileMenu }">
           <!-- General Tab -->
           <div v-if="activeTab === 'general'" class="space-y-6">
             <!-- Canvas Settings -->
@@ -1008,6 +1062,8 @@
               {{ savingProfile ? 'Saving...' : 'Save Credentials' }}
             </button>
           </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1027,6 +1083,7 @@ const router = useRouter()
 const deviceStore = useDevicesStore()
 
 const activeTab = ref('general')
+const showMobileMenu = ref(false)
 const saving = ref(false)
 const savingProfile = ref(false)
 const changingPassword = ref(false)

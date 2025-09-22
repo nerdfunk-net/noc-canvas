@@ -1,0 +1,55 @@
+# Backend Dockerfile for NOC Canvas
+FROM python:3.12-slim
+
+# Allow build-time proxy args (passed from shell)
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+
+# Install system dependencies including curl for health checks
+# Configure apt proxy if provided
+RUN if [ -n "$HTTP_PROXY" ] || [ -n "$HTTPS_PROXY" ]; then \
+      echo "Acquire::http::Proxy \"${HTTP_PROXY}\";" > /etc/apt/apt.conf.d/01proxy || true; \
+      echo "Acquire::https::Proxy \"${HTTPS_PROXY}\";" >> /etc/apt/apt.conf.d/01proxy || true; \
+    fi \
+    && apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libpq-dev \
+    curl \
+    netcat-traditional \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /etc/apt/apt.conf.d/01proxy || true
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY backend/requirements.txt .
+
+# Install Python dependencies (pip will use proxy env vars if set)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy backend source code
+COPY backend/ .
+
+# Create necessary directories
+RUN mkdir -p /app/data/settings /app/data/backups
+
+# Copy docker-specific configuration
+COPY docker/backend-entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Set entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]
+
+# Default command
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

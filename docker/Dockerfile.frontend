@@ -1,0 +1,47 @@
+# Frontend Dockerfile for NOC Canvas
+FROM node:18-alpine as build-stage
+
+# Allow build-time proxy args (passed from shell)
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+
+# Set working directory
+WORKDIR /app
+
+# Configure npm proxy if provided
+RUN if [ -n "${HTTP_PROXY}" ]; then \
+      npm config set proxy "${HTTP_PROXY}" || true; \
+      npm config set https-proxy "${HTTPS_PROXY}" || true; \
+    fi
+
+# Copy package files first (for better Docker layer caching)
+COPY frontend/package*.json ./
+
+# Install dependencies (npm will use proxy config if set)
+# Use npm ci for faster, reliable builds and install all dependencies
+RUN npm ci
+
+# Copy source code (excluding node_modules thanks to .dockerignore)
+COPY frontend/ .
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine
+
+# Copy built assets from build stage
+COPY --from=build-stage /app/dist /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+
+# Copy custom nginx site configuration
+COPY docker/default.conf /etc/nginx/conf.d/default.conf
+
+# Expose port
+EXPOSE 80
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

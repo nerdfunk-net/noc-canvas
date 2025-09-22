@@ -67,8 +67,17 @@ def initialize_tables() -> bool:
     """
     try:
         from .database import engine, Base
+        
+        # Import all model classes to ensure they are registered with Base.metadata
+        from ..models.user import User
+        from ..models.settings import AppSettings
+        from ..models.canvas import Canvas
+        from ..models.device import Device, Connection
+        from ..models.credential import UserCredential
+        
+        logger.info(f"Creating tables for models: {list(Base.metadata.tables.keys())}")
 
-        # Create all tables using the main Base (includes users, settings, credentials)
+        # Create all tables using the main Base (includes users, settings, credentials, canvas)
         Base.metadata.create_all(bind=engine)
         logger.info("All database tables created successfully")
 

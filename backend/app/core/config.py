@@ -14,9 +14,11 @@ class Settings(BaseSettings):
     # CORS settings
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
-    # Redis settings for caching
-    redis_url: str = "redis://localhost:6379"
-    cache_ttl_seconds: int = 600  # 10 minutes default
+    # Redis settings
+    noc_redis_host: str = "localhost"
+    noc_redis_port: int = 6379
+    noc_redis_password: Optional[str] = None
+    noc_redis_ssl: bool = False
 
     # Nautobot settings
     nautobot_url: Optional[str] = None
@@ -32,9 +34,26 @@ class Settings(BaseSettings):
     checkmk_verify_ssl: bool = True
     checkmk_timeout: int = 30
 
-    # Background job settings
-    celery_broker_url: str = "redis://localhost:6379/1"
-    celery_result_backend: str = "redis://localhost:6379/2"
+    @property
+    def redis_url(self) -> str:
+        """Construct Redis URL with authentication."""
+        scheme = "rediss" if self.noc_redis_ssl else "redis"
+        if self.noc_redis_password:
+            return f"{scheme}://:{self.noc_redis_password}@{self.noc_redis_host}:{self.noc_redis_port}"
+        return f"{scheme}://{self.noc_redis_host}:{self.noc_redis_port}"
+
+    @property 
+    def celery_broker_url(self) -> str:
+        """Construct Celery broker URL with authentication."""
+        return f"{self.redis_url}/1"
+        
+    @property
+    def celery_result_backend(self) -> str:
+        """Construct Celery result backend URL with authentication."""  
+        return f"{self.redis_url}/2"
+
+    # Cache TTL settings
+    cache_ttl_seconds: int = 600  # 10 minutes default
 
     class Config:
         env_file = ".env"

@@ -327,7 +327,7 @@
     <!-- Save Canvas Modal -->
     <SaveCanvasModal
       ref="saveModalRef"
-      :show="showSaveModal"
+      :show="composableShowSaveModal"
       :device-count="deviceStore.devices.length"
       :connection-count="deviceStore.connections.length"
       @close="closeSaveModal"
@@ -336,7 +336,7 @@
 
     <!-- Clear Canvas Confirmation Dialog -->
     <ConfirmDialog
-      :show="showClearDialog"
+      :show="composableShowClearDialog"
       title="Clear Canvas"
       message="Are you sure you want to clear the canvas? This will permanently remove all devices and connections from the current view."
       confirm-text="Clear Canvas"
@@ -346,7 +346,7 @@
     />
 
     <!-- Load Canvas Modal -->
-    <LoadCanvasModal :show="showLoadModal" @close="closeLoadModal" @load="handleCanvasLoad" />
+    <LoadCanvasModal :show="composableShowLoadModal" @close="closeLoadModal" @load="handleCanvasLoad" />
 
     <!-- Load Canvas Confirmation Dialog -->
     <ConfirmDialog
@@ -387,6 +387,12 @@ import { useDevicesStore, type Device } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
 import { type NautobotDevice, canvasApi } from '@/services/api'
 import { useDeviceIcons } from '@/composables/useDeviceIcons'
+import { useCanvasControls } from '@/composables/useCanvasControls'
+import { useDeviceSelection } from '@/composables/useDeviceSelection'
+import { useContextMenu } from '@/composables/useContextMenu'
+import { useCanvasState } from '@/composables/useCanvasState'
+import { useDeviceOperations } from '@/composables/useDeviceOperations'
+import { useCanvasEvents } from '@/composables/useCanvasEvents'
 import SaveCanvasModal from './SaveCanvasModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import LoadCanvasModal from './LoadCanvasModal.vue'
@@ -396,6 +402,87 @@ const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
 const { loadDeviceIcons, getDeviceIcon } = useDeviceIcons()
 
+// Initialize canvas controls composable
+const canvasControls = useCanvasControls()
+const { 
+  showGrid: gridEnabled,
+  connectionMode: connectionModeEnabled,
+  resetView,
+  fitToScreen,
+  toggleGrid,
+  toggleConnectionMode,
+} = canvasControls
+
+// Initialize context menu composable
+const contextMenuComposable = useContextMenu()
+const {
+  contextMenu,
+  contextMenuShownAt,
+  showContextMenu,
+  hideContextMenu,
+} = contextMenuComposable
+
+// Initialize device selection composable
+const deviceSelectionComposable = useDeviceSelection()
+const {
+  selectedDevices: composableSelectedDevices,
+  selectedDevice: composableSelectedDevice,
+  selectDevicesInBox: composableSelectDevicesInBox,
+  selectDevice: composableSelectDevice,
+  clearSelection: composableClearSelection,
+} = deviceSelectionComposable
+
+// Use the composable versions as the primary references
+const selectedDevices = composableSelectedDevices
+const primarySelectedDevice = composableSelectedDevice
+
+// Initialize device operations composable
+const deviceOperationsComposable = useDeviceOperations()
+const {
+  showAddModal,
+  showEditModal, 
+  showDeleteConfirmDialog,
+  currentDevice,
+  deleteDevice: composableDeleteDevice,
+  editDevice: composableEditDevice,
+  addDevice: composableAddDevice,
+} = deviceOperationsComposable
+
+// Initialize canvas events composable
+const canvasEventsComposable = useCanvasEvents()
+const {
+  isDragging: isCanvasDragging,
+  isConnectionMode: eventsConnectionMode,
+  connectionSourceDevice,
+  onGlobalMouseDown,
+  onGlobalMouseMove,
+  onGlobalMouseUp,
+  onDeviceMouseDown: composableOnDeviceMouseDown,
+  onDeviceClick: composableOnDeviceClick,
+  onDeviceDoubleClick: composableOnDeviceDoubleClick,
+  onRightClick: composableOnRightClick,
+  toggleConnectionMode: eventsToggleConnectionMode,
+  exitConnectionMode,
+} = canvasEventsComposable
+
+// Initialize canvas state composable
+const canvasStateComposable = useCanvasState()
+const {
+  currentCanvasId: composableCanvasId,
+  hasUnsavedChanges: composableHasUnsavedChanges,
+  showSaveModal: composableShowSaveModal,
+  showLoadModal: composableShowLoadModal,
+  showClearDialog: composableShowClearDialog,
+  showUnsavedChangesDialog,
+  pendingAction,
+  quickSave: composableQuickSave,
+  clearCanvas: composableClearCanvas,
+  executeClearCanvas,
+  saveCanvasData: composableSaveCanvasData,
+  promptToSaveBeforeAction,
+  updateSavedState,
+} = canvasStateComposable
+
 const canvasContainer = ref<HTMLElement>()
 const stage = ref()
 
@@ -404,94 +491,11 @@ const canvasSize = reactive({ width: 0, height: 0 })
 // Use canvas store for scale and position
 const scale = computed(() => canvasStore.scale)
 const position = computed(() => canvasStore.position)
-const showGrid = ref(true)
-const connectionMode = ref(false)
-const selectedDevice = ref<Device | null>(null)
+// Use composable state for grid and connection mode instead of local refs
+const showGrid = gridEnabled
+const connectionMode = connectionModeEnabled
+const selectedDevice = composableSelectedDevice  // Use composable version
 const isDragOver = ref(false)
-
-// Canvas save state tracking
-const currentCanvasId = ref<number | null>(null)
-const lastSavedState = ref<{ devices: Device[]; connections: any[] }>({
-  devices: [],
-  connections: [],
-})
-
-// Computed property to check if canvas has unsaved changes
-const hasUnsavedChanges = computed(() => {
-  const currentDevices = deviceStore.devices
-  const currentConnections = deviceStore.connections
-
-  // If canvas is empty and was empty when last saved, no changes
-  if (
-    currentDevices.length === 0 &&
-    currentConnections.length === 0 &&
-    lastSavedState.value.devices.length === 0 &&
-    lastSavedState.value.connections.length === 0
-  ) {
-    return false
-  }
-
-  // Check if devices have changed
-  if (currentDevices.length !== lastSavedState.value.devices.length) {
-    return true
-  }
-
-  // Check if connections have changed
-  if (currentConnections.length !== lastSavedState.value.connections.length) {
-    return true
-  }
-
-  // Deep comparison of devices (simplified - just check IDs, names, and positions)
-  for (let i = 0; i < currentDevices.length; i++) {
-    const current = currentDevices[i]
-    const saved = lastSavedState.value.devices.find((d) => d.id === current.id)
-    if (
-      !saved ||
-      saved.name !== current.name ||
-      saved.position_x !== current.position_x ||
-      saved.position_y !== current.position_y ||
-      saved.device_type !== current.device_type ||
-      saved.ip_address !== current.ip_address
-    ) {
-      return true
-    }
-  }
-
-  // Deep comparison of connections
-  for (let i = 0; i < currentConnections.length; i++) {
-    const current = currentConnections[i]
-    const saved = lastSavedState.value.connections.find((c) => c.id === current.id)
-    if (
-      !saved ||
-      saved.source_device_id !== current.source_device_id ||
-      saved.target_device_id !== current.target_device_id ||
-      saved.connection_type !== current.connection_type
-    ) {
-      return true
-    }
-  }
-
-  return false
-})
-
-// Function to update the saved state (called after successful save/load)
-const updateSavedState = () => {
-  lastSavedState.value = {
-    devices: [...deviceStore.devices],
-    connections: [...deviceStore.connections],
-  }
-  console.log(
-    '💾 Saved state updated with',
-    lastSavedState.value.devices.length,
-    'devices and',
-    lastSavedState.value.connections.length,
-    'connections'
-  )
-}
-
-// Show unsaved changes dialog
-const showUnsavedChangesDialog = ref(false)
-const pendingAction = ref<(() => void) | null>(null)
 
 // Selection state
 const selectionBox = ref<{
@@ -501,73 +505,15 @@ const selectionBox = ref<{
   endY: number
 } | null>(null)
 
-// Selected devices for multi-selection
-const selectedDevices = ref<Set<number>>(new Set())
+// Selected devices - now handled by useDeviceSelection composable
 
-// Function to select devices within a selection box
-const selectDevicesInBox = (box: {
-  startX: number
-  startY: number
-  endX: number
-  endY: number
-}) => {
-  const minX = Math.min(box.startX, box.endX)
-  const maxX = Math.max(box.startX, box.endX)
-  const minY = Math.min(box.startY, box.endY)
-  const maxY = Math.max(box.startY, box.endY)
+// Function to select devices within a selection box - now handled by composable
+const selectDevicesInBox = composableSelectDevicesInBox
 
-  console.log('🔍 Selecting devices in box:', { minX, minY, maxX, maxY })
+// Context menu state - now handled by useContextMenu composable
 
-  // Start with current selection (additive selection with Shift+drag)
-  const newSelection = new Set(selectedDevices.value)
-  const deviceSize = 80 // Device width/height
-
-  deviceStore.devices.forEach((device) => {
-    // Check if device overlaps with selection box
-    const deviceLeft = device.position_x
-    const deviceRight = device.position_x + deviceSize
-    const deviceTop = device.position_y
-    const deviceBottom = device.position_y + deviceSize
-
-    // Check if device overlaps with selection box
-    const overlapsX = deviceLeft < maxX && deviceRight > minX
-    const overlapsY = deviceTop < maxY && deviceBottom > minY
-
-    if (overlapsX && overlapsY) {
-      newSelection.add(device.id)
-      console.log('✅ Selected device:', device.name, 'at', device.position_x, device.position_y)
-    }
-  })
-
-  selectedDevices.value = newSelection
-
-  // Update single selection based on multi-selection
-  if (selectedDevices.value.size === 1) {
-    const singleDeviceId = Array.from(selectedDevices.value)[0]
-    const device = deviceStore.devices.find((d) => d.id === singleDeviceId)
-    if (device) {
-      selectedDevice.value = device
-      deviceStore.setSelectedDevice(device)
-    }
-  } else {
-    selectedDevice.value = null
-    deviceStore.setSelectedDevice(null)
-  }
-
-  console.log(`🎯 Total devices selected: ${selectedDevices.value.size}`)
-}
-
-// Context menu state
-const contextMenu = reactive({
-  show: false,
-  x: 0,
-  y: 0,
-  target: null as Device | null,
-  targetType: 'canvas' as 'canvas' | 'device' | 'multi-device',
-})
-
-// Context menu just shown timestamp to prevent immediate hiding
-const contextMenuShownAt = ref(0)
+// Flag to track device right-clicks to prevent canvas menu override
+const deviceRightClickInProgress = ref(false)
 
 // Connection state
 const connectionStart = ref<{
@@ -576,14 +522,9 @@ const connectionStart = ref<{
 } | null>(null)
 
 // Save Canvas Modal state
-const showSaveModal = ref(false)
 const saveModalRef = ref()
 
-// Clear Canvas Confirmation Dialog state
-const showClearDialog = ref(false)
-
-// Load Canvas Modal state
-const showLoadModal = ref(false)
+// Load Canvas Modal state - composable version used
 
 // Load Canvas Confirmation state
 const showLoadConfirmDialog = ref(false)
@@ -653,16 +594,16 @@ const contextMenuItems = computed(() => {
   if (!contextMenu.target) {
     if (contextMenu.targetType === 'canvas') {
       const items = [
-        { icon: '🖼️', label: 'Fit to Screen', action: fitToScreen },
-        { icon: '🏠', label: 'Reset View', action: resetView },
+        { icon: '🖼️', label: 'Fit to Screen', action: () => { hideContextMenu(); fitToScreen(canvasContainer.value || null) } },
+        { icon: '🏠', label: 'Reset View', action: () => { hideContextMenu(); resetView() } },
         {
           icon: '🎨',
           label: 'Canvas',
           submenu: [
-            { icon: '📂', label: 'Load', action: loadCanvas },
-            { icon: '💾', label: 'Save', action: saveCanvas },
-            { icon: '📋', label: 'Save As', action: saveCanvasAs },
-            { icon: '🗑️', label: 'Clear', action: clearCanvas },
+            { icon: '📂', label: 'Load', action: () => { hideContextMenu(); loadCanvas() } },
+            { icon: '💾', label: 'Save', action: () => { hideContextMenu(); saveCanvas() } },
+            { icon: '📋', label: 'Save As', action: () => { hideContextMenu(); saveCanvasAs() } },
+            { icon: '🗑️', label: 'Clear', action: () => { hideContextMenu(); clearCanvas() } },
           ],
         },
       ]
@@ -683,23 +624,23 @@ const contextMenuItems = computed(() => {
       { 
         icon: '📊', 
         label: `Overview (${selectedCount} devices)`, 
-        action: () => showMultiDeviceOverview() 
+        action: () => { hideContextMenu(); showMultiDeviceOverview() }
       },
       {
         icon: '⚙️',
         label: 'Config',
         submenu: [
-          { icon: '👁️', label: 'Show All', action: () => showMultiDeviceConfig() },
-          { icon: '📝', label: 'Show All Changes', action: () => showMultiDeviceChanges() },
+          { icon: '👁️', label: 'Show All', action: () => { hideContextMenu(); showMultiDeviceConfig() } },
+          { icon: '📝', label: 'Show All Changes', action: () => { hideContextMenu(); showMultiDeviceChanges() } },
         ],
       },
-      { icon: '💻', label: 'Commands', action: () => showMultiDeviceCommands() },
-      { icon: '🔗', label: 'Show All Neighbors', action: () => showMultiDeviceNeighbors() },
-      { icon: '🔍', label: 'Analyze All', action: () => analyzeMultiDevices() },
+      { icon: '💻', label: 'Commands', action: () => { hideContextMenu(); showMultiDeviceCommands() } },
+      { icon: '🔗', label: 'Show All Neighbors', action: () => { hideContextMenu(); showMultiDeviceNeighbors() } },
+      { icon: '🔍', label: 'Analyze All', action: () => { hideContextMenu(); analyzeMultiDevices() } },
       { 
         icon: '🗑️', 
         label: `Remove ${selectedCount} devices`, 
-        action: () => deleteMultiDevices() 
+        action: () => { hideContextMenu(); deleteMultiDevices() }
       },
     ]
     console.log('🐛 Multi-device context menu items:', items, 'selected devices:', selectedCount)
@@ -708,19 +649,19 @@ const contextMenuItems = computed(() => {
 
   // Single device context menu
   const items = [
-    { icon: '📊', label: 'Overview', action: () => showDeviceOverview(contextMenu.target!) },
+    { icon: '📊', label: 'Overview', action: () => { hideContextMenu(); showDeviceOverview(contextMenu.target!) } },
     {
       icon: '⚙️',
       label: 'Config',
       submenu: [
-        { icon: '👁️', label: 'Show', action: () => showDeviceConfig(contextMenu.target!) },
-        { icon: '📝', label: 'Show Changes', action: () => showDeviceChanges(contextMenu.target!) },
+        { icon: '👁️', label: 'Show', action: () => { hideContextMenu(); showDeviceConfig(contextMenu.target!) } },
+        { icon: '📝', label: 'Show Changes', action: () => { hideContextMenu(); showDeviceChanges(contextMenu.target!) } },
       ],
     },
-    { icon: '💻', label: 'Commands', action: () => showDeviceCommands(contextMenu.target!) },
-    { icon: '🔗', label: 'Neighbors', action: () => showDeviceNeighbors(contextMenu.target!) },
-    { icon: '🔍', label: 'Analyze', action: () => analyzeDevice(contextMenu.target!) },
-    { icon: '🗑️', label: 'Remove', action: () => deleteDevice(contextMenu.target!) },
+    { icon: '💻', label: 'Commands', action: () => { hideContextMenu(); showDeviceCommands(contextMenu.target!) } },
+    { icon: '🔗', label: 'Neighbors', action: () => { hideContextMenu(); showDeviceNeighbors(contextMenu.target!) } },
+    { icon: '🔍', label: 'Analyze', action: () => { hideContextMenu(); analyzeDevice(contextMenu.target!) } },
+    { icon: '🗑️', label: 'Remove', action: () => { hideContextMenu(); deleteDevice(contextMenu.target!) } },
   ]
   console.log('🐛 Device context menu items:', items)
   console.log(
@@ -747,13 +688,13 @@ const loadCanvas = () => {
   console.log('Load Canvas - checking for unsaved changes')
   promptToSaveBeforeAction('loading a canvas', () => {
     console.log('Load Canvas - showing modal')
-    showLoadModal.value = true
+    composableShowLoadModal.value = true
   })
 }
 
 // Load Canvas Modal functions
 const closeLoadModal = () => {
-  showLoadModal.value = false
+  composableShowLoadModal.value = false
 }
 
 const handleCanvasLoad = (canvasId: number) => {
@@ -763,7 +704,7 @@ const handleCanvasLoad = (canvasId: number) => {
   if (deviceStore.devices.length > 0) {
     // Show confirmation dialog
     pendingCanvasId.value = canvasId
-    showLoadModal.value = false
+    composableShowLoadModal.value = false
     showLoadConfirmDialog.value = true
   } else {
     // Load directly if canvas is empty
@@ -785,7 +726,7 @@ const handleLoadCancel = () => {
   showLoadConfirmDialog.value = false
   pendingCanvasId.value = null
   // Reopen the load modal
-  showLoadModal.value = true
+  composableShowLoadModal.value = true
 }
 
 const loadCanvasById = async (canvasId: number) => {
@@ -812,7 +753,7 @@ const loadCanvasById = async (canvasId: number) => {
     deviceStore.loadDevicesFromCanvasData(devicesWithCorrectTypes, canvas.canvas_data.connections)
 
     // Update tracking state
-    currentCanvasId.value = canvasId
+    composableCanvasId.value = canvasId
     updateSavedState()
 
     console.log(
@@ -824,117 +765,39 @@ const loadCanvasById = async (canvasId: number) => {
     )
 
     // Close the load modal after successful loading
-    showLoadModal.value = false
+    composableShowLoadModal.value = false
   } catch (error) {
     console.error('❌ Failed to load canvas:', error)
     // notificationStore.showError('Failed to load canvas')
   }
 }
 
-// Quick save to current canvas (if already saved before)
-const saveCanvas = async () => {
-  console.log('Quick Save Canvas')
+// Quick save to current canvas - now handled by useCanvasState composable
+const saveCanvas = composableQuickSave
 
-  if (!currentCanvasId.value) {
-    console.log('No canvas ID found, opening Save As dialog')
-    saveCanvasAs()
-    return
-  }
-
-  try {
-    // Use the existing handleCanvasSave logic but with current canvas info
-    const canvasData = {
-      devices: deviceStore.devices.map((device) => ({
-        id: device.id,
-        name: device.name,
-        device_type: device.device_type,
-        ip_address: device.ip_address,
-        position_x: device.position_x,
-        position_y: device.position_y,
-        properties: device.properties,
-      })),
-      connections: deviceStore.connections.map((connection) => ({
-        id: connection.id,
-        source_device_id: connection.source_device_id,
-        target_device_id: connection.target_device_id,
-        connection_type: connection.connection_type,
-        properties: connection.properties,
-      })),
-    }
-
-    // Import the canvas API
-    const { canvasApi } = await import('@/services/api')
-
-    // Get current canvas info to preserve name and sharable setting
-    const currentCanvas = await canvasApi.getCanvas(currentCanvasId.value)
-
-    // Update existing canvas
-    const response = await canvasApi.updateCanvas(currentCanvasId.value, {
-      name: currentCanvas.name,
-      sharable: currentCanvas.sharable,
-      canvas_data: canvasData,
-    })
-
-    console.log('✅ Canvas quick saved successfully:', response)
-
-    // Update saved state after successful save
-    updateSavedState()
-
-    // Execute pending action if there was one (from unsaved changes dialog)
-    if (pendingAction.value) {
-      pendingAction.value()
-      pendingAction.value = null
-    }
-
-    // TODO: Show success notification
-    // notificationStore.showSuccess(`Canvas quick saved successfully`)
-  } catch (error) {
-    console.error('❌ Failed to quick save canvas:', error)
-    // Fall back to Save As dialog on error
-    saveCanvasAs()
-  }
-}
-
-// Save As - always opens the save modal (original behavior)
+// Save As - now handled by useCanvasState composable
 const saveCanvasAs = () => {
-  console.log('Save Canvas As')
-  showSaveModal.value = true
+  composableShowSaveModal.value = true
 }
 
-const clearCanvas = () => {
-  console.log('Clear Canvas - checking for unsaved changes')
-  promptToSaveBeforeAction('clearing the canvas', () => {
-    console.log('Clear Canvas - showing confirmation dialog')
-    showClearDialog.value = true
-  })
-}
+// Clear canvas - now handled by useCanvasState composable
+const clearCanvas = composableClearCanvas
 
 // Clear Canvas Confirmation Dialog functions
 const handleClearConfirm = () => {
   console.log('✅ User confirmed canvas clear')
-  showClearDialog.value = false
-
-  try {
-    deviceStore.clearDevices()
-    // Reset tracking state
-    currentCanvasId.value = null
-    updateSavedState()
-    console.log('✅ Canvas cleared successfully')
-    // notificationStore.showSuccess('Canvas cleared successfully')
-  } catch (error) {
-    console.error('❌ Failed to clear canvas:', error)
-    // notificationStore.showError('Failed to clear canvas')
-  }
+  composableShowClearDialog.value = false
+  executeClearCanvas()
 }
 
 const handleClearCancel = () => {
   console.log('❌ User cancelled canvas clear')
-  showClearDialog.value = false
+  composableShowClearDialog.value = false
 }
 
 // Save Canvas Modal functions
 const closeSaveModal = () => {
-  showSaveModal.value = false
+  composableShowSaveModal.value = false
 }
 
 const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasId?: number }) => {
@@ -971,7 +834,7 @@ const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasI
         canvas_data: canvasData,
       })
       console.log('✅ Canvas updated successfully:', response)
-      currentCanvasId.value = data.canvasId
+      composableCanvasId.value = data.canvasId
     } else {
       // Create new canvas
       response = await canvasApi.saveCanvas({
@@ -980,13 +843,13 @@ const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasI
         canvas_data: canvasData,
       })
       console.log('✅ Canvas saved successfully:', response)
-      currentCanvasId.value = response.id
+      composableCanvasId.value = response.id
     }
 
     // Update saved state after successful save
     updateSavedState()
 
-    showSaveModal.value = false
+    composableShowSaveModal.value = false
 
     // Execute pending action if there was one (from unsaved changes dialog)
     if (pendingAction.value) {
@@ -1419,43 +1282,40 @@ const onStageMouseUp = () => {
   selectionBox.value = null
 }
 
+// Canvas mouse up now handled by useCanvasEvents composable
 const onCanvasMouseUp = (event: MouseEvent) => {
-  console.log('🖱️ CANVAS MOUSE UP EVENT:', {
-    button: event.button,
-    target: (event.target as Element)?.tagName,
-    contextMenuVisible: contextMenu.show,
-    timestamp: Date.now()
-  })
-
-  // Don't hide context menu on right-click release
-  if (event.button === 2) {
-    console.log('🔴 Canvas right-click mouseup, keeping context menu visible')
-    return
-  }
-
-  console.log('📝 Canvas mouseup - other button released normally')
-  // Only handle other mouse button releases normally
+  onGlobalMouseUp()
 }
 
+// Canvas right-click now handled by useCanvasEvents composable
 const onRightClick = (event: MouseEvent) => {
-  console.log('🎭 Canvas right-click handler triggered', {
-    target: (event.target as Element)?.tagName,
-    currentTarget: (event.currentTarget as Element)?.tagName,
-    contextMenuAlreadyShowing: contextMenu.show,
-    contextMenuTargetType: contextMenu.targetType,
-  })
-
-  event.preventDefault()
-
-  // If we already have a device or multi-device context menu showing, don't override it
-  if (contextMenu.show && (contextMenu.targetType === 'device' || contextMenu.targetType === 'multi-device')) {
-    console.log('🚫 Device/multi-device context menu already showing, ignoring canvas right-click')
+  console.log('🖱️ Canvas right-click detected')
+  
+  // Check if a device right-click is in progress
+  if (deviceRightClickInProgress.value) {
+    console.log('🚫 Ignoring canvas right-click - device right-click in progress')
+    deviceRightClickInProgress.value = false // Reset flag
     return
   }
-
+  
+  // Check if a device context menu was recently shown (within last 100ms)
+  // This prevents canvas menu from overriding device menu
+  if (contextMenu.show && 
+      (contextMenu.targetType === 'device' || contextMenu.targetType === 'multi-device') &&
+      Date.now() - contextMenuShownAt.value < 100) {
+    console.log('🚫 Ignoring canvas right-click - device context menu was recently shown')
+    return
+  }
+  
+  // Call composable handler for event prevention
+  composableOnRightClick(null, { evt: event } as any)
+  
   // Get the canvas container's bounding rect to calculate relative position
   const rect = canvasContainer.value?.getBoundingClientRect()
-  if (!rect) return
+  if (!rect) {
+    console.log('❌ No canvas container rect found')
+    return
+  }
 
   // Calculate position relative to the canvas container
   let menuX = event.clientX - rect.left
@@ -1477,69 +1337,26 @@ const onRightClick = (event: MouseEvent) => {
   menuX = Math.max(0, menuX)
   menuY = Math.max(0, menuY)
 
-  contextMenu.show = true
-  contextMenu.x = menuX
-  contextMenu.y = menuY
-  contextMenu.target = null
-  contextMenu.targetType = 'canvas'
-  
-  // Set timestamp to prevent immediate hiding
-  contextMenuShownAt.value = Date.now()
-
-  console.log('✅ Canvas context menu shown at:', { x: menuX, y: menuY })
+  // Show canvas context menu
+  console.log('📋 Showing canvas context menu')
+  showContextMenu(menuX, menuY, null, 'canvas')
 }
 
+// Device click now handled by useCanvasEvents composable
 const onDeviceClick = (device: Device, event: any) => {
-  console.log(
-    '🖱️ Device click detected for:',
-    device.name,
-    'button:',
-    event.evt?.button,
-    'shift key:',
-    event.evt?.shiftKey,
-    'context menu showing:',
-    contextMenu.show,
-    'target type:',
-    contextMenu.targetType
-  )
-
+  // Call composable handler first
+  composableOnDeviceClick(device, event)
+  
   // Don't handle right-clicks in the click handler - they should be handled by mousedown only
   if (event.evt?.button === 2) {
     console.log('🔴 Ignoring right-click in device click handler')
     return
   }
 
-  // Handle Shift+Click for multi-selection
-  if (event.evt?.shiftKey) {
-    // Toggle device in multi-selection
-    if (selectedDevices.value.has(device.id)) {
-      selectedDevices.value.delete(device.id)
-      console.log('➖ Removed device from selection:', device.name)
-    } else {
-      selectedDevices.value.add(device.id)
-      console.log('➕ Added device to selection:', device.name)
-    }
-    console.log(`🎯 Total devices in multi-selection: ${selectedDevices.value.size}`)
-
-    // Also add to single selection if it's the only one, otherwise clear it
-    if (selectedDevices.value.size === 1 && selectedDevices.value.has(device.id)) {
-      selectedDevice.value = device
-      deviceStore.setSelectedDevice(device)
-    } else {
-      selectedDevice.value = null
-      deviceStore.setSelectedDevice(null)
-    }
-  } else {
-    // Normal click - replace selection
-    selectedDevice.value = device
-    deviceStore.setSelectedDevice(device)
-
-    // Clear multi-selection and set only this device
-    selectedDevices.value.clear()
-    selectedDevices.value.add(device.id)
-    console.log('🎯 Single device selected:', device.name)
-  }
-
+  // Handle device selection using the composable
+  const isShiftClick = event.evt?.shiftKey || false
+  composableSelectDevice(device, isShiftClick)
+  
   // Don't hide context menu if it's showing a device context menu for this device
   // or if it's a multi-device menu and this device is part of the selection
   if (
@@ -1562,11 +1379,18 @@ const onDeviceClick = (device: Device, event: any) => {
   hideContextMenu()
 }
 
-const onDeviceDoubleClick = (device: Device) => {
+// Device double-click now handled by useCanvasEvents composable
+const onDeviceDoubleClick = (device: Device, event?: any) => {
+  if (event) {
+    composableOnDeviceDoubleClick(device, event)
+  }
   editDevice(device)
 }
 
 const onDeviceMouseDown = (device: Device, event: any) => {
+  // First call the composable handler for core logic
+  composableOnDeviceMouseDown(device, event)
+  
   console.log('🖱️ DEVICE MOUSE DOWN EVENT:', {
     deviceName: device.name,
     button: event.evt.button,
@@ -1578,6 +1402,10 @@ const onDeviceMouseDown = (device: Device, event: any) => {
   // Check if it's a right-click (button 2)
   if (event.evt.button === 2) {
     console.log('🎯 RIGHT-CLICK DETECTED on device:', device.name)
+    
+    // Set flag to prevent canvas right-click from overriding
+    deviceRightClickInProgress.value = true
+    
     console.log('📊 Current selection state:', {
       selectedDevicesCount: selectedDevices.value.size,
       selectedDeviceIds: Array.from(selectedDevices.value),
@@ -1646,14 +1474,9 @@ const onDeviceMouseDown = (device: Device, event: any) => {
       currentTime: Date.now()
     })
 
-    contextMenu.show = true
-    contextMenu.x = menuX
-    contextMenu.y = menuY
-    contextMenu.target = device
-    contextMenu.targetType = selectedDevices.value.size > 1 ? 'multi-device' : 'device'
-    
-    // Set timestamp to prevent immediate hiding
-    contextMenuShownAt.value = Date.now()
+    // Show context menu using composable function
+    const targetType = selectedDevices.value.size > 1 ? 'multi-device' : 'device'
+    showContextMenu(menuX, menuY, device, targetType)
 
     console.log('✅ CONTEXT MENU SHOWN FOR:', 
       selectedDevices.value.size > 1 ? `${selectedDevices.value.size} devices` : device.name, 
@@ -1722,52 +1545,7 @@ const onConnectionPointClick = (device: Device, point: { x: number; y: number },
   }
 }
 
-// Canvas controls
-const toggleGrid = () => {
-  showGrid.value = !showGrid.value
-}
-
-const toggleConnectionMode = () => {
-  connectionMode.value = !connectionMode.value
-  connectionStart.value = null
-}
-
-const fitToScreen = () => {
-  if (deviceStore.devices.length === 0) return
-
-  const padding = 100
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity
-
-  deviceStore.devices.forEach((device) => {
-    minX = Math.min(minX, device.position_x)
-    minY = Math.min(minY, device.position_y)
-    maxX = Math.max(maxX, device.position_x + 80)
-    maxY = Math.max(maxY, device.position_y + 80)
-  })
-
-  const width = maxX - minX + padding * 2
-  const height = maxY - minY + padding * 2
-
-  const containerRect = canvasContainer.value?.getBoundingClientRect()
-  if (!containerRect) return
-
-  const scaleX = containerRect.width / width
-  const scaleY = containerRect.height / height
-  const newScale = Math.min(scaleX, scaleY, 1)
-
-  canvasStore.setZoom(newScale)
-  canvasStore.setPosition({
-    x: (containerRect.width - width * newScale) / 2 - (minX - padding) * newScale,
-    y: (containerRect.height - height * newScale) / 2 - (minY - padding) * newScale,
-  })
-}
-
-const resetView = () => {
-  canvasStore.resetView()
-}
+// Canvas controls - now handled by useCanvasControls composable
 
 // Device search functions
 const toggleDeviceSearch = () => {
@@ -1818,23 +1596,9 @@ const searchAndCenterDevice = () => {
   }
 }
 
-const hideContextMenu = () => {
-  console.log('🚫 hideContextMenu() called - HIDING CONTEXT MENU')
-  console.trace('🔍 hideContextMenu called from:')
-  console.log('📊 Context menu state before hiding:', {
-    show: contextMenu.show,
-    targetType: contextMenu.targetType,
-    target: contextMenu.target?.name,
-    timeSinceShown: Date.now() - contextMenuShownAt.value
-  })
-  contextMenu.show = false
-}
-
-// Context menu actions
-const editDevice = (device: Device) => {
-  console.log('Edit device:', device)
-  hideContextMenu()
-}
+// Context menu actions - now handled by composables  
+const deleteDevice = composableDeleteDevice
+const editDevice = composableEditDevice
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const showProperties = (device: Device) => {
@@ -1860,32 +1624,7 @@ const centerOnDevice = (device: Device) => {
   hideContextMenu()
 }
 
-const deleteDevice = (device: Device) => {
-  console.log('🗑️ Remove device requested:', device.name)
-
-  if (confirm(`Are you sure you want to remove "${device.name}" from the canvas?`)) {
-    try {
-      const success = deviceStore.deleteDevice(device.id)
-
-      if (success) {
-        // Remove from selections if it was selected
-        if (selectedDevice.value?.id === device.id) {
-          selectedDevice.value = null
-          deviceStore.setSelectedDevice(null)
-        }
-        selectedDevices.value.delete(device.id)
-
-        console.log('✅ Device removed successfully:', device.name)
-      }
-    } catch (error) {
-      console.error('❌ Failed to delete device:', error)
-    }
-  } else {
-    console.log('❌ Device removal cancelled by user')
-  }
-
-  hideContextMenu()
-}
+// Device operations now handled by useDeviceOperations composable
 
 // Resize handler
 const handleResize = () => {
@@ -2026,7 +1765,7 @@ const handleGlobalKeyDown = (event: KeyboardEvent) => {
 
 // Browser beforeunload event handler to warn about unsaved changes
 const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-  if (hasUnsavedChanges.value) {
+  if (composableHasUnsavedChanges.value) {
     console.log('🚪 User trying to leave with unsaved changes')
     event.preventDefault()
     // Modern browsers ignore custom messages and show their own
@@ -2035,24 +1774,11 @@ const handleBeforeUnload = (event: BeforeUnloadEvent) => {
   }
 }
 
-// Function to prompt user to save before certain actions
-const promptToSaveBeforeAction = (actionName: string, actionCallback: () => void) => {
-  if (hasUnsavedChanges.value) {
-    // Store the pending action and show dialog
-    pendingAction.value = actionCallback
-    showUnsavedChangesDialog.value = true
-    return
-  }
-
-  // Continue with the action if no unsaved changes
-  actionCallback()
-}
-
 // Handlers for unsaved changes dialog
 const handleUnsavedChangesSave = () => {
   showUnsavedChangesDialog.value = false
   // Show save modal - after save completes, the pending action will need to be called manually
-  showSaveModal.value = true
+  composableShowSaveModal.value = true
   // Note: The pending action will be called after successful save in handleCanvasSave
 }
 

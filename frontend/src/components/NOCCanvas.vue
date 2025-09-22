@@ -116,8 +116,8 @@
           <!-- Device Background -->
           <v-rect
             :config="{
-              width: 60,
-              height: 60,
+              width: DEVICE_SIZE,
+              height: DEVICE_SIZE,
               fill: getDeviceColor(device.device_type),
               stroke:
                 selectedDevice?.id === device.id || selectedDevices.has(device.id)
@@ -148,16 +148,16 @@
           <!-- Device Name -->
           <v-text
             :config="{
-              x: 30,
-              y: 50,
+              x: DEVICE_HALF_SIZE,
+              y: DEVICE_TEXT_Y_OFFSET,
               text: device.name,
               fontSize: 9,
               align: 'center',
               fill: '#374151',
               fontFamily: 'Arial',
               offsetX: device.name.length * 5.5,
-              offsetY: 10,
-              width: 60,
+              offsetY: DEVICE_NAME_OFFSET_Y,
+              width: DEVICE_SIZE,
               ellipsis: true,
             }"
           />
@@ -398,6 +398,14 @@ import ConfirmDialog from './ConfirmDialog.vue'
 import LoadCanvasModal from './LoadCanvasModal.vue'
 import DuplicateDeviceModal from './DuplicateDeviceModal.vue'
 
+// Constants
+const DEVICE_SIZE = 60
+const DEVICE_HALF_SIZE = 30
+const GRID_SIZE = 50
+const SCALE_FACTOR = 1.1
+const DEVICE_NAME_OFFSET_Y = 10
+const DEVICE_TEXT_Y_OFFSET = 50
+
 const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
 const { loadDeviceIcons, getDeviceIcon } = useDeviceIcons()
@@ -434,35 +442,22 @@ const {
 
 // Use the composable versions as the primary references
 const selectedDevices = composableSelectedDevices
-const primarySelectedDevice = composableSelectedDevice
 
 // Initialize device operations composable
 const deviceOperationsComposable = useDeviceOperations()
 const {
-  showAddModal,
-  showEditModal, 
-  showDeleteConfirmDialog,
-  currentDevice,
   deleteDevice: composableDeleteDevice,
   editDevice: composableEditDevice,
-  addDevice: composableAddDevice,
 } = deviceOperationsComposable
 
 // Initialize canvas events composable
 const canvasEventsComposable = useCanvasEvents()
 const {
-  isDragging: isCanvasDragging,
-  isConnectionMode: eventsConnectionMode,
-  connectionSourceDevice,
-  onGlobalMouseDown,
-  onGlobalMouseMove,
   onGlobalMouseUp,
   onDeviceMouseDown: composableOnDeviceMouseDown,
   onDeviceClick: composableOnDeviceClick,
   onDeviceDoubleClick: composableOnDeviceDoubleClick,
   onRightClick: composableOnRightClick,
-  toggleConnectionMode: eventsToggleConnectionMode,
-  exitConnectionMode,
 } = canvasEventsComposable
 
 // Initialize canvas state composable
@@ -478,7 +473,6 @@ const {
   quickSave: composableQuickSave,
   clearCanvas: composableClearCanvas,
   executeClearCanvas,
-  saveCanvasData: composableSaveCanvasData,
   promptToSaveBeforeAction,
   updateSavedState,
 } = canvasStateComposable
@@ -551,7 +545,7 @@ const mouseState = reactive({
 
 // Grid lines computation
 const gridLines = computed(() => {
-  const gridSize = 50
+  const gridSize = GRID_SIZE
   const lines = { vertical: [], horizontal: [] } as any
 
   // Vertical lines
@@ -579,10 +573,10 @@ const renderConnections = computed(() => {
       return {
         id: connection.id,
         points: [
-          sourceDevice.position_x + 30,
-          sourceDevice.position_y + 30,
-          targetDevice.position_x + 30,
-          targetDevice.position_y + 30,
+          sourceDevice.position_x + DEVICE_HALF_SIZE,
+          sourceDevice.position_y + DEVICE_HALF_SIZE,
+          targetDevice.position_x + DEVICE_HALF_SIZE,
+          targetDevice.position_y + DEVICE_HALF_SIZE,
         ],
       }
     })
@@ -607,11 +601,6 @@ const contextMenuItems = computed(() => {
           ],
         },
       ]
-      console.log('🐛 Canvas context menu items:', items)
-      console.log(
-        '🐛 Canvas item with submenu:',
-        items.find((item) => item.submenu)
-      )
       return items
     }
     return []
@@ -643,7 +632,6 @@ const contextMenuItems = computed(() => {
         action: () => { hideContextMenu(); deleteMultiDevices() }
       },
     ]
-    console.log('🐛 Multi-device context menu items:', items, 'selected devices:', selectedCount)
     return items
   }
 
@@ -663,11 +651,6 @@ const contextMenuItems = computed(() => {
     { icon: '🔍', label: 'Analyze', action: () => { hideContextMenu(); analyzeDevice(contextMenu.target!) } },
     { icon: '🗑️', label: 'Remove', action: () => { hideContextMenu(); deleteDevice(contextMenu.target!) } },
   ]
-  console.log('🐛 Device context menu items:', items)
-  console.log(
-    '🐛 Device item with submenu:',
-    items.find((item) => item.submenu)
-  )
   return items
 })
 
@@ -685,9 +668,7 @@ const getDeviceColor = (type: string) => {
 
 // Context menu functions
 const loadCanvas = () => {
-  console.log('Load Canvas - checking for unsaved changes')
   promptToSaveBeforeAction('loading a canvas', () => {
-    console.log('Load Canvas - showing modal')
     composableShowLoadModal.value = true
   })
 }
@@ -698,7 +679,6 @@ const closeLoadModal = () => {
 }
 
 const handleCanvasLoad = (canvasId: number) => {
-  console.log('🔄 Canvas load requested for ID:', canvasId)
 
   // Check if current canvas has devices
   if (deviceStore.devices.length > 0) {
@@ -713,7 +693,6 @@ const handleCanvasLoad = (canvasId: number) => {
 }
 
 const handleLoadConfirm = () => {
-  console.log('✅ User confirmed canvas load')
   showLoadConfirmDialog.value = false
   if (pendingCanvasId.value) {
     loadCanvasById(pendingCanvasId.value)
@@ -722,7 +701,6 @@ const handleLoadConfirm = () => {
 }
 
 const handleLoadCancel = () => {
-  console.log('❌ User cancelled canvas load')
   showLoadConfirmDialog.value = false
   pendingCanvasId.value = null
   // Reopen the load modal
@@ -731,17 +709,14 @@ const handleLoadCancel = () => {
 
 const loadCanvasById = async (canvasId: number) => {
   try {
-    console.log('🔄 Loading canvas from database...', canvasId)
 
     // Clear current canvas first if it has devices
     if (deviceStore.devices.length > 0) {
       deviceStore.clearDevices()
-      console.log('✅ Current canvas cleared')
     }
 
     // Fetch canvas data
     const canvas = await canvasApi.getCanvas(canvasId)
-    console.log('✅ Canvas data loaded:', canvas)
 
     // Load devices and connections directly from canvas data (pure frontend)
     // Convert CanvasDeviceData to Device with proper types
@@ -755,14 +730,6 @@ const loadCanvasById = async (canvasId: number) => {
     // Update tracking state
     composableCanvasId.value = canvasId
     updateSavedState()
-
-    console.log(
-      '✅ Canvas loaded successfully with',
-      canvas.canvas_data.devices.length,
-      'devices and',
-      canvas.canvas_data.connections.length,
-      'connections'
-    )
 
     // Close the load modal after successful loading
     composableShowLoadModal.value = false
@@ -785,13 +752,11 @@ const clearCanvas = composableClearCanvas
 
 // Clear Canvas Confirmation Dialog functions
 const handleClearConfirm = () => {
-  console.log('✅ User confirmed canvas clear')
   composableShowClearDialog.value = false
   executeClearCanvas()
 }
 
 const handleClearCancel = () => {
-  console.log('❌ User cancelled canvas clear')
   composableShowClearDialog.value = false
 }
 
@@ -833,7 +798,6 @@ const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasI
         sharable: data.sharable,
         canvas_data: canvasData,
       })
-      console.log('✅ Canvas updated successfully:', response)
       composableCanvasId.value = data.canvasId
     } else {
       // Create new canvas
@@ -842,7 +806,6 @@ const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasI
         sharable: data.sharable,
         canvas_data: canvasData,
       })
-      console.log('✅ Canvas saved successfully:', response)
       composableCanvasId.value = response.id
     }
 
@@ -893,7 +856,6 @@ const handleDuplicateAdd = () => {
   if (pendingDeviceData.value) {
     try {
       deviceStore.createDevice(pendingDeviceData.value)
-      console.log('✅ Duplicate device added successfully')
     } catch (error) {
       console.error('❌ Failed to create duplicate device:', error)
     }
@@ -902,27 +864,21 @@ const handleDuplicateAdd = () => {
 }
 
 const showDeviceOverview = (device: Device) => {
-  console.log('Show Device Overview:', device.name)
 }
 
 const showDeviceConfig = (device: Device) => {
-  console.log('Show Device Config:', device.name)
 }
 
 const showDeviceChanges = (device: Device) => {
-  console.log('Show Device Changes:', device.name)
 }
 
 const showDeviceCommands = (device: Device) => {
-  console.log('Show Device Commands:', device.name)
 }
 
 const showDeviceNeighbors = (device: Device) => {
-  console.log('Show Device Neighbors:', device.name)
 }
 
 const analyzeDevice = (device: Device) => {
-  console.log('Analyze Device:', device.name)
 }
 
 // Multi-device action functions
@@ -931,7 +887,6 @@ const showMultiDeviceOverview = () => {
     .map(id => deviceStore.devices.find(d => d.id === id))
     .filter((device): device is Device => device !== undefined)
   
-  console.log(`Show Overview for ${selectedDevicesArray.length} devices:`, selectedDevicesArray.map(d => d.name))
   hideContextMenu()
 }
 
@@ -940,7 +895,6 @@ const showMultiDeviceConfig = () => {
     .map(id => deviceStore.devices.find(d => d.id === id))
     .filter((device): device is Device => device !== undefined)
   
-  console.log(`Show Config for ${selectedDevicesArray.length} devices:`, selectedDevicesArray.map(d => d.name))
   hideContextMenu()
 }
 
@@ -949,7 +903,6 @@ const showMultiDeviceChanges = () => {
     .map(id => deviceStore.devices.find(d => d.id === id))
     .filter((device): device is Device => device !== undefined)
   
-  console.log(`Show Changes for ${selectedDevicesArray.length} devices:`, selectedDevicesArray.map(d => d.name))
   hideContextMenu()
 }
 
@@ -958,7 +911,6 @@ const showMultiDeviceCommands = () => {
     .map(id => deviceStore.devices.find(d => d.id === id))
     .filter((device): device is Device => device !== undefined)
   
-  console.log(`Show Commands for ${selectedDevicesArray.length} devices:`, selectedDevicesArray.map(d => d.name))
   hideContextMenu()
 }
 
@@ -967,7 +919,6 @@ const showMultiDeviceNeighbors = () => {
     .map(id => deviceStore.devices.find(d => d.id === id))
     .filter((device): device is Device => device !== undefined)
   
-  console.log(`Show Neighbors for ${selectedDevicesArray.length} devices:`, selectedDevicesArray.map(d => d.name))
   hideContextMenu()
 }
 
@@ -976,7 +927,6 @@ const analyzeMultiDevices = () => {
     .map(id => deviceStore.devices.find(d => d.id === id))
     .filter((device): device is Device => device !== undefined)
   
-  console.log(`Analyze ${selectedDevicesArray.length} devices:`, selectedDevicesArray.map(d => d.name))
   hideContextMenu()
 }
 
@@ -986,7 +936,6 @@ const deleteMultiDevices = () => {
     .filter((device): device is Device => device !== undefined)
 
   const deviceNames = selectedDevicesArray.map(d => d.name).join(', ')
-  console.log(`🗑️ Remove ${selectedDevicesArray.length} devices requested:`, deviceNames)
 
   if (confirm(`Are you sure you want to remove ${selectedDevicesArray.length} devices from the canvas?\n\nDevices: ${deviceNames}`)) {
     try {
@@ -1005,12 +954,10 @@ const deleteMultiDevices = () => {
       selectedDevice.value = null
       deviceStore.setSelectedDevice(null)
 
-      console.log(`✅ Successfully removed ${successCount} of ${selectedDevicesArray.length} devices`)
     } catch (error) {
       console.error('❌ Failed to delete multiple devices:', error)
     }
   } else {
-    console.log('❌ Multi-device removal cancelled by user')
   }
 
   hideContextMenu()
@@ -1019,10 +966,10 @@ const deleteMultiDevices = () => {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const getConnectionPoints = (device: Device) => {
   return [
-    { x: 0, y: 30 }, // Left (middle of 60px height)
-    { x: 60, y: 30 }, // Right (middle of 60px height)
-    { x: 30, y: 0 }, // Top (middle of 60px width)
-    { x: 30, y: 60 }, // Bottom (middle of 60px width)
+    { x: 0, y: DEVICE_HALF_SIZE }, // Left (middle of device height)
+    { x: DEVICE_SIZE, y: DEVICE_HALF_SIZE }, // Right (middle of device height)
+    { x: DEVICE_HALF_SIZE, y: 0 }, // Top (middle of device width)
+    { x: DEVICE_HALF_SIZE, y: DEVICE_SIZE }, // Bottom (middle of device width)
   ]
 }
 
@@ -1052,7 +999,6 @@ const mapNautobotDeviceType = (nautobotDevice: NautobotDevice): Device['device_t
 // Event handlers
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const onDragEnter = (event: DragEvent) => {
-  console.log('🎯 Drag enter canvas')
   isDragOver.value = true
 }
 
@@ -1063,41 +1009,33 @@ const onDragOver = (event: DragEvent) => {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const onDragLeave = (event: DragEvent) => {
-  console.log('🏃 Drag leave canvas')
   isDragOver.value = false
 }
 
 const onDrop = async (event: DragEvent) => {
-  console.log('📍 Drop event triggered')
   event.preventDefault()
   isDragOver.value = false
 
   const data = event.dataTransfer?.getData('application/json')
-  console.log('📦 Drop data received:', data)
   if (!data) {
-    console.log('❌ No data in drop event')
     return
   }
 
   try {
     const parsedData = JSON.parse(data)
     const { type } = parsedData
-    console.log('🔍 Parsed drop data:', parsedData)
 
     const rect = canvasContainer.value?.getBoundingClientRect()
     if (!rect) {
-      console.log('❌ No canvas container rect')
       return
     }
 
     const x = (event.clientX - rect.left - position.value.x) / scale.value
     const y = (event.clientY - rect.top - position.value.y) / scale.value
 
-    console.log('📍 Drop position:', { x, y, clientX: event.clientX, clientY: event.clientY })
 
     if (type === 'nautobot-device') {
       const { device } = parsedData as { type: string; device: NautobotDevice }
-      console.log('🏗️ Creating device from Nautobot:', device.name)
 
       // Check for duplicate by name first
       let existingDevice = deviceStore.findDeviceByName(device.name)
@@ -1115,8 +1053,8 @@ const onDrop = async (event: DragEvent) => {
           name: device.name,
           device_type: mapNautobotDeviceType(device),
           ip_address: device.primary_ip4?.address?.split('/')[0],
-          position_x: x - 30,
-          position_y: y - 30,
+          position_x: x - DEVICE_HALF_SIZE,
+          position_y: y - DEVICE_HALF_SIZE,
           properties: JSON.stringify({
             nautobot_id: device.id,
             location: device.location?.name,
@@ -1134,8 +1072,8 @@ const onDrop = async (event: DragEvent) => {
         name: device.name,
         device_type: mapNautobotDeviceType(device),
         ip_address: device.primary_ip4?.address?.split('/')[0], // Remove CIDR notation
-        position_x: x - 30, // Center the device
-        position_y: y - 30,
+        position_x: x - DEVICE_HALF_SIZE, // Center the device
+        position_y: y - DEVICE_HALF_SIZE,
         properties: JSON.stringify({
           nautobot_id: device.id,
           location: device.location?.name,
@@ -1145,9 +1083,7 @@ const onDrop = async (event: DragEvent) => {
           last_backup: device.cf_last_backup,
         }),
       })
-      console.log('✅ Device from Nautobot created successfully')
     } else {
-      console.log('❌ Unknown drop data type:', type)
     }
   } catch (error) {
     console.error('❌ Failed to create device:', error)
@@ -1157,7 +1093,7 @@ const onDrop = async (event: DragEvent) => {
 const onWheel = (event: any) => {
   event.evt.preventDefault()
 
-  const scaleBy = 1.1
+  const scaleBy = SCALE_FACTOR
   const stage = event.target.getStage()
   const pointer = stage.getPointerPosition()
   const mousePointTo = {
@@ -1179,27 +1115,19 @@ const onWheel = (event: any) => {
 }
 
 const onStageMouseDown = (event: any) => {
-  console.log('🎭 Stage mouse down:', {
-    button: event.evt.button,
-    target: event.target?.constructor?.name,
-    isStage: event.target === event.target.getStage(),
-  })
 
   // Don't handle right-clicks here - they are handled by onRightClick and onDeviceMouseDown
   if (event.evt.button === 2) {
-    console.log('🔴 Stage right-click detected, skipping stage handler')
     return
   }
 
   // Check if clicking on a device - don't handle canvas operations if so
   if (event.target !== event.target.getStage()) {
-    console.log('🎯 Clicking on non-stage element:', event.target?.constructor?.name)
     // Clicking on a device or device element, let device handlers take care of it
     return
   }
 
   if (event.target === event.target.getStage()) {
-    console.log('📍 Clicking on stage background')
     mouseState.isDown = true
     const pos = event.target.getStage().getPointerPosition()
     mouseState.startX = pos.x
@@ -1223,7 +1151,6 @@ const onStageMouseDown = (event: any) => {
       selectedDevices.value.clear()
     }
 
-    // Debug: console.log('🖱️ Mouse down - Mode:', event.evt.shiftKey ? 'Selection' : 'Panning')
   }
 }
 
@@ -1237,7 +1164,6 @@ const onStageMouseMove = (event: any) => {
     const dy = pos.y - mouseState.startY
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
       mouseState.isDragging = true
-      // Debug: console.log('🔄 Start dragging:', selectionBox.value ? 'Selection box' : 'Canvas panning')
     }
   }
 
@@ -1266,11 +1192,6 @@ const onStageMouseMove = (event: any) => {
 }
 
 const onStageMouseUp = () => {
-  console.log('🎭 STAGE MOUSE UP EVENT:', {
-    hadSelectionBox: !!selectionBox.value,
-    contextMenuVisible: contextMenu.show,
-    timestamp: Date.now()
-  })
 
   // If we had a selection box, select devices within it
   if (selectionBox.value) {
@@ -1289,11 +1210,9 @@ const onCanvasMouseUp = (event: MouseEvent) => {
 
 // Canvas right-click now handled by useCanvasEvents composable
 const onRightClick = (event: MouseEvent) => {
-  console.log('🖱️ Canvas right-click detected')
   
   // Check if a device right-click is in progress
   if (deviceRightClickInProgress.value) {
-    console.log('🚫 Ignoring canvas right-click - device right-click in progress')
     deviceRightClickInProgress.value = false // Reset flag
     return
   }
@@ -1303,7 +1222,6 @@ const onRightClick = (event: MouseEvent) => {
   if (contextMenu.show && 
       (contextMenu.targetType === 'device' || contextMenu.targetType === 'multi-device') &&
       Date.now() - contextMenuShownAt.value < 100) {
-    console.log('🚫 Ignoring canvas right-click - device context menu was recently shown')
     return
   }
   
@@ -1313,7 +1231,6 @@ const onRightClick = (event: MouseEvent) => {
   // Get the canvas container's bounding rect to calculate relative position
   const rect = canvasContainer.value?.getBoundingClientRect()
   if (!rect) {
-    console.log('❌ No canvas container rect found')
     return
   }
 
@@ -1338,7 +1255,6 @@ const onRightClick = (event: MouseEvent) => {
   menuY = Math.max(0, menuY)
 
   // Show canvas context menu
-  console.log('📋 Showing canvas context menu')
   showContextMenu(menuX, menuY, null, 'canvas')
 }
 
@@ -1349,7 +1265,6 @@ const onDeviceClick = (device: Device, event: any) => {
   
   // Don't handle right-clicks in the click handler - they should be handled by mousedown only
   if (event.evt?.button === 2) {
-    console.log('🔴 Ignoring right-click in device click handler')
     return
   }
 
@@ -1364,18 +1279,10 @@ const onDeviceClick = (device: Device, event: any) => {
     ((contextMenu.targetType === 'device' && contextMenu.target?.id === device.id) ||
      (contextMenu.targetType === 'multi-device' && selectedDevices.value.has(device.id)))
   ) {
-    console.log('🔒 Keeping context menu visible for:', device.name)
     return
   }
 
   // Hide context menu for other cases (canvas menu, or clicking different device)
-  console.log('🔥 onDeviceClick will hide context menu because:', {
-    contextMenuShow: contextMenu.show,
-    contextMenuTargetType: contextMenu.targetType,
-    contextMenuTargetId: contextMenu.target?.id,
-    clickedDeviceId: device.id,
-    deviceInSelection: selectedDevices.value.has(device.id)
-  })
   hideContextMenu()
 }
 
@@ -1391,27 +1298,13 @@ const onDeviceMouseDown = (device: Device, event: any) => {
   // First call the composable handler for core logic
   composableOnDeviceMouseDown(device, event)
   
-  console.log('🖱️ DEVICE MOUSE DOWN EVENT:', {
-    deviceName: device.name,
-    button: event.evt.button,
-    eventType: event.type,
-    target: event.target?.constructor?.name,
-    timestamp: Date.now()
-  })
 
   // Check if it's a right-click (button 2)
   if (event.evt.button === 2) {
-    console.log('🎯 RIGHT-CLICK DETECTED on device:', device.name)
     
     // Set flag to prevent canvas right-click from overriding
     deviceRightClickInProgress.value = true
     
-    console.log('📊 Current selection state:', {
-      selectedDevicesCount: selectedDevices.value.size,
-      selectedDeviceIds: Array.from(selectedDevices.value),
-      isDeviceInSelection: selectedDevices.value.has(device.id),
-      currentContextMenuShow: contextMenu.show
-    })
 
     // Prevent all event propagation
     event.evt.preventDefault()
@@ -1434,15 +1327,12 @@ const onDeviceMouseDown = (device: Device, event: any) => {
       selectedDevices.value.add(device.id)
       selectedDevice.value = device
       deviceStore.setSelectedDevice(device)
-      console.log('🎯 Single device selected for context menu:', device.name)
     } else {
-      console.log('🎯 Keeping multi-selection for context menu, device count:', selectedDevices.value.size)
     }
 
     // Get the canvas container's bounding rect to calculate relative position
     const rect = canvasContainer.value?.getBoundingClientRect()
     if (!rect) {
-      console.log('❌ No canvas container rect found')
       return
     }
 
@@ -1466,30 +1356,12 @@ const onDeviceMouseDown = (device: Device, event: any) => {
     menuX = Math.max(0, menuX)
     menuY = Math.max(0, menuY)
 
-    console.log('🎬 ABOUT TO SHOW CONTEXT MENU:', {
-      device: device.name,
-      menuX,
-      menuY,
-      multiDevice: selectedDevices.value.size > 1,
-      currentTime: Date.now()
-    })
 
     // Show context menu using composable function
     const targetType = selectedDevices.value.size > 1 ? 'multi-device' : 'device'
     showContextMenu(menuX, menuY, device, targetType)
 
-    console.log('✅ CONTEXT MENU SHOWN FOR:', 
-      selectedDevices.value.size > 1 ? `${selectedDevices.value.size} devices` : device.name, 
-      {
-        x: menuX,
-        y: menuY,
-        contextMenuState: contextMenu,
-        multiSelection: selectedDevices.value.size > 1,
-        shownAt: contextMenuShownAt.value
-      }
-    )
   } else {
-    console.log('🔘 Non-right-click on device:', device.name, 'button:', event.evt.button)
   }
 }
 
@@ -1578,8 +1450,8 @@ const searchAndCenterDevice = () => {
     const containerRect = canvasContainer.value?.getBoundingClientRect()
     if (containerRect) {
       canvasStore.setPosition({
-        x: containerRect.width / 2 - (foundDevice.position_x + 30) * scale.value,
-        y: containerRect.height / 2 - (foundDevice.position_y + 30) * scale.value,
+        x: containerRect.width / 2 - (foundDevice.position_x + DEVICE_HALF_SIZE) * scale.value,
+        y: containerRect.height / 2 - (foundDevice.position_y + DEVICE_HALF_SIZE) * scale.value,
       })
 
       // Select the device
@@ -1588,10 +1460,8 @@ const searchAndCenterDevice = () => {
       // Close search
       closeDeviceSearch()
 
-      console.log(`✅ Found and centered device: ${foundDevice.name}`)
     }
   } else {
-    console.log(`❌ Device not found: ${query}`)
     // Optionally show a notification that device was not found
   }
 }
@@ -1601,25 +1471,14 @@ const deleteDevice = composableDeleteDevice
 const editDevice = composableEditDevice
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const showProperties = (device: Device) => {
-  console.log('Show properties:', device)
-  hideContextMenu()
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const startConnection = (device: Device) => {
-  connectionMode.value = true
-  connectionStart.value = { device, point: { x: 30, y: 30 } }
-  hideContextMenu()
-}
 
 const centerOnDevice = (device: Device) => {
   const containerRect = canvasContainer.value?.getBoundingClientRect()
   if (!containerRect) return
 
   canvasStore.setPosition({
-    x: containerRect.width / 2 - (device.position_x + 30) * scale.value,
-    y: containerRect.height / 2 - (device.position_y + 30) * scale.value,
+    x: containerRect.width / 2 - (device.position_x + DEVICE_HALF_SIZE) * scale.value,
+    y: containerRect.height / 2 - (device.position_y + DEVICE_HALF_SIZE) * scale.value,
   })
   hideContextMenu()
 }
@@ -1631,7 +1490,6 @@ const handleResize = () => {
   if (canvasContainer.value) {
     const newWidth = canvasContainer.value.clientWidth
     const newHeight = canvasContainer.value.clientHeight
-    console.log('🔄 Resizing canvas to:', { newWidth, newHeight })
 
     // Only update if dimensions are valid, with minimum fallback
     if (newWidth > 0 && newHeight > 0) {
@@ -1644,7 +1502,6 @@ const handleResize = () => {
       if (parentWidth > 0 && parentHeight > 0) {
         canvasSize.width = parentWidth
         canvasSize.height = parentHeight
-        console.log('🔄 Using parent dimensions:', { width: parentWidth, height: parentHeight })
       }
     }
   }
@@ -1652,28 +1509,17 @@ const handleResize = () => {
 
 // Global click handler to hide context menu
 const handleGlobalClick = (event: MouseEvent) => {
-  console.log('🌍 GLOBAL CLICK EVENT:', {
-    button: event.button,
-    target: (event.target as Element)?.tagName,
-    className: (event.target as Element)?.className,
-    contextMenuVisible: contextMenu.show,
-    timestamp: Date.now()
-  })
 
   // Don't handle right-clicks - they should show context menus, not hide them
   if (event.button === 2) {
-    console.log('🔴 Global click handler ignoring right-click')
     return
   }
 
-  console.log('🖱️ Global CLICK detected, context menu visible:', contextMenu.show)
   if (contextMenu.show) {
     // Prevent hiding context menu too soon after it was shown (race condition)
     const timeSinceShown = Date.now() - contextMenuShownAt.value
-    console.log('⏱️ Time since context menu shown:', timeSinceShown, 'ms')
-    
+
     if (timeSinceShown < 100) {
-      console.log('🕒 Context menu shown too recently, ignoring hide request')
       return
     }
 
@@ -1681,51 +1527,25 @@ const handleGlobalClick = (event: MouseEvent) => {
     const contextMenuElement = document.querySelector('[data-context-menu="true"]')
     const clickedInsideMenu = contextMenuElement?.contains(event.target as Node)
 
-    console.log('📍 GLOBAL CLICK details:', {
-      clickedInsideMenu,
-      targetElement: (event.target as Element)?.tagName,
-      targetClassName: (event.target as Element)?.className,
-      contextMenuFound: !!contextMenuElement,
-      timeSinceShown,
-      willHideMenu: !clickedInsideMenu
-    })
 
     if (!clickedInsideMenu) {
-      console.log('🔥 GLOBAL CLICK will hide context menu')
       hideContextMenu()
     } else {
-      console.log('✅ GLOBAL CLICK inside menu, keeping visible')
     }
   }
 }
 
 // Global mouseup handler to hide context menu on left-click release only
 const handleGlobalMouseUp = (event: MouseEvent) => {
-  console.log('🌍 GLOBAL MOUSEUP EVENT:', {
-    button: event.button,
-    target: (event.target as Element)?.tagName,
-    className: (event.target as Element)?.className,
-    contextMenuVisible: contextMenu.show,
-    timestamp: Date.now()
-  })
 
-  console.log(
-    '🖱️ Global mouseup detected, button:',
-    event.button,
-    'context menu visible:',
-    contextMenu.show
-  )
 
   // Only hide context menu on left-click mouseup, never on right-click
   if (event.button === 0 && contextMenu.show) {
-    console.log('👆 LEFT-CLICK MOUSEUP with context menu visible')
     
     // Prevent hiding context menu too soon after it was shown (race condition)
     const timeSinceShown = Date.now() - contextMenuShownAt.value
-    console.log('⏱️ Time since context menu shown:', timeSinceShown, 'ms')
-    
+
     if (timeSinceShown < 100) {
-      console.log('🕒 Context menu shown too recently, ignoring mouseup hide request')
       return
     }
 
@@ -1733,23 +1553,12 @@ const handleGlobalMouseUp = (event: MouseEvent) => {
     const contextMenuElement = document.querySelector('[data-context-menu="true"]')
     const clickedInsideMenu = contextMenuElement?.contains(event.target as Node)
 
-    console.log('📍 LEFT MOUSEUP details:', {
-      clickedInsideMenu,
-      targetElement: (event.target as Element)?.tagName,
-      targetClassName: (event.target as Element)?.className,
-      contextMenuFound: !!contextMenuElement,
-      timeSinceShown,
-      willHideMenu: !clickedInsideMenu
-    })
 
     if (!clickedInsideMenu) {
-      console.log('🔥 LEFT MOUSEUP will hide context menu')
       hideContextMenu()
     } else {
-      console.log('✅ LEFT MOUSEUP inside menu, keeping visible')
     }
   } else if (event.button === 2) {
-    console.log('🔴 RIGHT-CLICK MOUSEUP detected, keeping context menu visible')
   }
 }
 
@@ -1758,7 +1567,6 @@ const handleGlobalKeyDown = (event: KeyboardEvent) => {
   // Handle Ctrl+S (or Cmd+S on Mac) for save
   if ((event.ctrlKey || event.metaKey) && event.key === 's') {
     event.preventDefault() // Prevent browser's default save behavior
-    console.log('⌨️ Ctrl+S detected - triggering quick save')
     saveCanvas()
   }
 }
@@ -1766,7 +1574,6 @@ const handleGlobalKeyDown = (event: KeyboardEvent) => {
 // Browser beforeunload event handler to warn about unsaved changes
 const handleBeforeUnload = (event: BeforeUnloadEvent) => {
   if (composableHasUnsavedChanges.value) {
-    console.log('🚪 User trying to leave with unsaved changes')
     event.preventDefault()
     // Modern browsers ignore custom messages and show their own
     event.returnValue = 'You have unsaved changes. Are you sure you want to leave?'
@@ -1798,7 +1605,6 @@ onMounted(async () => {
   await loadDeviceIcons()
 
   // Debug: Check device count
-  console.log('🎯 Devices loaded:', deviceStore.devices.length)
 
   // Ensure canvas container is available before initializing
   if (canvasContainer.value) {

@@ -106,6 +106,8 @@
             y: device.position_y,
             draggable: true,
           }"
+          @dragstart="onDeviceDragStart(device)"
+          @dragmove="onDeviceDragMove(device, $event)"
           @dragend="onDeviceDragEnd(device, $event)"
           @click="onDeviceClick(device, $event)"
           @dblclick="onDeviceDoubleClick(device)"
@@ -626,6 +628,15 @@ const contextMenuItems = computed(() => {
       { icon: '💻', label: 'Commands', action: () => { hideContextMenu(); showMultiDeviceCommands() } },
       { icon: '🔗', label: 'Show All Neighbors', action: () => { hideContextMenu(); showMultiDeviceNeighbors() } },
       { icon: '🔍', label: 'Analyze All', action: () => { hideContextMenu(); analyzeMultiDevices() } },
+      { icon: '─', label: '─────────', action: () => {}, separator: true },
+      {
+        icon: '📐',
+        label: 'Alignment',
+        submenu: [
+          { icon: '↔️', label: 'Horizontal', action: () => { alignDevicesHorizontally() } },
+          { icon: '↕️', label: 'Vertical', action: () => { alignDevicesVertically() } },
+        ],
+      },
       { 
         icon: '🗑️', 
         label: `Remove ${selectedCount} devices`, 
@@ -649,6 +660,15 @@ const contextMenuItems = computed(() => {
     { icon: '💻', label: 'Commands', action: () => { hideContextMenu(); showDeviceCommands(contextMenu.target!) } },
     { icon: '🔗', label: 'Neighbors', action: () => { hideContextMenu(); showDeviceNeighbors(contextMenu.target!) } },
     { icon: '🔍', label: 'Analyze', action: () => { hideContextMenu(); analyzeDevice(contextMenu.target!) } },
+    { icon: '─', label: '─────────', action: () => {}, separator: true },
+    {
+      icon: '📐',
+      label: 'Alignment',
+      submenu: [
+        { icon: '↔️', label: 'Horizontal', action: () => { alignDevicesHorizontally() } },
+        { icon: '↕️', label: 'Vertical', action: () => { alignDevicesVertically() } },
+      ],
+    },
     { icon: '🗑️', label: 'Remove', action: () => { hideContextMenu(); deleteDevice(contextMenu.target!) } },
   ]
   return items
@@ -879,6 +899,61 @@ const showDeviceNeighbors = (device: Device) => {
 }
 
 const analyzeDevice = (device: Device) => {
+}
+
+// Alignment functions
+const alignDevicesHorizontally = () => {
+  if (!contextMenu.target) return
+  
+  // Get all selected devices or just the target device
+  const devicesToAlign = selectedDevices.value.size > 1 
+    ? Array.from(selectedDevices.value)
+        .map(id => deviceStore.devices.find(d => d.id === id))
+        .filter((device): device is Device => device !== undefined)
+    : [contextMenu.target]
+    
+  if (devicesToAlign.length < 2) return
+  
+  // Use the y-position of the target device as the alignment line
+  const alignmentY = contextMenu.target.position_y
+  
+  // Update all devices to have the same y position
+  devicesToAlign.forEach(device => {
+    if (device.id !== contextMenu.target?.id) {
+      deviceStore.updateDevice(device.id, {
+        position_y: alignmentY
+      })
+    }
+  })
+  
+  hideContextMenu()
+}
+
+const alignDevicesVertically = () => {
+  if (!contextMenu.target) return
+  
+  // Get all selected devices or just the target device
+  const devicesToAlign = selectedDevices.value.size > 1 
+    ? Array.from(selectedDevices.value)
+        .map(id => deviceStore.devices.find(d => d.id === id))
+        .filter((device): device is Device => device !== undefined)
+    : [contextMenu.target]
+    
+  if (devicesToAlign.length < 2) return
+  
+  // Use the x-position of the target device as the alignment line
+  const alignmentX = contextMenu.target.position_x
+  
+  // Update all devices to have the same x position
+  devicesToAlign.forEach(device => {
+    if (device.id !== contextMenu.target?.id) {
+      deviceStore.updateDevice(device.id, {
+        position_x: alignmentX
+      })
+    }
+  })
+  
+  hideContextMenu()
 }
 
 // Multi-device action functions
@@ -1365,18 +1440,90 @@ const onDeviceMouseDown = (device: Device, event: any) => {
   }
 }
 
+// Track which device is currently being dragged and its initial position
+const dragState = ref<{
+  draggedDevice: Device | null
+  initialPositions: Map<number, { x: number; y: number }>
+} | null>(null)
+
+const onDeviceDragStart = (device: Device) => {
+  // Initialize drag state
+  dragState.value = {
+    draggedDevice: device,
+    initialPositions: new Map()
+  }
+  
+  // Store initial positions of all selected devices
+  const selectedDevicesList = Array.from(selectedDevices.value)
+    .map(id => deviceStore.devices.find(d => d.id === id))
+    .filter((d): d is Device => d !== undefined)
+  
+  selectedDevicesList.forEach(selectedDevice => {
+    dragState.value!.initialPositions.set(selectedDevice.id, {
+      x: selectedDevice.position_x,
+      y: selectedDevice.position_y
+    })
+  })
+}
+
+const onDeviceDragMove = (device: Device, event: any) => {
+  // Only handle multi-device dragging during dragmove
+  if (selectedDevices.value.size > 1 && selectedDevices.value.has(device.id) && dragState.value) {
+    const currentX = event.target.x()
+    const currentY = event.target.y()
+
+    // Calculate the delta from the device's initial position
+    const initialPos = dragState.value.initialPositions.get(device.id)
+    if (!initialPos) return
+
+    const deltaX = currentX - initialPos.x
+    const deltaY = currentY - initialPos.y
+
+    // Update positions of other selected devices in real-time in the store
+    const otherSelectedDevices = Array.from(selectedDevices.value)
+      .map(id => deviceStore.devices.find(d => d.id === id))
+      .filter((d): d is Device => d !== undefined && d.id !== device.id)
+
+    otherSelectedDevices.forEach(selectedDevice => {
+      const initialDevicePos = dragState.value!.initialPositions.get(selectedDevice.id)
+      if (!initialDevicePos) return
+
+      // Update the device position in the store in real-time
+      // This will cause Vue's reactivity to update the visual position automatically
+      deviceStore.updateDevice(selectedDevice.id, {
+        position_x: initialDevicePos.x + deltaX,
+        position_y: initialDevicePos.y + deltaY,
+      })
+    })
+  }
+}
+
 const onDeviceDragEnd = (device: Device, event: any) => {
   const newX = event.target.x()
   const newY = event.target.y()
 
   try {
-    deviceStore.updateDevice(device.id, {
-      position_x: newX,
-      position_y: newY,
-    })
+    // If multiple devices are selected, we only need to update the dragged device
+    // since other devices were already updated during dragmove
+    if (selectedDevices.value.size > 1 && selectedDevices.value.has(device.id)) {
+      // Update the dragged device's final position
+      deviceStore.updateDevice(device.id, {
+        position_x: newX,
+        position_y: newY,
+      })
+    } else {
+      // Single device movement
+      deviceStore.updateDevice(device.id, {
+        position_x: newX,
+        position_y: newY,
+      })
+    }
   } catch (error) {
     console.error('Failed to update device position:', error)
   }
+
+  // Clean up drag state
+  dragState.value = null
 }
 
 const onDeviceMouseEnter = () => {

@@ -22,6 +22,10 @@ from ..models.settings import (
     SettingsTest,
     UnifiedSettings,
     CredentialsSettings,
+    DeviceCommand,
+    DeviceCommandCreate,
+    DeviceCommandUpdate,
+    DeviceCommandResponse,
 )
 from ..services.nautobot import nautobot_service
 from ..services.checkmk import checkmk_service
@@ -175,6 +179,163 @@ async def get_user_credentials(
     except Exception as e:
         logger.error(f"Error getting credentials: {str(e)}")
         return {"credentials": []}
+
+
+# Device Commands endpoints (must be before generic /{key} route)
+
+@router.get("/commands", response_model=List[DeviceCommandResponse])
+async def get_device_commands(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all device commands."""
+    commands = db.query(DeviceCommand).all()
+    return commands
+
+
+@router.post("/commands", response_model=DeviceCommandResponse)
+async def create_device_command(
+    command_data: DeviceCommandCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a new device command."""
+    try:
+        # Check for existing command with same command + platform combination
+        existing_command = (
+            db.query(DeviceCommand)
+            .filter(
+                DeviceCommand.command == command_data.command,
+                DeviceCommand.platform == command_data.platform,
+            )
+            .first()
+        )
+
+        if existing_command:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A command '{command_data.command}' already exists for platform '{command_data.platform.value}'. Duplicates are not allowed.",
+            )
+
+        command = DeviceCommand(
+            command=command_data.command,
+            platform=command_data.platform,
+            parser=command_data.parser,
+        )
+        db.add(command)
+        db.commit()
+        db.refresh(command)
+        return command
+    except HTTPException:
+        # Re-raise HTTP exceptions (like duplicate validation)
+        raise
+    except Exception as e:
+        logger.error(f"Error creating device command: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create device command: {str(e)}",
+        )
+
+
+@router.get("/commands/{command_id}", response_model=DeviceCommandResponse)
+async def get_device_command(
+    command_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get specific device command by ID."""
+    command = db.query(DeviceCommand).filter(DeviceCommand.id == command_id).first()
+    if not command:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Device command with ID {command_id} not found",
+        )
+    return command
+
+
+@router.put("/commands/{command_id}", response_model=DeviceCommandResponse)
+async def update_device_command(
+    command_id: int,
+    command_update: DeviceCommandUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update a device command."""
+    command = db.query(DeviceCommand).filter(DeviceCommand.id == command_id).first()
+    if not command:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Device command with ID {command_id} not found",
+        )
+
+    try:
+        # If updating command or platform, check for duplicates
+        new_command = command_update.command if command_update.command is not None else command.command
+        new_platform = command_update.platform if command_update.platform is not None else command.platform
+
+        # Check for existing command with same command + platform combination (excluding current record)
+        existing_command = (
+            db.query(DeviceCommand)
+            .filter(
+                DeviceCommand.command == new_command,
+                DeviceCommand.platform == new_platform,
+                DeviceCommand.id != command_id,  # Exclude current record
+            )
+            .first()
+        )
+
+        if existing_command:
+            platform_value = new_platform.value if hasattr(new_platform, 'value') else str(new_platform)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A command '{new_command}' already exists for platform '{platform_value}'. Duplicates are not allowed.",
+            )
+
+        if command_update.command is not None:
+            command.command = command_update.command
+        if command_update.platform is not None:
+            command.platform = command_update.platform
+        if command_update.parser is not None:
+            command.parser = command_update.parser
+
+        db.commit()
+        db.refresh(command)
+        return command
+    except HTTPException:
+        # Re-raise HTTP exceptions (like duplicate validation)
+        raise
+    except Exception as e:
+        logger.error(f"Error updating device command: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update device command: {str(e)}",
+        )
+
+
+@router.delete("/commands/{command_id}")
+async def delete_device_command(
+    command_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a device command."""
+    command = db.query(DeviceCommand).filter(DeviceCommand.id == command_id).first()
+    if not command:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Device command with ID {command_id} not found",
+        )
+
+    try:
+        db.delete(command)
+        db.commit()
+        return {"message": f"Device command with ID {command_id} deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting device command: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete device command: {str(e)}",
+        )
 
 
 # Generic routes

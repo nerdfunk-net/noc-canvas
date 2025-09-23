@@ -2,11 +2,13 @@
 Settings models for storing configuration in database.
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime, Enum, UniqueConstraint
 from sqlalchemy.sql import func
 from ..core.database import Base
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 from typing import Optional
+import enum
+from datetime import datetime
 
 
 class AppSettings(Base):
@@ -145,3 +147,83 @@ class PasswordChangeRequest(BaseModel):
 
     current_password: str
     new_password: str
+
+
+# Device Commands models
+
+class CommandPlatform(enum.Enum):
+    """Supported device platforms."""
+    IOS = "IOS"
+    IOS_XE = "IOS XE"
+    NEXUS = "Nexus"
+
+
+class CommandParser(enum.Enum):
+    """Supported command parsers."""
+    TEXTFSM = "TextFSM"
+    TTP = "TTP"
+    SCRAPLI = "Scrapli"
+
+
+class DeviceCommand(Base):
+    """Device commands stored in database."""
+
+    __tablename__ = "device_commands"
+
+    id = Column(Integer, primary_key=True, index=True)
+    command = Column(Text, nullable=False)
+    platform = Column(Enum(CommandPlatform), nullable=False)
+    parser = Column(Enum(CommandParser), nullable=False, default=CommandParser.TEXTFSM)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Unique constraint on command + platform combination
+    __table_args__ = (
+        UniqueConstraint('command', 'platform', name='unique_command_platform'),
+    )
+
+
+class DeviceCommandCreate(BaseModel):
+    """Device command creation model."""
+
+    command: str
+    platform: CommandPlatform
+    parser: CommandParser = CommandParser.TEXTFSM
+
+
+class DeviceCommandUpdate(BaseModel):
+    """Device command update model."""
+
+    command: Optional[str] = None
+    platform: Optional[CommandPlatform] = None
+    parser: Optional[CommandParser] = None
+
+
+class DeviceCommandResponse(BaseModel):
+    """Device command response model."""
+
+    id: int
+    command: str
+    platform: str
+    parser: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer('updated_at')
+    def serialize_updated_at(self, value: Optional[datetime]) -> Optional[str]:
+        return value.isoformat() if value else None
+
+    @field_serializer('platform')
+    def serialize_platform(self, value) -> str:
+        return value.value if hasattr(value, 'value') else str(value)
+
+    @field_serializer('parser')
+    def serialize_parser(self, value) -> str:
+        return value.value if hasattr(value, 'value') else str(value)

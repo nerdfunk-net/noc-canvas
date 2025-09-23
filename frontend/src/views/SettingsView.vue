@@ -464,6 +464,215 @@
             </div>
           </div>
 
+          <!-- Commands Tab -->
+          <div v-if="activeTab === 'commands'" class="space-y-6">
+            <!-- Commands Management -->
+            <div class="card p-6">
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="text-lg font-semibold text-gray-900">Device Commands</h2>
+                <button
+                  @click="openCommandDialog()"
+                  class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                >
+                  <i class="fas fa-plus mr-2"></i>
+                  Add Command
+                </button>
+              </div>
+
+              <!-- Loading State -->
+              <div v-if="loadingCommands" class="flex items-center justify-center py-12">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span class="ml-3 text-gray-600">Loading commands...</span>
+              </div>
+
+              <!-- Error State -->
+              <div
+                v-else-if="commandsError"
+                class="bg-red-50 border border-red-200 rounded-md p-4 mb-6"
+              >
+                <div class="flex">
+                  <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path
+                      fill-rule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-800">Error Loading Commands</h3>
+                    <p class="mt-1 text-sm text-red-700">{{ commandsError }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Empty State -->
+              <div v-else-if="commands.length === 0" class="text-center py-12 text-gray-500">
+                <div
+                  class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"
+                >
+                  <i class="fas fa-terminal text-gray-400 text-2xl"></i>
+                </div>
+                <p class="text-base font-medium text-gray-900 mb-1">No commands configured</p>
+                <p class="text-sm text-gray-500">Add your first device command to get started</p>
+              </div>
+
+              <!-- Commands Table -->
+              <div v-else class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Command
+                      </th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Platform
+                      </th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Parser
+                      </th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Created
+                      </th>
+                      <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="bg-white divide-y divide-gray-200">
+                    <tr v-for="command in commands" :key="command.id" class="hover:bg-gray-50">
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900 font-mono bg-gray-100 px-2 py-1 rounded">
+                          {{ command.command }}
+                        </div>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {{ command.platform }}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          {{ command.parser }}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ formatDate(command.created_at) }}
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex items-center justify-end space-x-2">
+                          <button
+                            @click="openCommandDialog(command)"
+                            class="inline-flex items-center p-1.5 border border-transparent text-xs leading-4 font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            title="Edit command"
+                          >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                            </svg>
+                          </button>
+                          <button
+                            @click="deleteCommand(command)"
+                            class="inline-flex items-center p-1.5 border border-transparent text-xs leading-4 font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                            title="Delete command"
+                          >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Command Dialog -->
+          <div
+            v-if="showCommandDialog"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            @click.self="closeCommandDialog"
+          >
+            <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-md">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">
+                  {{ editingCommand ? 'Edit Command' : 'Add Command' }}
+                </h3>
+                <button
+                  @click="closeCommandDialog"
+                  class="text-gray-400 hover:text-gray-600 transition-colors"
+                  type="button"
+                >
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    ></path>
+                  </svg>
+                </button>
+              </div>
+
+              <form @submit.prevent="saveCommand">
+                <div class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Command</label>
+                    <textarea
+                      v-model="commandForm.command"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                      placeholder="show ip interface brief"
+                      rows="3"
+                      required
+                    ></textarea>
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Platform</label>
+                    <select
+                      v-model="commandForm.platform"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option v-for="platform in platforms" :key="platform.value" :value="platform.value">
+                        {{ platform.label }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Parser</label>
+                    <select
+                      v-model="commandForm.parser"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option v-for="parser in parsers" :key="parser.value" :value="parser.value">
+                        {{ parser.label }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 mt-6">
+                  <button
+                    type="button"
+                    @click="closeCommandDialog"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  >
+                    {{ editingCommand ? 'Update' : 'Create' }}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
           <!-- Jobs Tab -->
           <div v-if="activeTab === 'jobs'" class="space-y-6">
             <!-- Celery Worker Status -->
@@ -723,7 +932,7 @@
           </div>
 
           <!-- Save Button (for General and Plugins tabs) -->
-          <div v-if="activeTab !== 'profile' && activeTab !== 'canvas'" class="flex justify-end">
+          <div v-if="activeTab !== 'profile' && activeTab !== 'canvas' && activeTab !== 'commands'" class="flex justify-end">
             <button @click="saveSettings" class="btn-primary" :disabled="saving">
               <i class="fas fa-save mr-2"></i>
               {{ saving ? 'Saving...' : 'Save Settings' }}
@@ -1254,6 +1463,7 @@ const tabs = [
   { id: 'general', name: 'General', icon: 'fas fa-cog' },
   { id: 'plugins', name: 'Plugins', icon: 'fas fa-plug' },
   { id: 'canvas', name: 'Canvas', icon: 'fas fa-layer-group' },
+  { id: 'commands', name: 'Commands', icon: 'fas fa-terminal' },
   { id: 'jobs', name: 'Jobs', icon: 'fas fa-tasks' },
   { id: 'profile', name: 'Profile', icon: 'fas fa-user' },
 ]
@@ -1314,6 +1524,37 @@ const renameCanvasId = ref<number | null>(null)
 const renameCanvasName = ref('')
 const renameError = ref<string | null>(null)
 const canvasToLoad = ref<CanvasListItem | null>(null)
+
+// Commands state
+const commands = ref<Array<{
+  id: number
+  command: string
+  platform: string
+  parser: string
+  created_at: string
+  updated_at?: string | null
+}>>([])
+const loadingCommands = ref(false)
+const commandsError = ref<string | null>(null)
+const editingCommand = ref<any>(null)
+const showCommandDialog = ref(false)
+const commandForm = reactive({
+  command: '',
+  platform: 'IOS',
+  parser: 'TextFSM'
+})
+
+const platforms = [
+  { value: 'IOS', label: 'IOS' },
+  { value: 'IOS XE', label: 'IOS XE' },
+  { value: 'Nexus', label: 'Nexus' }
+]
+
+const parsers = [
+  { value: 'TextFSM', label: 'TextFSM' },
+  { value: 'TTP', label: 'TTP' },
+  { value: 'Scrapli', label: 'Scrapli' }
+]
 
 const isPasswordChangeValid = computed(() => {
   return (
@@ -1587,8 +1828,16 @@ const loadCanvasesIfNeeded = async () => {
   }
 }
 
-// Watch activeTab to load canvases and job status
+// Commands management functions
+const loadCommandsIfNeeded = async () => {
+  if (activeTab.value === 'commands' && commands.value.length === 0) {
+    await refreshCommands()
+  }
+}
+
+// Watch activeTab to load canvases, commands, and job status
 watch(activeTab, loadCanvasesIfNeeded)
+watch(activeTab, loadCommandsIfNeeded)
 
 // Auto-refresh job status when Jobs tab is selected
 watch(activeTab, async (newTab) => {
@@ -1596,6 +1845,136 @@ watch(activeTab, async (newTab) => {
     await refreshJobStatus()
   }
 })
+
+const refreshCommands = async () => {
+  loadingCommands.value = true
+  commandsError.value = null
+
+  try {
+    const response = await makeAuthenticatedRequest('/api/settings/commands')
+    if (response.ok) {
+      const data = await response.json()
+      commands.value = data
+    } else {
+      throw new Error('Failed to load commands')
+    }
+  } catch (err) {
+    commandsError.value = err instanceof Error ? err.message : 'Failed to load commands'
+  } finally {
+    loadingCommands.value = false
+  }
+}
+
+const openCommandDialog = (command?: any) => {
+  if (command) {
+    editingCommand.value = command
+    commandForm.command = command.command
+    commandForm.platform = command.platform
+    commandForm.parser = command.parser
+  } else {
+    editingCommand.value = null
+    commandForm.command = ''
+    commandForm.platform = 'IOS'
+    commandForm.parser = 'TextFSM'
+  }
+  showCommandDialog.value = true
+}
+
+const closeCommandDialog = () => {
+  showCommandDialog.value = false
+  editingCommand.value = null
+  commandForm.command = ''
+  commandForm.platform = 'IOS'
+  commandForm.parser = 'TextFSM'
+}
+
+const saveCommand = async () => {
+  try {
+    const payload = {
+      command: commandForm.command,
+      platform: commandForm.platform,
+      parser: commandForm.parser,
+    }
+
+    let response
+    if (editingCommand.value) {
+      // Update existing command
+      response = await makeAuthenticatedRequest(`/api/settings/commands/${editingCommand.value.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      })
+    } else {
+      // Create new command
+      response = await makeAuthenticatedRequest('/api/settings/commands', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+    }
+
+    if (response.ok) {
+      notificationStore.addNotification({
+        title: 'Success',
+        message: `Command ${editingCommand.value ? 'updated' : 'created'} successfully`,
+        type: 'success',
+      })
+      closeCommandDialog()
+      await refreshCommands()
+    } else {
+      // Handle validation errors
+      const errorData = await response.json()
+      let errorMessage = `Failed to ${editingCommand.value ? 'update' : 'create'} command`
+
+      if (response.status === 400 && errorData.detail) {
+        // Show specific validation error message
+        errorMessage = errorData.detail
+      }
+
+      notificationStore.addNotification({
+        title: 'Error',
+        message: errorMessage,
+        type: 'error',
+      })
+    }
+  } catch (error) {
+    notificationStore.addNotification({
+      title: 'Error',
+      message: `Failed to ${editingCommand.value ? 'update' : 'create'} command`,
+      type: 'error',
+    })
+  }
+}
+
+const deleteCommand = async (command: any) => {
+  if (confirm(`Are you sure you want to delete the command "${command.command}"?`)) {
+    try {
+      const response = await makeAuthenticatedRequest(`/api/settings/commands/${command.id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        notificationStore.addNotification({
+          title: 'Success',
+          message: 'Command deleted successfully',
+          type: 'success',
+        })
+        await refreshCommands()
+      } else {
+        throw new Error('Failed to delete command')
+      }
+    } catch (error) {
+      notificationStore.addNotification({
+        title: 'Error',
+        message: 'Failed to delete command',
+        type: 'error',
+      })
+    }
+  }
+}
+
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
+}
 
 const addCredential = () => {
   settings.credentials.push({

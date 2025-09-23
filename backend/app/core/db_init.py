@@ -70,7 +70,7 @@ def initialize_tables() -> bool:
         
         # Import all model classes to ensure they are registered with Base.metadata
         from ..models.user import User
-        from ..models.settings import AppSettings
+        from ..models.settings import AppSettings, DeviceCommand
         from ..models.canvas import Canvas
         from ..models.credential import UserCredential
         

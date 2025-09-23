@@ -97,8 +97,10 @@ class NautobotService:
                 )
 
                 if response.status_code == 200:
-                    return response.json()
+                    response_data = response.json()
+                    return response_data
                 else:
+                    logger.error(f"GraphQL request failed: {response.status_code} - {response.text}")
                     raise Exception(
                         f"GraphQL request failed with status {response.status_code}: {response.text}"
                     )
@@ -217,22 +219,36 @@ class NautobotService:
         filter_type: Optional[str] = None,
         filter_value: Optional[str] = None,
         username: Optional[str] = None,
+        disable_cache: bool = False,
     ) -> Dict[str, Any]:
-        """Get devices with optional filtering and pagination."""
-        # Check cache first
-        cache_key = cache_service.generate_key(
-            "nautobot",
-            "devices",
-            limit=limit,
-            offset=offset,
-            filter_type=filter_type,
-            filter_value=filter_value,
-        )
+        """Get devices with optional filtering and pagination.
+        
+        Args:
+            limit: Maximum number of devices to return
+            offset: Number of devices to skip
+            filter_type: Type of filter ('name', 'location', 'prefix')
+            filter_value: Value to filter by
+            username: Username for authentication
+            disable_cache: If True, bypass cache and fetch fresh data
+        """
+        
+        # Check cache first (only if cache is enabled)
+        cached_result = None
+        cache_key = None
+        
+        if not disable_cache:
+            cache_key = cache_service.generate_key(
+                "nautobot",
+                "devices",
+                limit=limit,
+                offset=offset,
+                filter_type=filter_type,
+                filter_value=filter_value,
+            )
 
-        cached_result = await cache_service.get(cache_key)
-        if cached_result:
-            logger.debug(f"Cache hit for devices: {cache_key}")
-            return cached_result
+            cached_result = await cache_service.get(cache_key)
+            if cached_result:
+                return cached_result
 
         # Build GraphQL query based on filters
         variables = {}
@@ -280,6 +296,9 @@ class NautobotService:
                     device_type {
                       model
                     }
+                    platform {
+                      network_driver
+                    }
                     cf_last_backup
                   }
                 }
@@ -308,6 +327,9 @@ class NautobotService:
                       }
                       device_type {
                         model
+                      }
+                      platform {
+                        network_driver
                       }
                       cf_last_backup
                     }
@@ -340,6 +362,9 @@ class NautobotService:
                         device_type {
                           model
                         }
+                        platform {
+                          network_driver
+                        }
                         cf_last_backup
                       }
                     }
@@ -369,6 +394,9 @@ class NautobotService:
                 }
                 device_type {
                   model
+                }
+                platform {
+                  network_driver
                 }
                 cf_last_backup
               }
@@ -438,10 +466,82 @@ class NautobotService:
             "previous": None,
         }
 
-        # Cache the result
-        await cache_service.set(cache_key, response_data)
+        # Cache the result (only if cache is enabled)
+        if not disable_cache and cache_key:
+            await cache_service.set(cache_key, response_data)
 
         return response_data
+
+    async def test_platform_fields(self, username: Optional[str] = None) -> Dict[str, Any]:
+        """Test different possible platform field names and structures."""
+        test_queries = [
+            # Test 1: Try platform field directly
+            """
+            query test_platform_direct {
+              devices(limit: 1) {
+                id
+                name
+                platform {
+                  name
+                }
+              }
+            }
+            """,
+            # Test 2: Try device_type with more fields
+            """
+            query test_device_type_extended {
+              devices(limit: 1) {
+                id
+                name
+                device_type {
+                  model
+                  manufacturer {
+                    name
+                  }
+                  part_number
+                  platform {
+                    name
+                  }
+                }
+              }
+            }
+            """,
+            # Test 3: Try alternative platform field names
+            """
+            query test_platform_alternatives {
+              devices(limit: 1) {
+                id
+                name
+                device_platform {
+                  name
+                }
+              }
+            }
+            """,
+        ]
+
+        results = {}
+
+        for i, query in enumerate(test_queries):
+            try:
+                result = await self.graphql_query(query, {}, username)
+                if "errors" not in result:
+                    results[f"test_{i+1}"] = {
+                        "success": True,
+                        "data": result.get("data", {})
+                    }
+                else:
+                    results[f"test_{i+1}"] = {
+                        "success": False,
+                        "errors": result["errors"]
+                    }
+            except Exception as e:
+                results[f"test_{i+1}"] = {
+                    "success": False,
+                    "error": str(e)
+                }
+
+        return results
 
     async def get_device(
         self, device_id: str, username: Optional[str] = None
@@ -471,7 +571,7 @@ class NautobotService:
               name
             }
             platform {
-              name
+              network_driver
             }
             status {
               name

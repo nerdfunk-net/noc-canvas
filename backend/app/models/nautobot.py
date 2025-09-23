@@ -16,6 +16,7 @@ class DeviceFilter(BaseModel):
     offset: Optional[int] = None
     filter_type: Optional[str] = None  # 'name', 'location', 'prefix'
     filter_value: Optional[str] = None
+    disable_cache: bool = False
 
 
 class CheckIPRequest(BaseModel):
@@ -79,6 +80,12 @@ class DeviceType(BaseModel):
     model: str
 
 
+class DevicePlatform(BaseModel):
+    """Device platform information."""
+
+    network_driver: Optional[str] = None
+
+
 class Device(BaseModel):
     """Device information from Nautobot."""
 
@@ -89,6 +96,7 @@ class Device(BaseModel):
     primary_ip4: Optional[DeviceIP] = None
     status: Optional[DeviceStatus] = None
     device_type: Optional[DeviceType] = None
+    platform: Optional[DevicePlatform] = None
     cf_last_backup: Optional[str] = None
 
 

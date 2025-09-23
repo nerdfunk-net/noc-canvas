@@ -14,6 +14,7 @@
           <option value="location">Location</option>
           <option value="status">Status</option>
           <option value="role">Role</option>
+          <option value="platform">Platform</option>
         </select>
         <input
           v-model="filterValue"
@@ -35,6 +36,7 @@
           <option value="role">Role</option>
           <option value="status">Status</option>
           <option value="device_type">Type</option>
+          <option value="platform">Platform</option>
         </select>
       </div>
     </div>
@@ -367,6 +369,8 @@ const filteredDevices = computed(() => {
         return device.status?.name.toLowerCase().includes(searchTerm)
       case 'role':
         return device.role?.name.toLowerCase().includes(searchTerm)
+      case 'platform':
+        return device.platform?.network_driver.toLowerCase().includes(searchTerm)
       default:
         return false
     }
@@ -398,6 +402,9 @@ const groupedDevices = computed(() => {
         break
       case 'device_type':
         groupValue = device.device_type?.model || 'Unknown Type'
+        break
+      case 'platform':
+        groupValue = device.platform?.network_driver || 'Unknown Platform'
         break
       default:
         groupValue = 'Unknown'

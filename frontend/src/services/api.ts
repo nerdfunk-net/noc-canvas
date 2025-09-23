@@ -169,6 +169,9 @@ export interface NautobotDevice {
   device_type?: {
     model: string
   }
+  platform?: {
+    network_driver: string
+  }
   cf_last_backup?: string
 }
 

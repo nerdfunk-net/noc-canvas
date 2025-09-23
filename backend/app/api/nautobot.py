@@ -32,6 +32,85 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/debug/platform-test")
+async def test_platform_fields(
+    current_user: dict = Depends(get_current_user),
+):
+    """Test different platform field variations in GraphQL."""
+    try:
+        username = (
+            current_user.get("username")
+            if isinstance(current_user, dict)
+            else current_user.username
+        )
+
+        results = await nautobot_service.test_platform_fields(username)
+        return results
+
+    except Exception as e:
+        logger.error(f"Platform field test failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Platform field test failed: {str(e)}",
+        )
+
+
+@router.get("/debug/simple-device-test")
+async def simple_device_test(
+    current_user: dict = Depends(get_current_user),
+):
+    """Simple test to check device fields including platform."""
+    try:
+        username = (
+            current_user.get("username")
+            if isinstance(current_user, dict)
+            else current_user.username
+        )
+
+        # Simple query to get one device with platform field
+        query = """
+        query test_device_platform {
+          devices(limit: 1) {
+            id
+            name
+            platform {
+              network_driver
+            }
+            device_type {
+              model
+            }
+          }
+        }
+        """
+
+        print("=== SIMPLE DEVICE TEST ===")
+        print(f"Query: {query}")
+
+        result = await nautobot_service.graphql_query(query, {}, username)
+
+        print(f"Result: {result}")
+        print("=== END SIMPLE DEVICE TEST ===")
+
+        return {
+            "query": query,
+            "result": result,
+            "analysis": {
+                "has_data": "data" in result,
+                "has_devices": "devices" in result.get("data", {}),
+                "device_count": len(result.get("data", {}).get("devices", [])),
+                "first_device": result.get("data", {}).get("devices", [{}])[0] if result.get("data", {}).get("devices") else None
+            }
+        }
+
+    except Exception as e:
+        print(f"Simple device test failed: {str(e)}")
+        logger.error(f"Simple device test failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Simple device test failed: {str(e)}",
+        )
+
+
 @router.get("/debug/config")
 async def debug_nautobot_config(
     current_user: dict = Depends(get_current_user),
@@ -102,22 +181,33 @@ async def get_devices(
     offset: Optional[int] = None,
     filter_type: Optional[str] = None,
     filter_value: Optional[str] = None,
+    disable_cache: bool = False,
     current_user: dict = Depends(get_current_user),
 ):
-    """Get list of devices from Nautobot with optional filtering and pagination."""
+    """Get list of devices from Nautobot with optional filtering and pagination.
+    
+    Args:
+        limit: Maximum number of devices to return
+        offset: Number of devices to skip for pagination
+        filter_type: Type of filter to apply ('name', 'location', 'prefix')
+        filter_value: Value to filter by
+        disable_cache: If True, bypass cache and fetch fresh data from Nautobot
+        current_user: Current authenticated user
+    """
     try:
         username = (
             current_user.get("username")
             if isinstance(current_user, dict)
             else current_user.username
         )
-        logger.info(f"Fetching devices for user: {username}")
+        logger.info(f"Fetching devices for user: {username}, disable_cache: {disable_cache}")
         result = await nautobot_service.get_devices(
             limit=limit,
             offset=offset,
             filter_type=filter_type,
             filter_value=filter_value,
             username=username,
+            disable_cache=disable_cache,
         )
         return DeviceListResponse(**result)
     except Exception as e:
@@ -162,19 +252,26 @@ async def search_devices(
     filters: DeviceFilter,
     current_user: dict = Depends(get_current_user),
 ):
-    """Search devices with filters."""
+    """Search devices with filters.
+    
+    Args:
+        filters: Device filter parameters including disable_cache option
+        current_user: Current authenticated user
+    """
     try:
         username = (
             current_user.get("username")
             if isinstance(current_user, dict)
             else current_user.username
         )
+        logger.info(f"Searching devices for user: {username}, disable_cache: {filters.disable_cache}")
         result = await nautobot_service.get_devices(
             limit=filters.limit,
             offset=filters.offset,
             filter_type=filters.filter_type,
             filter_value=filters.filter_value,
             username=username,
+            disable_cache=filters.disable_cache,
         )
         return DeviceListResponse(**result)
     except Exception as e:

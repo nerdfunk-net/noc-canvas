@@ -251,15 +251,47 @@
             class="submenu absolute left-full top-0 bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-36 z-10"
             data-context-menu="true"
           >
-            <button
-              v-for="subItem in item.submenu"
-              :key="subItem.label"
-              @click="subItem.action()"
-              class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/80 hover:text-blue-900 flex items-center space-x-2 transition-all duration-150 ease-out"
-            >
-              <span class="text-xs opacity-70">{{ subItem.icon }}</span>
-              <span class="font-medium">{{ subItem.label }}</span>
-            </button>
+            <div v-for="subItem in item.submenu" :key="subItem.label" class="relative context-menu-item">
+              <button
+                @click="subItem.submenu ? null : subItem.action()"
+                class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/80 hover:text-blue-900 flex items-center justify-between transition-all duration-150 ease-out"
+                :class="{
+                  'cursor-default': subItem.submenu
+                }"
+              >
+                <div class="flex items-center space-x-2">
+                  <span class="text-xs opacity-70">{{ subItem.icon }}</span>
+                  <span class="font-medium">{{ subItem.label }}</span>
+                </div>
+                <span v-if="subItem.submenu" class="text-gray-400 transition-colors">
+                  <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 5l7 7-7 7"
+                    ></path>
+                  </svg>
+                </span>
+              </button>
+
+              <!-- Nested Submenu -->
+              <div
+                v-if="subItem.submenu"
+                class="submenu absolute left-full top-0 bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-36 z-10"
+                data-context-menu="true"
+              >
+                <button
+                  v-for="nestedItem in subItem.submenu"
+                  :key="nestedItem.label"
+                  @click="nestedItem.action()"
+                  class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/80 hover:text-blue-900 flex items-center space-x-2 transition-all duration-150 ease-out"
+                >
+                  <span class="text-xs opacity-70">{{ nestedItem.icon }}</span>
+                  <span class="font-medium">{{ nestedItem.label }}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -395,6 +427,7 @@ import { useContextMenu } from '@/composables/useContextMenu'
 import { useCanvasState } from '@/composables/useCanvasState'
 import { useDeviceOperations } from '@/composables/useDeviceOperations'
 import { useCanvasEvents } from '@/composables/useCanvasEvents'
+import { useCommands } from '@/composables/useCommands'
 import SaveCanvasModal from './SaveCanvasModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import LoadCanvasModal from './LoadCanvasModal.vue'
@@ -516,6 +549,29 @@ const connectionStart = ref<{
   device: Device
   point: { x: number; y: number }
 } | null>(null)
+
+// Initialize commands composable
+const commandsComposable = useCommands()
+const {
+  commands: availableCommands,
+  commandsLoading,
+  commandsError,
+  getCommandsForPlatform,
+  getDevicePlatform,
+  reloadCommands,
+} = commandsComposable
+
+// Execute a command on a device
+const executeCommand = (device: Device, command: any) => {
+  console.log(`🚀 Executing command on ${device.name} (${command.platform}):`)
+  console.log(`Command: ${command.command}`)
+  console.log(`Parser: ${command.parser}`)
+  
+  // Mock implementation - show a simple alert for now
+  alert(`Executing command on ${device.name}:\n\n"${command.command}"\n\nPlatform: ${command.platform}\nParser: ${command.parser}\n\n(This is a mock - actual execution will be implemented later)`)
+  
+  hideContextMenu()
+}
 
 // Save Canvas Modal state
 const saveModalRef = ref()
@@ -647,6 +703,44 @@ const contextMenuItems = computed(() => {
   }
 
   // Single device context menu
+  const device = contextMenu.target!
+  const devicePlatform = getDevicePlatform(device.properties)
+  const platformCommands = getCommandsForPlatform(devicePlatform)
+  
+  // Build Commands submenu with Send and Reload
+  const sendSubmenu = platformCommands.length > 0 
+    ? platformCommands.map(command => ({
+        icon: '⚡',
+        label: command.command.length > 30 ? `${command.command.substring(0, 30)}...` : command.command,
+        action: () => { hideContextMenu(); executeCommand(device, command) }
+      }))
+    : [{ 
+        icon: '❌', 
+        label: devicePlatform ? `No commands for ${devicePlatform}` : 'No platform detected',
+        action: () => { 
+          hideContextMenu()
+          console.log(`No commands configured for platform: ${devicePlatform || 'unknown'}`)
+        }
+      }]
+  
+  const commandsSubmenu = [
+    {
+      icon: '📤',
+      label: 'Send',
+      submenu: sendSubmenu
+    },
+    {
+      icon: '🔄',
+      label: 'Reload',
+      action: async () => { 
+        hideContextMenu()
+        console.log('🔄 Reloading commands...')
+        await reloadCommands()
+        console.log('✅ Commands reloaded successfully')
+      }
+    }
+  ]
+  
   const items = [
     { icon: '📊', label: 'Overview', action: () => { hideContextMenu(); showDeviceOverview(contextMenu.target!) } },
     {
@@ -657,7 +751,11 @@ const contextMenuItems = computed(() => {
         { icon: '📝', label: 'Show Changes', action: () => { hideContextMenu(); showDeviceChanges(contextMenu.target!) } },
       ],
     },
-    { icon: '💻', label: 'Commands', action: () => { hideContextMenu(); showDeviceCommands(contextMenu.target!) } },
+    {
+      icon: '💻',
+      label: 'Commands',
+      submenu: commandsSubmenu
+    },
     { icon: '🔗', label: 'Neighbors', action: () => { hideContextMenu(); showDeviceNeighbors(contextMenu.target!) } },
     { icon: '🔍', label: 'Analyze', action: () => { hideContextMenu(); analyzeDevice(contextMenu.target!) } },
     { icon: '─', label: '─────────', action: () => {}, separator: true },
@@ -1136,6 +1234,7 @@ const onDrop = async (event: DragEvent) => {
             role: device.role?.name,
             status: device.status?.name,
             device_model: device.device_type?.model,
+            platform: device.platform?.network_driver,
             last_backup: device.cf_last_backup,
           }),
         }
@@ -1155,6 +1254,7 @@ const onDrop = async (event: DragEvent) => {
           role: device.role?.name,
           status: device.status?.name,
           device_model: device.device_type?.model,
+          platform: device.platform?.network_driver,
           last_backup: device.cf_last_backup,
         }),
       })
@@ -1819,6 +1919,13 @@ onUnmounted(() => {
 .submenu:hover {
   opacity: 1;
   visibility: visible;
+}
+
+/* Handle nested submenus */
+.context-menu-item .context-menu-item:hover .submenu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
 }
 
 /* Extend hover area slightly to prevent flickering */

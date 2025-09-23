@@ -247,3 +247,20 @@ export const canvasApi = {
     return apiClient.delete(`/api/canvas/${canvasId}`)
   },
 }
+
+// Device Commands interfaces and API
+export interface DeviceCommand {
+  id: number
+  command: string
+  platform: string
+  parser: string
+  created_at: string
+  updated_at?: string | null
+}
+
+export const settingsApi = {
+  async getDeviceCommands(): Promise<DeviceCommand[]> {
+    const response = await apiClient.get<DeviceCommand[]>('/api/settings/commands')
+    return response
+  }
+}

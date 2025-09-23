@@ -153,10 +153,9 @@
       <div v-for="(group, groupName) in groupedDevices" :key="groupName" class="mb-1">
         <!-- Group Header -->
         <div
-          @click="toggleGroup(groupName)"
           class="group-header px-2 py-1.5 bg-gray-50 hover:bg-gray-100 cursor-pointer flex items-center justify-between text-xs font-medium text-gray-700 border-b border-gray-200 sticky top-0 z-10"
         >
-          <div class="flex items-center space-x-1.5 min-w-0">
+          <div @click="toggleGroup(groupName)" class="flex items-center space-x-1.5 min-w-0 flex-1">
             <svg
               :class="expandedGroups.has(groupName) ? 'rotate-90' : 'rotate-0'"
               class="w-3 h-3 text-gray-400 transition-transform duration-150 flex-shrink-0"
@@ -178,6 +177,24 @@
               >{{ group.length }}</span
             >
           </div>
+
+          <!-- Add button for location groups -->
+          <button
+            v-if="groupBy === 'location'"
+            @click.stop="addLocationToCanvas(groupName, group)"
+            class="ml-2 px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 transition-colors flex items-center space-x-1 flex-shrink-0"
+            title="Add all devices from this location to canvas"
+          >
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+              />
+            </svg>
+            <span>Add</span>
+          </button>
         </div>
 
         <!-- Group Content -->
@@ -627,6 +644,7 @@ const addToCanvas = async (device: NautobotDevice) => {
         status: device.status?.name,
         device_model: device.device_type?.model,
         last_backup: device.cf_last_backup,
+        platform: device.platform?.network_driver,
       }),
     })
 
@@ -637,6 +655,88 @@ const addToCanvas = async (device: NautobotDevice) => {
   } catch (error) {
     console.error('❌ Failed to add device to canvas:', error)
   }
+}
+
+const addLocationToCanvas = async (locationName: string, devices: NautobotDevice[]) => {
+  console.log('🏢 Adding all devices from location to canvas:', locationName, devices.length, 'devices')
+
+  let addedCount = 0
+  let skippedCount = 0
+
+  // Get current viewport dimensions
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+
+  // Calculate center position in canvas coordinates
+  const baseCenterX = (viewportWidth / 2 - canvasStore.position.x) / canvasStore.scale
+  const baseCenterY = (viewportHeight / 2 - canvasStore.position.y) / canvasStore.scale
+
+  // Arrange devices in a grid around the center
+  const gridSize = Math.ceil(Math.sqrt(devices.length))
+  const spacing = 120 // Space between devices
+
+  for (let i = 0; i < devices.length; i++) {
+    const device = devices[i]
+
+    // Check for duplicate by name first
+    let existingDevice = deviceStore.findDeviceByName(device.name)
+
+    // If not found by name, check by nautobot_id
+    if (!existingDevice) {
+      existingDevice = deviceStore.findDeviceByNautobotId(device.id)
+    }
+
+    if (existingDevice) {
+      console.log('⚠️ Device already exists on canvas, skipping:', device.name)
+      skippedCount++
+      continue
+    }
+
+    try {
+      // Calculate grid position
+      const row = Math.floor(i / gridSize)
+      const col = i % gridSize
+
+      // Center the grid around the base center point
+      const offsetX = (col - (gridSize - 1) / 2) * spacing
+      const offsetY = (row - (gridSize - 1) / 2) * spacing
+
+      const deviceX = baseCenterX + offsetX - 40 // Center the device icon
+      const deviceY = baseCenterY + offsetY - 40
+
+      // Create the device
+      const newDevice = await deviceStore.createDevice({
+        name: device.name,
+        device_type: mapNautobotDeviceType(device),
+        ip_address: device.primary_ip4?.address?.split('/')[0], // Remove CIDR notation
+        position_x: deviceX,
+        position_y: deviceY,
+        properties: JSON.stringify({
+          nautobot_id: device.id,
+          location: device.location?.name,
+          role: device.role?.name,
+          status: device.status?.name,
+          device_model: device.device_type?.model,
+          last_backup: device.cf_last_backup,
+          platform: device.platform?.network_driver,
+        }),
+      })
+
+      console.log('✅ Device added to canvas:', newDevice.name)
+      addedCount++
+
+      // Also emit the event for each device
+      emit('deviceAddedToCanvas', device)
+    } catch (error) {
+      console.error('❌ Failed to add device to canvas:', device.name, error)
+    }
+  }
+
+  console.log(`🎉 Location "${locationName}" processing complete:`, {
+    total: devices.length,
+    added: addedCount,
+    skipped: skippedCount
+  })
 }
 
 const startDeviceDrag = (event: DragEvent, device: NautobotDevice) => {

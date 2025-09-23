@@ -412,6 +412,17 @@
       @confirm="handleUnsavedChangesSave"
       @cancel="handleUnsavedChangesDiscard"
     />
+
+    <!-- Delete Device Confirmation Dialog -->
+    <ConfirmDialog
+      :show="showDeleteConfirmDialog"
+      title="Remove Device"
+      :message="`Are you sure you want to remove '${currentDevice?.name}' from the canvas?`"
+      confirm-text="Remove"
+      cancel-text="Cancel"
+      @confirm="confirmDeleteDevice"
+      @cancel="showDeleteConfirmDialog = false"
+    />
   </div>
 </template>
 
@@ -483,6 +494,9 @@ const deviceOperationsComposable = useDeviceOperations()
 const {
   deleteDevice: composableDeleteDevice,
   editDevice: composableEditDevice,
+  showDeleteConfirmDialog,
+  currentDevice,
+  confirmDeleteDevice,
 } = deviceOperationsComposable
 
 // Initialize canvas events composable

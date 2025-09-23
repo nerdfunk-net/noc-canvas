@@ -711,7 +711,7 @@ const contextMenuItems = computed(() => {
   const sendSubmenu = platformCommands.length > 0
     ? platformCommands.map(command => ({
         icon: '⚡',
-        label: command.description || command.command,
+        label: command.display || command.command,
         action: () => { hideContextMenu(); executeCommand(device, command) }
       }))
     : [{ 

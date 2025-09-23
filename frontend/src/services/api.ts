@@ -252,7 +252,7 @@ export const canvasApi = {
 export interface DeviceCommand {
   id: number
   command: string
-  description?: string | null
+  display?: string | null
   platform: string
   parser: string
   created_at: string

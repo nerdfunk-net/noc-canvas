@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to add descriptions to existing device commands and add description column
+Script to rename description column to display and update existing commands
 """
 
 import asyncio

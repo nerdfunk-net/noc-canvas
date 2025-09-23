@@ -525,6 +525,9 @@
                         Command
                       </th>
                       <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Description
+                      </th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Platform
                       </th>
                       <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -543,6 +546,11 @@
                       <td class="px-6 py-4 whitespace-nowrap">
                         <div class="text-sm font-medium text-gray-900 font-mono bg-gray-100 px-2 py-1 rounded">
                           {{ command.command }}
+                        </div>
+                      </td>
+                      <td class="px-6 py-4">
+                        <div class="text-sm text-gray-900">
+                          {{ command.description || '-' }}
                         </div>
                       </td>
                       <td class="px-6 py-4 whitespace-nowrap">
@@ -625,6 +633,16 @@
                       rows="3"
                       required
                     ></textarea>
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <input
+                      v-model="commandForm.description"
+                      type="text"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Brief description of what this command does"
+                    />
                   </div>
 
                   <div>
@@ -1529,6 +1547,7 @@ const canvasToLoad = ref<CanvasListItem | null>(null)
 const commands = ref<Array<{
   id: number
   command: string
+  description?: string | null
   platform: string
   parser: string
   created_at: string
@@ -1540,6 +1559,7 @@ const editingCommand = ref<any>(null)
 const showCommandDialog = ref(false)
 const commandForm = reactive({
   command: '',
+  description: '',
   platform: 'IOS',
   parser: 'TextFSM'
 })
@@ -1869,11 +1889,13 @@ const openCommandDialog = (command?: any) => {
   if (command) {
     editingCommand.value = command
     commandForm.command = command.command
+    commandForm.description = command.description || ''
     commandForm.platform = command.platform
     commandForm.parser = command.parser
   } else {
     editingCommand.value = null
     commandForm.command = ''
+    commandForm.description = ''
     commandForm.platform = 'IOS'
     commandForm.parser = 'TextFSM'
   }
@@ -1884,6 +1906,7 @@ const closeCommandDialog = () => {
   showCommandDialog.value = false
   editingCommand.value = null
   commandForm.command = ''
+  commandForm.description = ''
   commandForm.platform = 'IOS'
   commandForm.parser = 'TextFSM'
 }
@@ -1892,6 +1915,7 @@ const saveCommand = async () => {
   try {
     const payload = {
       command: commandForm.command,
+      description: commandForm.description || null,
       platform: commandForm.platform,
       parser: commandForm.parser,
     }

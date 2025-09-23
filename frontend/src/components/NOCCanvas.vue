@@ -708,10 +708,10 @@ const contextMenuItems = computed(() => {
   const platformCommands = getCommandsForPlatform(devicePlatform)
   
   // Build Commands submenu with Send and Reload
-  const sendSubmenu = platformCommands.length > 0 
+  const sendSubmenu = platformCommands.length > 0
     ? platformCommands.map(command => ({
         icon: '⚡',
-        label: command.command.length > 30 ? `${command.command.substring(0, 30)}...` : command.command,
+        label: command.description || command.command,
         action: () => { hideContextMenu(); executeCommand(device, command) }
       }))
     : [{ 

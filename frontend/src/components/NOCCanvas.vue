@@ -423,6 +423,57 @@
       @confirm="confirmDeleteDevice"
       @cancel="showDeleteConfirmDialog = false"
     />
+
+    <!-- Device Configuration Modal -->
+    <div v-if="showConfigModal" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeConfigModal"></div>
+
+        <!-- Modal panel -->
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+          <!-- Modal Header -->
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                {{ configModalTitle }}
+              </h3>
+              <button
+                @click="closeConfigModal"
+                class="bg-white rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              >
+                <span class="sr-only">Close</span>
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="mt-3">
+              <div v-if="configModalLoading" class="flex items-center justify-center py-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                <span class="ml-3 text-gray-600">Loading configuration...</span>
+              </div>
+
+              <div v-else class="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono">{{ configModalContent }}</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal Footer -->
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              @click="closeConfigModal"
+              type="button"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -430,7 +481,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useDevicesStore, type Device } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
-import { type NautobotDevice, canvasApi } from '@/services/api'
+import { type NautobotDevice, canvasApi, makeAuthenticatedRequest } from '@/services/api'
 import { useDeviceIcons } from '@/composables/useDeviceIcons'
 import { useCanvasControls } from '@/composables/useCanvasControls'
 import { useDeviceSelection } from '@/composables/useDeviceSelection'
@@ -602,6 +653,13 @@ const duplicateDeviceName = ref('')
 const pendingDeviceData = ref<any>(null)
 const duplicateExistingDevice = ref<Device | null>(null)
 
+// Device Configuration Modal state
+const showConfigModal = ref(false)
+const configModalTitle = ref('')
+const configModalContent = ref('')
+const configModalLoading = ref(false)
+const currentConfigDevice = ref<Device | null>(null)
+
 // Device Search state
 const showDeviceSearch = ref(false)
 const deviceSearchQuery = ref('')
@@ -761,7 +819,14 @@ const contextMenuItems = computed(() => {
       icon: '⚙️',
       label: 'Config',
       submenu: [
-        { icon: '👁️', label: 'Show', action: () => { hideContextMenu(); showDeviceConfig(contextMenu.target!) } },
+        {
+          icon: '👁️',
+          label: 'Show',
+          submenu: [
+            { icon: '🔧', label: 'Running', action: () => { hideContextMenu(); showDeviceRunningConfig(contextMenu.target!) } },
+            { icon: '💾', label: 'Startup', action: () => { hideContextMenu(); showDeviceStartupConfig(contextMenu.target!) } },
+          ]
+        },
         { icon: '📝', label: 'Show Changes', action: () => { hideContextMenu(); showDeviceChanges(contextMenu.target!) } },
       ],
     },
@@ -998,7 +1063,61 @@ const handleDuplicateAdd = () => {
 const showDeviceOverview = (device: Device) => {
 }
 
-const showDeviceConfig = (device: Device) => {
+// Device configuration functions
+const showDeviceRunningConfig = async (device: Device) => {
+  await showDeviceConfiguration(device, 'running-config', 'Running Configuration')
+}
+
+const showDeviceStartupConfig = async (device: Device) => {
+  await showDeviceConfiguration(device, 'startup-config', 'Startup Configuration')
+}
+
+const showDeviceConfiguration = async (device: Device, configType: string, title: string) => {
+  try {
+    // Set modal state
+    currentConfigDevice.value = device
+    configModalTitle.value = `${title} - ${device.name}`
+    configModalContent.value = ''
+    configModalLoading.value = true
+    showConfigModal.value = true
+
+    // Get nautobot_id from device properties
+    const deviceProps = device.properties ? JSON.parse(device.properties) : {}
+    const nautobotId = deviceProps.nautobot_id
+
+    if (!nautobotId) {
+      configModalContent.value = 'Error: Device does not have a Nautobot ID'
+      return
+    }
+
+    // Make API call to get configuration
+    const response = await makeAuthenticatedRequest(`/api/devices/${nautobotId}/${configType}`)
+
+    if (response.ok) {
+      const data = await response.json()
+
+      if (data.success) {
+        configModalContent.value = data.output || 'No configuration data received'
+      } else {
+        configModalContent.value = `Error: ${data.error || 'Failed to retrieve configuration'}`
+      }
+    } else {
+      const errorData = await response.json()
+      configModalContent.value = `Error: ${errorData.detail || 'Failed to retrieve configuration'}`
+    }
+  } catch (error) {
+    console.error(`Error fetching ${configType}:`, error)
+    configModalContent.value = `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
+  } finally {
+    configModalLoading.value = false
+  }
+}
+
+const closeConfigModal = () => {
+  showConfigModal.value = false
+  currentConfigDevice.value = null
+  configModalContent.value = ''
+  configModalTitle.value = ''
 }
 
 const showDeviceChanges = (device: Device) => {

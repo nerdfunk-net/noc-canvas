@@ -528,6 +528,9 @@
                         Display
                       </th>
                       <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Template
+                      </th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Platform
                       </th>
                       <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -548,6 +551,11 @@
                       <td class="px-6 py-4">
                         <div class="text-sm text-gray-900">
                           {{ command.display || '-' }}
+                        </div>
+                      </td>
+                      <td class="px-6 py-4">
+                        <div class="text-sm text-gray-900 font-mono text-xs max-w-xs truncate" :title="command.template">
+                          {{ command.template || '-' }}
                         </div>
                       </td>
                       <td class="px-6 py-4 whitespace-nowrap">
@@ -595,7 +603,7 @@
             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
             @click.self="closeCommandDialog"
           >
-            <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-md">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl mx-4">
               <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-semibold text-gray-900">
                   {{ editingCommand ? 'Edit Command' : 'Add Command' }}
@@ -637,6 +645,17 @@
                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Display name for this command"
                     />
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Template</label>
+                    <textarea
+                      v-model="commandForm.template"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                      placeholder="Jinja2 template for output rendering"
+                      rows="4"
+                    ></textarea>
+                    <p class="mt-1 text-xs text-gray-500">Use Jinja2 syntax to template command output</p>
                   </div>
 
                   <div>
@@ -857,7 +876,7 @@
                       ×
                     </button>
                   </div>
-                  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
                       <label class="block text-xs font-medium text-gray-700 mb-1"> Name </label>
                       <input
@@ -884,6 +903,16 @@
                         placeholder="Password"
                         class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                       />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-medium text-gray-700 mb-1"> Purpose </label>
+                      <select
+                        v-model="credential.purpose"
+                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                      >
+                        <option value="ssh">SSH</option>
+                        <option value="tacacs">TACACS</option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -1511,9 +1540,11 @@ const settings = reactive({
     ssl: false,
   },
   credentials: [] as Array<{
+    id?: number
     name: string
     username: string
     password: string
+    purpose: string
   }>,
 })
 
@@ -1544,6 +1575,7 @@ const commands = ref<Array<{
   id: number
   command: string
   display?: string | null
+  template?: string | null
   platform: string
   parser: string
   created_at: string
@@ -1556,6 +1588,7 @@ const showCommandDialog = ref(false)
 const commandForm = reactive({
   command: '',
   display: '',
+  template: '',
   platform: 'IOS',
   parser: 'TextFSM'
 })
@@ -1886,12 +1919,14 @@ const openCommandDialog = (command?: any) => {
     editingCommand.value = command
     commandForm.command = command.command
     commandForm.display = command.display || ''
+    commandForm.template = command.template || ''
     commandForm.platform = command.platform
     commandForm.parser = command.parser
   } else {
     editingCommand.value = null
     commandForm.command = ''
     commandForm.display = ''
+    commandForm.template = ''
     commandForm.platform = 'IOS'
     commandForm.parser = 'TextFSM'
   }
@@ -1903,6 +1938,7 @@ const closeCommandDialog = () => {
   editingCommand.value = null
   commandForm.command = ''
   commandForm.display = ''
+  commandForm.template = ''
   commandForm.platform = 'IOS'
   commandForm.parser = 'TextFSM'
 }
@@ -1912,6 +1948,7 @@ const saveCommand = async () => {
     const payload = {
       command: commandForm.command,
       display: commandForm.display || null,
+      template: commandForm.template || null,
       platform: commandForm.platform,
       parser: commandForm.parser,
     }
@@ -2005,16 +2042,69 @@ const addCredential = () => {
     name: '',
     username: '',
     password: '',
+    purpose: 'ssh',
   })
 }
 
-const removeCredential = (index: number) => {
+const removeCredential = async (index: number) => {
+  const credential = settings.credentials[index]
+
+  // If the credential has an ID, delete it from the backend
+  if (credential.id) {
+    try {
+      const response = await makeAuthenticatedRequest(`/api/credentials/${credential.id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        notificationStore.addNotification({
+          title: 'Credential Deleted',
+          message: `Credential "${credential.name}" has been deleted successfully.`,
+          type: 'success',
+        })
+      } else {
+        throw new Error('Failed to delete credential from server')
+      }
+    } catch (error) {
+      notificationStore.addNotification({
+        title: 'Delete Failed',
+        message: 'Failed to delete credential from server.',
+        type: 'error',
+      })
+      console.error('Failed to delete credential:', error)
+      return // Don't remove from local array if server delete failed
+    }
+  }
+
+  // Remove from local array
   settings.credentials.splice(index, 1)
 }
 
 const removeLastCredential = () => {
   if (settings.credentials.length > 0) {
     settings.credentials.pop()
+  }
+}
+
+const loadCredentials = async () => {
+  try {
+    const credentialsResponse = await makeAuthenticatedRequest('/api/credentials/with-passwords')
+    if (credentialsResponse.ok) {
+      const credentialsData = await credentialsResponse.json()
+      settings.credentials = credentialsData.credentials.map((cred: any) => ({
+        id: cred.id,
+        name: cred.name,
+        username: cred.username,
+        password: cred.password,
+        purpose: cred.purpose,
+      })) || []
+    } else {
+      console.error('Failed to load credentials from API')
+      settings.credentials = []
+    }
+  } catch (error) {
+    console.error('Failed to load credentials:', error)
+    settings.credentials = []
   }
 }
 
@@ -2125,20 +2215,48 @@ const saveSettings = async () => {
 const saveProfile = async () => {
   savingProfile.value = true
   try {
-    const response = await makeAuthenticatedRequest('/api/settings/credentials', {
-      method: 'POST',
-      body: JSON.stringify({ credentials: settings.credentials }),
+    // Save/update each credential individually
+    const promises = settings.credentials.map(async (credential) => {
+      if (credential.id) {
+        // Update existing credential
+        return makeAuthenticatedRequest(`/api/credentials/${credential.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            name: credential.name,
+            username: credential.username,
+            password: credential.password,
+            purpose: credential.purpose,
+          }),
+        })
+      } else {
+        // Create new credential
+        return makeAuthenticatedRequest('/api/credentials/', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: credential.name,
+            username: credential.username,
+            password: credential.password,
+            purpose: credential.purpose,
+          }),
+        })
+      }
     })
 
-    if (response.ok) {
+    const results = await Promise.all(promises)
+
+    // Check if all requests succeeded
+    const allSucceeded = results.every(response => response.ok)
+
+    if (allSucceeded) {
       notificationStore.addNotification({
         title: 'Credentials Saved',
         message: 'Your credentials have been saved successfully.',
         type: 'success',
       })
-      localStorage.setItem('noc-canvas-credentials', JSON.stringify(settings.credentials))
+      // Reload credentials to get updated IDs
+      await loadCredentials()
     } else {
-      throw new Error('Failed to save credentials')
+      throw new Error('Failed to save some credentials')
     }
   } catch (error) {
     notificationStore.addNotification({
@@ -2292,27 +2410,7 @@ const loadSettings = async () => {
   }
 
   // Load credentials
-  try {
-    const credentialsResponse = await makeAuthenticatedRequest('/api/settings/credentials')
-
-    if (credentialsResponse.ok) {
-      const credentialsData = await credentialsResponse.json()
-      settings.credentials = credentialsData.credentials || []
-    } else {
-      // Fallback to localStorage
-      const savedCredentials = localStorage.getItem('noc-canvas-credentials')
-      if (savedCredentials) {
-        settings.credentials = JSON.parse(savedCredentials)
-      }
-    }
-  } catch (error) {
-    console.error('Failed to load credentials:', error)
-    // Fallback to localStorage
-    const savedCredentials = localStorage.getItem('noc-canvas-credentials')
-    if (savedCredentials) {
-      settings.credentials = JSON.parse(savedCredentials)
-    }
-  }
+  await loadCredentials()
 }
 
 loadSettings()

@@ -247,6 +247,316 @@ async def get_device(
         )
 
 
+@router.get("/devices/{device_id}/nautobot-data")
+async def get_device_nautobot_data(
+    device_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get complete device data from Nautobot including all fields."""
+    try:
+        username = (
+            current_user.get("username")
+            if isinstance(current_user, dict)
+            else current_user.username
+        )
+
+        # Use GraphQL to get all device data
+        query = """
+        query GetCompleteDeviceData($device_id: ID!) {
+          device(id: $device_id) {
+            id
+            name
+            display
+            device_type {
+              id
+              manufacturer {
+                name
+              }
+              model
+            }
+            role {
+              id
+              name
+            }
+            platform {
+              id
+              name
+              network_driver
+            }
+            location {
+              id
+              name
+              parent {
+                name
+              }
+            }
+            status {
+              id
+              name
+            }
+            primary_ip4 {
+              id
+              address
+              family
+            }
+            primary_ip6 {
+              id
+              address
+              family
+            }
+            serial
+            asset_tag
+            config_context
+            local_config_context_data
+            local_config_context_data_owner_content_type {
+              model
+            }
+            local_config_context_data_owner_object_id
+            secrets_group {
+              id
+              name
+            }
+            tenant {
+              id
+              name
+            }
+            cluster {
+              id
+              name
+            }
+            virtual_chassis {
+              id
+              name
+            }
+            vc_position
+            vc_priority
+            comments
+            last_updated
+            created
+            custom_fields
+            tags {
+              id
+              name
+            }
+            cf_last_backup
+          }
+        }
+        """
+
+        variables = {"device_id": device_id}
+        result = await nautobot_service.graphql_query(query, variables, username=username)
+
+        if "errors" in result:
+            logger.error(f"GraphQL errors fetching device data: {result['errors']}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to fetch device data: {result['errors']}",
+            )
+
+        device_data = result.get("data", {}).get("device")
+        if not device_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Device {device_id} not found",
+            )
+
+        return device_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching complete device data for {device_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch complete device data: {str(e)}",
+        )
+
+
+@router.get("/devices/{device_id}/details")
+async def get_device_details(
+    device_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get detailed device information using the comprehensive devices.md query."""
+    try:
+        username = (
+            current_user.get("username")
+            if isinstance(current_user, dict)
+            else current_user.username
+        )
+
+        # Start with a simplified query based on the working get_device method, then add more fields
+        query = """
+        query DeviceDetails($deviceId: ID!) {
+            device(id: $deviceId) {
+                id
+                name
+                hostname: name
+                asset_tag
+                serial
+                position
+                face
+                config_context
+                local_config_context_data
+                _custom_field_data
+                primary_ip4 {
+                    id
+                    address
+                    description
+                    ip_version
+                    host
+                    mask_length
+                    dns_name
+                    status {
+                        id
+                        name
+                    }
+                    parent {
+                        id
+                        prefix
+                    }
+                }
+                role {
+                    id
+                    name
+                }
+                device_type {
+                    id
+                    model
+                    manufacturer {
+                        id
+                        name
+                    }
+                }
+                platform {
+                    id
+                    name
+                    network_driver
+                    manufacturer {
+                        id
+                        name
+                    }
+                }
+                location {
+                    id
+                    name
+                    description
+                    location_type {
+                        id
+                        name
+                    }
+                    parent {
+                        id
+                        name
+                        description
+                        location_type {
+                            id
+                            name
+                        }
+                    }
+                }
+                status {
+                    id
+                    name
+                }
+                tenant {
+                    id
+                    name
+                    tenant_group {
+                        name
+                    }
+                }
+                rack {
+                    id
+                    name
+                    rack_group {
+                        id
+                        name
+                    }
+                }
+                tags {
+                    id
+                    name
+                }
+                interfaces {
+                    id
+                    name
+                    description
+                    enabled
+                    mac_address
+                    type
+                    mode
+                    mtu
+                    status {
+                        id
+                        name
+                    }
+                    ip_addresses {
+                        address
+                        status {
+                            id
+                            name
+                        }
+                        role {
+                            id
+                            name
+                        }
+                    }
+                    tagged_vlans {
+                        id
+                        name
+                        vid
+                    }
+                    untagged_vlan {
+                        id
+                        name
+                        vid
+                    }
+                }
+                vrfs {
+                    id
+                    name
+                    rd
+                    description
+                    namespace {
+                        id
+                        name
+                    }
+                }
+            }
+        }
+        """
+
+        variables = {"deviceId": device_id}
+
+        result = await nautobot_service.graphql_query(query, variables, username=username)
+
+        if "errors" in result:
+            logger.error(f"GraphQL errors fetching device details: {result['errors']}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to fetch device details: {result['errors']}",
+            )
+
+        device = result.get("data", {}).get("device")
+        if not device:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Device {device_id} not found",
+            )
+
+        return device
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching device details for {device_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch device details: {str(e)}",
+        )
+
+
 @router.post("/devices/search", response_model=DeviceListResponse)
 async def search_devices(
     filters: DeviceFilter,

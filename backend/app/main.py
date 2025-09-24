@@ -11,6 +11,8 @@ from .api import (
     settings as settings_api,
     jobs,
     canvas,
+    devices,
+    credentials,
 )
 import logging
 import sys
@@ -101,6 +103,8 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(canvas.router, prefix="/api/canvas", tags=["canvas"])
 app.include_router(nautobot.router, prefix="/api/nautobot", tags=["nautobot"])
+app.include_router(devices.router, prefix="/api/devices", tags=["devices"])
+app.include_router(credentials.router, prefix="/api/credentials", tags=["credentials"])
 app.include_router(checkmk.router, prefix="/api/checkmk", tags=["checkmk"])
 app.include_router(settings_api.router, prefix="/api/settings", tags=["settings"])
 app.include_router(jobs.router, prefix="/api/jobs", tags=["background-jobs"])
@@ -116,6 +120,8 @@ async def root():
             "auth": "/api/auth",
             "canvas": "/api/canvas",
             "nautobot": "/api/nautobot",
+            "devices": "/api/devices",
+            "credentials": "/api/credentials",
             "checkmk": "/api/checkmk",
             "settings": "/api/settings",
             "jobs": "/api/jobs",

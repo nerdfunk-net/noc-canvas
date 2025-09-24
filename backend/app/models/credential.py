@@ -2,18 +2,25 @@
 Credential models for storing user credentials in PostgreSQL database.
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime, Enum
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import func
 from pydantic import BaseModel
 from typing import Optional, List
 import os
+import enum
 from cryptography.fernet import Fernet
 import base64
 from ..core.database import Base, engine
 
 # Use main database Base for credentials
 CredentialsBase = Base
+
+
+class CredentialPurpose(enum.Enum):
+    """Purpose of the credential."""
+    TACACS = "tacacs"
+    SSH = "ssh"
 
 
 class UserCredential(CredentialsBase):
@@ -26,6 +33,7 @@ class UserCredential(CredentialsBase):
     name = Column(String(255), nullable=False)  # Credential name/description
     username = Column(String(255), nullable=False)  # Stored username
     encrypted_password = Column(Text, nullable=False)  # Encrypted password
+    purpose = Column(Enum(CredentialPurpose), nullable=False, default=CredentialPurpose.SSH)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -85,6 +93,7 @@ class CredentialBase(BaseModel):
     name: str
     username: str
     password: str
+    purpose: CredentialPurpose = CredentialPurpose.SSH
 
 
 class CredentialCreate(CredentialBase):
@@ -99,6 +108,7 @@ class CredentialUpdate(BaseModel):
     name: Optional[str] = None
     username: Optional[str] = None
     password: Optional[str] = None
+    purpose: Optional[CredentialPurpose] = None
 
 
 class CredentialResponse(BaseModel):
@@ -108,6 +118,7 @@ class CredentialResponse(BaseModel):
     owner: str
     name: str
     username: str
+    purpose: CredentialPurpose
     created_at: str
     updated_at: Optional[str] = None
 

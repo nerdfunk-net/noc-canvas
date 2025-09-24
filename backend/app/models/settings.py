@@ -173,6 +173,7 @@ class DeviceCommand(Base):
     id = Column(Integer, primary_key=True, index=True)
     command = Column(Text, nullable=False)
     display = Column(Text, nullable=True)
+    template = Column(Text, nullable=True)
     platform = Column(Enum(CommandPlatform), nullable=False)
     parser = Column(Enum(CommandParser), nullable=False, default=CommandParser.TEXTFSM)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -189,6 +190,7 @@ class DeviceCommandCreate(BaseModel):
 
     command: str
     display: Optional[str] = None
+    template: Optional[str] = None
     platform: CommandPlatform
     parser: CommandParser = CommandParser.TEXTFSM
 
@@ -198,6 +200,7 @@ class DeviceCommandUpdate(BaseModel):
 
     command: Optional[str] = None
     display: Optional[str] = None
+    template: Optional[str] = None
     platform: Optional[CommandPlatform] = None
     parser: Optional[CommandParser] = None
 
@@ -208,6 +211,7 @@ class DeviceCommandResponse(BaseModel):
     id: int
     command: str
     display: Optional[str] = None
+    template: Optional[str] = None
     platform: str
     parser: str
     created_at: datetime

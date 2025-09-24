@@ -220,6 +220,7 @@ async def create_device_command(
         command = DeviceCommand(
             command=command_data.command,
             display=command_data.display,
+            template=command_data.template,
             platform=command_data.platform,
             parser=command_data.parser,
         )
@@ -296,6 +297,8 @@ async def update_device_command(
             command.command = command_update.command
         if command_update.display is not None:
             command.display = command_update.display
+        if command_update.template is not None:
+            command.template = command_update.template
         if command_update.platform is not None:
             command.platform = command_update.platform
         if command_update.parser is not None:

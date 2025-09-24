@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     # Cache TTL settings
     cache_ttl_seconds: int = 600  # 10 minutes default
 
+    # Device communication settings
+    device_default_username: Optional[str] = None
+    device_default_password: Optional[str] = None
+    device_default_port: Optional[int] = None
+    device_ssh_key_file: Optional[str] = None
+
     class Config:
         env_file = ".env"
         # Ignore extra environment variables (like NOC_* database config vars)

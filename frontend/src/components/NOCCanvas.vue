@@ -455,8 +455,28 @@
                 <span class="ml-3 text-gray-600">Loading configuration...</span>
               </div>
 
-              <div v-else class="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono">{{ configModalContent }}</pre>
+              <div v-else class="max-h-96 overflow-y-auto">
+                <!-- Error message styling -->
+                <div v-if="configModalContent.startsWith('Error:')" class="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                      <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                      </svg>
+                    </div>
+                    <div class="ml-3">
+                      <h3 class="text-sm font-medium text-red-800">Configuration Error</h3>
+                      <div class="mt-2 text-sm text-red-700">
+                        <p>{{ configModalContent.replace('Error: ', '') }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Success message styling -->
+                <div v-else class="bg-gray-50 rounded-lg p-4">
+                  <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono">{{ configModalContent }}</pre>
+                </div>
               </div>
             </div>
           </div>
@@ -627,15 +647,15 @@ const {
 } = commandsComposable
 
 // Execute a command on a device
-const executeCommand = (device: Device, command: any) => {
+const executeCommand = async (device: Device, command: any) => {
   console.log(`🚀 Executing command on ${device.name} (${command.platform}):`)
   console.log(`Command: ${command.command}`)
   console.log(`Parser: ${command.parser}`)
-  
-  // Mock implementation - show a simple alert for now
-  alert(`Executing command on ${device.name}:\n\n"${command.command}"\n\nPlatform: ${command.platform}\nParser: ${command.parser}\n\n(This is a mock - actual execution will be implemented later)`)
-  
+
   hideContextMenu()
+
+  // Show command execution modal
+  await showCommandExecution(device, command)
 }
 
 // Save Canvas Modal state
@@ -1099,7 +1119,19 @@ const showDeviceConfiguration = async (device: Device, configType: string, title
       if (data.success) {
         configModalContent.value = data.output || 'No configuration data received'
       } else {
-        configModalContent.value = `Error: ${data.error || 'Failed to retrieve configuration'}`
+        // Handle specific error types from backend
+        const errorType = data.error_type
+        let errorMessage = data.error || 'Failed to retrieve configuration'
+
+        if (errorType === 'no_credentials') {
+          errorMessage = 'No valid credentials found. Please add TACACS or SSH credentials in Settings.'
+        } else if (errorType === 'authentication_failed') {
+          errorMessage = 'Login failed. Please check your credentials in Settings.'
+        } else if (errorType === 'timeout') {
+          errorMessage = 'Connection timeout. Please check network connectivity to the device.'
+        }
+
+        configModalContent.value = `Error: ${errorMessage}`
       }
     } else {
       const errorData = await response.json()
@@ -1118,6 +1150,80 @@ const closeConfigModal = () => {
   currentConfigDevice.value = null
   configModalContent.value = ''
   configModalTitle.value = ''
+}
+
+// Command execution modal
+const showCommandExecution = async (device: Device, command: any) => {
+  // Set modal state
+  currentConfigDevice.value = device
+  configModalTitle.value = `Command Execution - ${device.name}`
+  configModalContent.value = ''
+  configModalLoading.value = true
+  showConfigModal.value = true
+
+  // Get nautobot_id from device properties
+  const deviceProps = device.properties ? JSON.parse(device.properties) : {}
+  const nautobotId = deviceProps.nautobot_id
+
+  if (!nautobotId) {
+    configModalLoading.value = false
+    configModalContent.value = 'Error: Device does not have a Nautobot ID'
+    return
+  }
+
+  try {
+    const response = await fetch(`/api/devices/${nautobotId}/send/${command.id}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      if (data.success) {
+        // Format the output based on whether it was parsed or not
+        let formattedOutput = ''
+
+        if (data.parsed && data.parser_used) {
+          // For parsed output, display JSON formatted
+          if (typeof data.output === 'object') {
+            formattedOutput = `Command: ${data.command}\nParser: ${data.parser_used}\nExecution Time: ${data.execution_time?.toFixed(2) || 'N/A'}s\n\n--- Parsed Output (${data.parser_used}) ---\n${JSON.stringify(data.output, null, 2)}`
+          } else {
+            formattedOutput = `Command: ${data.command}\nParser: ${data.parser_used}\nExecution Time: ${data.execution_time?.toFixed(2) || 'N/A'}s\n\n--- Parsed Output (${data.parser_used}) ---\n${data.output}`
+          }
+        } else {
+          // For raw output, display as text
+          formattedOutput = `Command: ${data.command}\nExecution Time: ${data.execution_time?.toFixed(2) || 'N/A'}s\n\n--- Raw Output ---\n${data.output || 'No output received'}`
+        }
+
+        configModalContent.value = formattedOutput
+      } else {
+        // Handle specific error types from backend
+        const errorType = data.error_type
+        let errorMessage = data.error || 'Unknown error occurred'
+
+        if (errorType === 'authentication_failed') {
+          errorMessage = 'Authentication failed. Please check your credentials in Settings.'
+        } else if (errorType === 'no_credentials') {
+          errorMessage = 'No credentials found. Please add TACACS or SSH credentials in Settings.'
+        } else if (errorType === 'timeout') {
+          errorMessage = 'Connection timeout. The device did not respond in time.'
+        }
+
+        configModalContent.value = `Error: ${errorMessage}`
+      }
+    } else {
+      const errorData = await response.json()
+      configModalContent.value = `Error: ${errorData.detail || 'Failed to execute command'}`
+    }
+  } catch (error) {
+    console.error('Error executing command:', error)
+    configModalContent.value = `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
+  } finally {
+    configModalLoading.value = false
+  }
 }
 
 const showDeviceChanges = (device: Device) => {

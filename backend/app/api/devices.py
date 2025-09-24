@@ -7,9 +7,12 @@ import logging
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 from ..core.security import get_current_user
+from ..core.database import get_db
 from ..services.nautobot import nautobot_service
 from ..services.device_communication import device_communication_service
+from ..models.settings import DeviceCommand
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,11 +21,13 @@ router = APIRouter()
 class DeviceCommandResponse(BaseModel):
     """Response model for device commands."""
     success: bool
-    output: Optional[str] = None
+    output: Optional[Any] = None  # Can be string (raw) or list/dict (parsed)
     error: Optional[str] = None
     device_info: Optional[Dict[str, Any]] = None
     command: Optional[str] = None
     execution_time: Optional[float] = None
+    parsed: Optional[bool] = None  # Indicates if output was parsed
+    parser_used: Optional[str] = None  # Which parser was used
 
 
 class DeviceConnectionInfo(BaseModel):
@@ -125,7 +130,9 @@ async def get_running_config(
             error=result.get("error"),
             device_info=device_info.model_dump(),
             command="show running-config",
-            execution_time=result.get("execution_time")
+            execution_time=result.get("execution_time"),
+            parsed=result.get("parsed", False),
+            parser_used=result.get("parser_used")
         )
 
     except HTTPException:
@@ -168,7 +175,9 @@ async def get_startup_config(
             error=result.get("error"),
             device_info=device_info.model_dump(),
             command="show startup-config",
-            execution_time=result.get("execution_time")
+            execution_time=result.get("execution_time"),
+            parsed=result.get("parsed", False),
+            parser_used=result.get("parser_used")
         )
 
     except HTTPException:
@@ -210,7 +219,9 @@ async def get_cdp_neighbors(
             error=result.get("error"),
             device_info=device_info.model_dump(),
             command="show cdp neighbors detail",
-            execution_time=result.get("execution_time")
+            execution_time=result.get("execution_time"),
+            parsed=result.get("parsed", False),
+            parser_used=result.get("parser_used")
         )
 
     except HTTPException:
@@ -252,7 +263,9 @@ async def get_ospf_neighbors(
             error=result.get("error"),
             device_info=device_info.model_dump(),
             command="show ip ospf neighbor",
-            execution_time=result.get("execution_time")
+            execution_time=result.get("execution_time"),
+            parsed=result.get("parsed", False),
+            parser_used=result.get("parser_used")
         )
 
     except HTTPException:
@@ -294,7 +307,9 @@ async def get_ip_routes(
             error=result.get("error"),
             device_info=device_info.model_dump(),
             command="show ip route",
-            execution_time=result.get("execution_time")
+            execution_time=result.get("execution_time"),
+            parsed=result.get("parsed", False),
+            parser_used=result.get("parser_used")
         )
 
     except HTTPException:
@@ -336,7 +351,9 @@ async def get_access_lists(
             error=result.get("error"),
             device_info=device_info.model_dump(),
             command="show access-lists",
-            execution_time=result.get("execution_time")
+            execution_time=result.get("execution_time"),
+            parsed=result.get("parsed", False),
+            parser_used=result.get("parser_used")
         )
 
     except HTTPException:
@@ -352,8 +369,9 @@ async def get_access_lists(
 @router.post("/{device_id}/send/{command_id}", response_model=DeviceCommandResponse)
 async def send_custom_command(
     device_id: str,
-    command_id: str,
+    command_id: int,
     current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Send a custom command to a network device using predefined command ID."""
     try:
@@ -366,21 +384,24 @@ async def send_custom_command(
         # Get device connection information
         device_info = await get_device_connection_info(device_id, username)
 
-        # Get command from command_id (this will be implemented later with command management)
-        # For now, we'll return a placeholder response
-        command = await device_communication_service.get_command_by_id(command_id, username)
+        # Get command from database using command_id
+        logger.debug(f"Fetching command with ID {command_id} from database")
+        device_command = db.query(DeviceCommand).filter(DeviceCommand.id == command_id).first()
 
-        if not command:
+        if not device_command:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Command with ID {command_id} not found"
             )
 
-        # Execute command on device
+        logger.info(f"Found command: {device_command.command} (parser: {device_command.parser.value})")
+
+        # Execute command on device with parser if specified
         result = await device_communication_service.execute_command(
             device_info=device_info,
-            command=command,
-            username=username
+            command=device_command.command,
+            username=username,
+            parser=device_command.parser.value
         )
 
         return DeviceCommandResponse(
@@ -388,8 +409,10 @@ async def send_custom_command(
             output=result.get("output"),
             error=result.get("error"),
             device_info=device_info.model_dump(),
-            command=command,
-            execution_time=result.get("execution_time")
+            command=device_command.command,
+            execution_time=result.get("execution_time"),
+            parsed=result.get("parsed", False),
+            parser_used=result.get("parser_used")
         )
 
     except HTTPException:

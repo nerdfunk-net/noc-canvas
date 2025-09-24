@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..core.database import get_db
 from ..models.credential import UserCredential, CredentialPurpose, decrypt_password
+from ..models.settings import CommandParser
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,8 @@ class DeviceCommunicationService:
         self,
         device_info,  # Can be DeviceConnectionInfo or Dict
         command: str,
-        username: str
+        username: str,
+        parser: Optional[str] = None
     ) -> Dict[str, Any]:
         """Execute a command on a network device."""
         start_time = time.time()
@@ -47,19 +49,34 @@ class DeviceCommunicationService:
             # Create netmiko connection
             with ConnectHandler(**device_config) as connection:
                 # Send command and get output
-                output = connection.send_command(
-                    command,
-                    delay_factor=self.global_delay_factor,
-                    max_loops=self.max_loops
-                )
+                if parser and parser.upper() in ['TEXTFSM', 'TTP']:
+                    # Use netmiko's structured output parsing
+                    output = connection.send_command(
+                        command,
+                        delay_factor=self.global_delay_factor,
+                        max_loops=self.max_loops,
+                        use_textfsm=True if parser.upper() == 'TEXTFSM' else False,
+                        use_ttp=True if parser.upper() == 'TTP' else False
+                    )
+                    parsed_output = True
+                else:
+                    # Send command without parsing
+                    output = connection.send_command(
+                        command,
+                        delay_factor=self.global_delay_factor,
+                        max_loops=self.max_loops
+                    )
+                    parsed_output = False
 
                 execution_time = time.time() - start_time
 
-                logger.info(f"Successfully executed command on {device_dict['name']} in {execution_time:.2f}s")
+                logger.info(f"Successfully executed command on {device_dict['name']} in {execution_time:.2f}s (parser: {parser or 'none'})")
 
                 return {
                     "success": True,
                     "output": output,
+                    "parsed": parsed_output,
+                    "parser_used": parser,
                     "execution_time": execution_time
                 }
 
@@ -70,43 +87,55 @@ class DeviceCommunicationService:
             return {
                 "success": False,
                 "error": error_msg,
+                "error_type": "timeout",
                 "execution_time": execution_time
             }
 
         except NetmikoAuthenticationException as e:
             execution_time = time.time() - start_time
-            error_msg = f"Authentication failed for device {device_dict.get('name', 'unknown')}: {str(e)}"
-            logger.error(error_msg)
+            error_msg = "Login failed. Please check your credentials in Settings."
+            logger.error(f"Authentication failed for device {device_dict.get('name', 'unknown')}: {str(e)}")
             return {
                 "success": False,
                 "error": error_msg,
+                "error_type": "authentication_failed",
                 "execution_time": execution_time
             }
 
         except Exception as e:
             execution_time = time.time() - start_time
-            error_msg = f"Error executing command on device {device_dict.get('name', 'unknown')}: {str(e)}"
+            error_str = str(e)
+
+            # Handle specific error cases
+            if "No valid credentials found" in error_str:
+                error_msg = "No valid credentials found. Please add TACACS or SSH credentials in Settings."
+                error_type = "no_credentials"
+            else:
+                error_msg = f"Error executing command on device {device_dict.get('name', 'unknown')}: {error_str}"
+                error_type = "general_error"
+
             logger.error(error_msg)
             logger.exception("Full exception details:")
             return {
                 "success": False,
                 "error": error_msg,
+                "error_type": error_type,
                 "execution_time": execution_time
             }
 
     async def _get_device_config(self, device_info: Dict[str, Any], username: str) -> Dict[str, Any]:
         """Get device connection configuration including credentials."""
-        # Get SSH credentials from database
-        ssh_credential = await self._get_ssh_credential(username)
+        # First try to get TACACS credentials, then fall back to SSH
+        credential = await self._get_user_credential(username)
 
-        if not ssh_credential:
-            raise Exception(f"No SSH credentials found for user {username}. Please add SSH credentials in Settings.")
+        if not credential:
+            raise Exception("No valid credentials found. Please add TACACS or SSH credentials in Settings.")
 
         device_config = {
             'device_type': self._map_platform_to_netmiko_type(device_info['network_driver']),
             'host': device_info['primary_ip'],
-            'username': ssh_credential['username'],
-            'password': ssh_credential['password'],
+            'username': credential['username'],
+            'password': credential['password'],
             'timeout': self.timeout,
             'global_delay_factor': self.global_delay_factor,
         }
@@ -122,15 +151,37 @@ class DeviceCommunicationService:
 
         return device_config
 
-    async def _get_ssh_credential(self, username: str) -> Optional[Dict[str, str]]:
-        """Get SSH credentials for the user from database."""
+    async def _get_user_credential(self, username: str) -> Optional[Dict[str, str]]:
+        """Get user credentials from database, prioritizing TACACS over SSH."""
         try:
-            logger.debug(f"Getting SSH credentials for user: {username}")
+            logger.debug(f"Getting credentials for user: {username}")
             # Get database session
             db: Session = next(get_db())
 
-            # Query for SSH credentials for this user
-            credential = (
+            # First try to get TACACS credentials
+            tacacs_credential = (
+                db.query(UserCredential)
+                .filter(
+                    UserCredential.owner == username,
+                    UserCredential.purpose == CredentialPurpose.TACACS
+                )
+                .first()
+            )
+
+            if tacacs_credential:
+                logger.debug(f"Found TACACS credential: {tacacs_credential.name} for user {username}")
+                # Decrypt password and return
+                decrypted_password = decrypt_password(tacacs_credential.encrypted_password)
+                return {
+                    'username': tacacs_credential.username,
+                    'password': decrypted_password,
+                    'name': tacacs_credential.name,
+                    'type': 'tacacs'
+                }
+
+            # If no TACACS credentials found, try SSH credentials
+            logger.debug(f"No TACACS credentials found for user {username}, trying SSH credentials")
+            ssh_credential = (
                 db.query(UserCredential)
                 .filter(
                     UserCredential.owner == username,
@@ -139,21 +190,22 @@ class DeviceCommunicationService:
                 .first()
             )
 
-            if credential:
-                logger.debug(f"Found SSH credential: {credential.name} for user {username}")
+            if ssh_credential:
+                logger.debug(f"Found SSH credential: {ssh_credential.name} for user {username}")
                 # Decrypt password and return
-                decrypted_password = decrypt_password(credential.encrypted_password)
+                decrypted_password = decrypt_password(ssh_credential.encrypted_password)
                 return {
-                    'username': credential.username,
+                    'username': ssh_credential.username,
                     'password': decrypted_password,
-                    'name': credential.name
+                    'name': ssh_credential.name,
+                    'type': 'ssh'
                 }
 
-            logger.warning(f"No SSH credentials found for user {username}")
+            logger.warning(f"No TACACS or SSH credentials found for user {username}")
             return None
 
         except Exception as e:
-            logger.error(f"Error getting SSH credentials for user {username}: {str(e)}")
+            logger.error(f"Error getting credentials for user {username}: {str(e)}")
             logger.exception("Full exception details:")
             return None
         finally:
@@ -185,35 +237,6 @@ class DeviceCommunicationService:
         logger.debug(f"Mapped network_driver '{network_driver}' to netmiko device_type '{mapped_type}'")
         return mapped_type
 
-    async def get_command_by_id(self, command_id: str, username: str) -> Optional[str]:
-        """Get command string by command ID from database or predefined commands."""
-        # TODO: Implement command management system with database storage
-        # For now, return some predefined commands based on ID
-
-        predefined_commands = {
-            'version': 'show version',
-            'interfaces': 'show interfaces',
-            'interface_status': 'show interfaces status',
-            'vlan': 'show vlan',
-            'mac_table': 'show mac address-table',
-            'arp_table': 'show arp',
-            'spanning_tree': 'show spanning-tree',
-            'log': 'show log',
-            'inventory': 'show inventory',
-            'environment': 'show environment',
-            'users': 'show users',
-            'processes': 'show processes',
-            'memory': 'show memory',
-            'cpu': 'show cpu',
-        }
-
-        command = predefined_commands.get(command_id)
-        if command:
-            logger.debug(f"Found predefined command for ID '{command_id}': {command}")
-        else:
-            logger.warning(f"Command ID '{command_id}' not found in predefined commands")
-
-        return command
 
     async def test_device_connection(
         self,

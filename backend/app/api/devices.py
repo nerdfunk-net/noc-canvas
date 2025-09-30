@@ -193,9 +193,19 @@ async def get_startup_config(
 @router.get("/{device_id}/cdp-neighbors", response_model=DeviceCommandResponse)
 async def get_cdp_neighbors(
     device_id: str,
+    use_textfsm: bool = False,
     current_user: dict = Depends(get_current_user),
 ):
-    """Get CDP neighbors from a network device."""
+    """Get CDP neighbors from a network device.
+
+    Args:
+        device_id: The ID of the device to query
+        use_textfsm: If True, parse output using TextFSM. Default is False.
+        current_user: The authenticated user
+
+    Returns:
+        DeviceCommandResponse with parsed or raw output
+    """
     try:
         username = (
             current_user.get("username")
@@ -206,11 +216,12 @@ async def get_cdp_neighbors(
         # Get device connection information
         device_info = await get_device_connection_info(device_id, username)
 
-        # Execute command on device
+        # Execute command on device with optional TextFSM parsing
         result = await device_communication_service.execute_command(
             device_info=device_info,
-            command="show cdp neighbors detail",
-            username=username
+            command="show cdp neighbors",
+            username=username,
+            parser="TEXTFSM" if use_textfsm else None
         )
 
         return DeviceCommandResponse(
@@ -218,7 +229,7 @@ async def get_cdp_neighbors(
             output=result.get("output"),
             error=result.get("error"),
             device_info=device_info.model_dump(),
-            command="show cdp neighbors detail",
+            command="show cdp neighbors",
             execution_time=result.get("execution_time"),
             parsed=result.get("parsed", False),
             parser_used=result.get("parser_used")

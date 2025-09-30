@@ -89,10 +89,15 @@
           :key="`connection-${connection.id}`"
           :config="{
             points: connection.points,
-            stroke: '#3b82f6',
-            strokeWidth: 2,
-            opacity: 0.8,
+            stroke: selectedConnection === connection.id ? '#1d4ed8' : '#3b82f6',
+            strokeWidth: selectedConnection === connection.id ? 4 : 2,
+            opacity: selectedConnection === connection.id ? 1 : 0.8,
+            hitStrokeWidth: 10,
           }"
+          @click="onConnectionClick(connection, $event)"
+          @contextmenu="onConnectionRightClick(connection, $event)"
+          @mouseenter="onConnectionMouseEnter"
+          @mouseleave="onConnectionMouseLeave"
         />
       </v-layer>
 
@@ -150,15 +155,13 @@
           <!-- Device Name -->
           <v-text
             :config="{
-              x: DEVICE_HALF_SIZE,
+              x: 0,
               y: DEVICE_TEXT_Y_OFFSET,
               text: device.name,
               fontSize: 9,
               align: 'center',
               fill: '#374151',
               fontFamily: 'Arial',
-              offsetX: device.name.length * 5.5,
-              offsetY: DEVICE_NAME_OFFSET_Y,
               width: DEVICE_SIZE,
               ellipsis: true,
             }"
@@ -284,8 +287,12 @@
                 <button
                   v-for="nestedItem in subItem.submenu"
                   :key="nestedItem.label"
-                  @click="nestedItem.action()"
-                  class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/80 hover:text-blue-900 flex items-center space-x-2 transition-all duration-150 ease-out"
+                  @click="nestedItem.disabled ? null : nestedItem.action()"
+                  :disabled="nestedItem.disabled"
+                  class="w-full text-left px-3 py-1.5 text-xs flex items-center space-x-2 transition-all duration-150 ease-out"
+                  :class="nestedItem.disabled
+                    ? 'text-gray-400 cursor-not-allowed opacity-50'
+                    : 'text-gray-700 hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/80 hover:text-blue-900'"
                 >
                   <span class="text-xs opacity-70">{{ nestedItem.icon }}</span>
                   <span class="font-medium">{{ nestedItem.label }}</span>
@@ -629,11 +636,17 @@ const selectDevicesInBox = composableSelectDevicesInBox
 // Flag to track device right-clicks to prevent canvas menu override
 const deviceRightClickInProgress = ref(false)
 
+// Flag to track connection right-clicks to prevent canvas menu override
+const connectionRightClickInProgress = ref(false)
+
 // Connection state
 const connectionStart = ref<{
   device: Device
   point: { x: number; y: number }
 } | null>(null)
+
+// Selected connection state
+const selectedConnection = ref<number | null>(null)
 
 // Initialize commands composable
 const commandsComposable = useCommands()
@@ -720,13 +733,23 @@ const renderConnections = computed(() => {
 
       if (!sourceDevice || !targetDevice) return null
 
+      // Use drag positions if device is being dragged, otherwise use stored positions
+      const sourcePos = dragPositions.value.get(sourceDevice.id) || {
+        x: sourceDevice.position_x,
+        y: sourceDevice.position_y
+      }
+      const targetPos = dragPositions.value.get(targetDevice.id) || {
+        x: targetDevice.position_x,
+        y: targetDevice.position_y
+      }
+
       return {
         id: connection.id,
         points: [
-          sourceDevice.position_x + DEVICE_HALF_SIZE,
-          sourceDevice.position_y + DEVICE_HALF_SIZE,
-          targetDevice.position_x + DEVICE_HALF_SIZE,
-          targetDevice.position_y + DEVICE_HALF_SIZE,
+          sourcePos.x + DEVICE_HALF_SIZE,
+          sourcePos.y + DEVICE_HALF_SIZE,
+          targetPos.x + DEVICE_HALF_SIZE,
+          targetPos.y + DEVICE_HALF_SIZE,
         ],
       }
     })
@@ -735,6 +758,18 @@ const renderConnections = computed(() => {
 
 // Context menu items
 const contextMenuItems = computed(() => {
+  // Connection context menu
+  if (contextMenu.targetType === 'connection') {
+    const items = [
+      { icon: '👁️', label: 'Show', action: () => { hideContextMenu(); showConnectionInfo(contextMenu.target as any) } },
+      { icon: '📊', label: 'Status', action: () => { hideContextMenu(); showConnectionStatus(contextMenu.target as any) } },
+      { icon: '📈', label: 'Stats', action: () => { hideContextMenu(); showConnectionStats(contextMenu.target as any) } },
+      { icon: '─', label: '─────────', action: () => {}, separator: true },
+      { icon: '🗑️', label: 'Delete', action: () => { hideContextMenu(); deleteConnection(contextMenu.target as any) } },
+    ]
+    return items
+  }
+
   if (!contextMenu.target) {
     if (contextMenu.targetType === 'canvas') {
       const items = [
@@ -760,9 +795,9 @@ const contextMenuItems = computed(() => {
   if (contextMenu.targetType === 'multi-device') {
     const selectedCount = selectedDevices.value.size
     const items = [
-      { 
-        icon: '📊', 
-        label: `Overview (${selectedCount} devices)`, 
+      {
+        icon: '📊',
+        label: `Overview (${selectedCount} devices)`,
         action: () => { hideContextMenu(); showMultiDeviceOverview() }
       },
       {
@@ -774,7 +809,22 @@ const contextMenuItems = computed(() => {
         ],
       },
       { icon: '💻', label: 'Commands', action: () => { hideContextMenu(); showMultiDeviceCommands() } },
-      { icon: '🔗', label: 'Show All Neighbors', action: () => { hideContextMenu(); showMultiDeviceNeighbors() } },
+      {
+        icon: '🔗',
+        label: 'Neighbors',
+        submenu: [
+          { icon: '👁️', label: 'Show All', action: () => { hideContextMenu(); showMultiDeviceNeighbors() } },
+          { icon: '➕', label: 'Add', action: () => { hideContextMenu(); addMultiDeviceNeighborsToCanvas() } },
+          {
+            icon: '🔗',
+            label: 'Connect to',
+            action: selectedCount === 2
+              ? () => { hideContextMenu(); connectTwoDevices() }
+              : () => {},
+            disabled: selectedCount !== 2
+          },
+        ],
+      },
       { icon: '🔍', label: 'Analyze All', action: () => { hideContextMenu(); analyzeMultiDevices() } },
       { icon: '─', label: '─────────', action: () => {}, separator: true },
       {
@@ -785,9 +835,9 @@ const contextMenuItems = computed(() => {
           { icon: '↕️', label: 'Vertical', action: () => { alignDevicesVertically() } },
         ],
       },
-      { 
-        icon: '🗑️', 
-        label: `Remove ${selectedCount} devices`, 
+      {
+        icon: '🗑️',
+        label: `Remove ${selectedCount} devices`,
         action: () => { hideContextMenu(); deleteMultiDevices() }
       },
     ]
@@ -855,7 +905,22 @@ const contextMenuItems = computed(() => {
       label: 'Commands',
       submenu: commandsSubmenu
     },
-    { icon: '🔗', label: 'Neighbors', action: () => { hideContextMenu(); showDeviceNeighbors(contextMenu.target!) } },
+    {
+      icon: '🔗',
+      label: 'Neighbors',
+      submenu: [
+        { icon: '👁️', label: 'Show', action: () => { hideContextMenu(); showNeighbors(contextMenu.target!) } },
+        { icon: '➕', label: 'Add', action: () => { hideContextMenu(); addNeighborsToCanvas(contextMenu.target!) } },
+        {
+          icon: '🔗',
+          label: 'Connect to',
+          action: selectedDevices.value.size === 2
+            ? () => { hideContextMenu(); connectTwoDevices() }
+            : () => {},
+          disabled: selectedDevices.value.size !== 2
+        },
+      ],
+    },
     { icon: '🔍', label: 'Analyze', action: () => { hideContextMenu(); analyzeDevice(contextMenu.target!) } },
     { icon: '─', label: '─────────', action: () => {}, separator: true },
     {
@@ -1235,6 +1300,103 @@ const showDeviceCommands = (device: Device) => {
 const showDeviceNeighbors = (device: Device) => {
 }
 
+// Show neighbors using CDP/LLDP
+const showNeighbors = async (device: Device) => {
+  try {
+    // Set modal state
+    currentConfigDevice.value = device
+    configModalTitle.value = `CDP Neighbors - ${device.name}`
+    configModalContent.value = ''
+    configModalLoading.value = true
+    showConfigModal.value = true
+
+    // Get nautobot_id from device properties
+    const deviceProps = device.properties ? JSON.parse(device.properties) : {}
+    const nautobotId = deviceProps.nautobot_id
+
+    if (!nautobotId) {
+      configModalLoading.value = false
+      configModalContent.value = 'Error: Device does not have a Nautobot ID'
+      return
+    }
+
+    // Make API call to get CDP neighbors
+    const response = await makeAuthenticatedRequest(`/api/devices/${nautobotId}/cdp-neighbors`)
+
+    if (response.ok) {
+      const data = await response.json()
+
+      if (data.success) {
+        // Format the output
+        if (typeof data.output === 'object') {
+          configModalContent.value = `Command: ${data.command || 'show cdp neighbors'}\nExecution Time: ${data.execution_time?.toFixed(2) || 'N/A'}s\n\n--- CDP Neighbors ---\n${JSON.stringify(data.output, null, 2)}`
+        } else {
+          configModalContent.value = `Command: ${data.command || 'show cdp neighbors'}\nExecution Time: ${data.execution_time?.toFixed(2) || 'N/A'}s\n\n--- CDP Neighbors ---\n${data.output || 'No neighbors found'}`
+        }
+      } else {
+        // Handle specific error types from backend
+        const errorType = data.error_type
+        let errorMessage = data.error || 'Failed to retrieve neighbors'
+
+        if (errorType === 'authentication_failed') {
+          errorMessage = 'Authentication failed. Please check your credentials in Settings.'
+        } else if (errorType === 'no_credentials') {
+          errorMessage = 'No credentials found. Please add TACACS or SSH credentials in Settings.'
+        } else if (errorType === 'timeout') {
+          errorMessage = 'Connection timeout. The device did not respond in time.'
+        }
+
+        configModalContent.value = `Error: ${errorMessage}`
+      }
+    } else {
+      const errorData = await response.json()
+      configModalContent.value = `Error: ${errorData.detail || 'Failed to retrieve neighbors'}`
+    }
+  } catch (error) {
+    console.error('Error fetching CDP neighbors:', error)
+    configModalContent.value = `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
+  } finally {
+    configModalLoading.value = false
+  }
+}
+
+// Add neighbors to canvas
+const addNeighborsToCanvas = async (device: Device) => {
+  console.log('➕ Adding neighbors to canvas for device:', device.name)
+  // TODO: Implement adding neighbors to canvas
+  // This would need to parse the CDP output, find the neighbor devices, and add them to the canvas
+  alert('Add neighbors to canvas feature coming soon!')
+}
+
+// Connect two selected devices with a line
+const connectTwoDevices = () => {
+  if (selectedDevices.value.size !== 2) {
+    console.error('❌ Exactly 2 devices must be selected to connect them')
+    return
+  }
+
+  const deviceIds = Array.from(selectedDevices.value)
+  const device1 = deviceStore.devices.find(d => d.id === deviceIds[0])
+  const device2 = deviceStore.devices.find(d => d.id === deviceIds[1])
+
+  if (!device1 || !device2) {
+    console.error('❌ Could not find selected devices')
+    return
+  }
+
+  try {
+    console.log(`🔗 Creating connection between ${device1.name} and ${device2.name}`)
+    deviceStore.createConnection({
+      source_device_id: device1.id,
+      target_device_id: device2.id,
+      connection_type: 'ethernet',
+    })
+    console.log('✅ Connection created successfully')
+  } catch (error) {
+    console.error('❌ Failed to create connection:', error)
+  }
+}
+
 const analyzeDevice = (device: Device) => {
 }
 
@@ -1330,7 +1492,20 @@ const showMultiDeviceNeighbors = () => {
   const selectedDevicesArray = Array.from(selectedDevices.value)
     .map(id => deviceStore.devices.find(d => d.id === id))
     .filter((device): device is Device => device !== undefined)
-  
+
+  console.log('👁️ Show neighbors for multiple devices:', selectedDevicesArray.map(d => d.name))
+  // TODO: Implement showing neighbors for multiple devices
+  hideContextMenu()
+}
+
+const addMultiDeviceNeighborsToCanvas = () => {
+  const selectedDevicesArray = Array.from(selectedDevices.value)
+    .map(id => deviceStore.devices.find(d => d.id === id))
+    .filter((device): device is Device => device !== undefined)
+
+  console.log('➕ Add neighbors to canvas for multiple devices:', selectedDevicesArray.map(d => d.name))
+  // TODO: Implement adding neighbors to canvas for multiple devices
+  alert('Add neighbors to canvas for multiple devices feature coming soon!')
   hideContextMenu()
 }
 
@@ -1542,12 +1717,23 @@ const onStageMouseDown = (event: any) => {
   }
 
   if (event.target === event.target.getStage()) {
+    console.log('🖱️ DEBUG: onStageMouseDown - clicking on stage, button:', event.evt.button, 'connectionRightClickInProgress:', connectionRightClickInProgress.value)
+
+    // Don't deselect if right-clicking on a connection
+    if (event.evt.button === 2 && connectionRightClickInProgress.value) {
+      console.log('🖱️ DEBUG: onStageMouseDown - EARLY RETURN (connection right-click in progress)')
+      return
+    }
+
     mouseState.isDown = true
     const pos = event.target.getStage().getPointerPosition()
     mouseState.startX = pos.x
     mouseState.startY = pos.y
 
+    console.log('🖱️ DEBUG: onStageMouseDown - about to deselect. selectedConnection before:', selectedConnection.value)
     selectedDevice.value = null
+    selectedConnection.value = null  // Deselect connection when clicking canvas
+    console.log('🖱️ DEBUG: onStageMouseDown - selectedConnection after:', selectedConnection.value)
     hideContextMenu()
 
     // Only create selection box if Shift key is held down
@@ -1624,24 +1810,41 @@ const onCanvasMouseUp = (event: MouseEvent) => {
 
 // Canvas right-click now handled by useCanvasEvents composable
 const onRightClick = (event: MouseEvent) => {
-  
+  console.log('🖱️ DEBUG: onRightClick called, deviceRightClickInProgress:', deviceRightClickInProgress.value, 'connectionRightClickInProgress:', connectionRightClickInProgress.value)
+
   // Check if a device right-click is in progress
   if (deviceRightClickInProgress.value) {
+    console.log('🖱️ DEBUG: onRightClick - device right-click in progress, returning')
     deviceRightClickInProgress.value = false // Reset flag
     return
   }
-  
+
+  // Check if a connection right-click is in progress
+  if (connectionRightClickInProgress.value) {
+    console.log('🖱️ DEBUG: onRightClick - connection right-click in progress, returning')
+    connectionRightClickInProgress.value = false // Reset flag
+    return
+  }
+
   // Check if a device context menu was recently shown (within last 100ms)
   // This prevents canvas menu from overriding device menu
-  if (contextMenu.show && 
+  if (contextMenu.show &&
       (contextMenu.targetType === 'device' || contextMenu.targetType === 'multi-device') &&
       Date.now() - contextMenuShownAt.value < 100) {
     return
   }
-  
+
+  // Check if a connection context menu was recently shown (within last 100ms)
+  // This prevents canvas menu from overriding connection menu
+  if (contextMenu.show &&
+      contextMenu.targetType === 'connection' &&
+      Date.now() - contextMenuShownAt.value < 100) {
+    return
+  }
+
   // Call composable handler for event prevention
   composableOnRightClick(null, { evt: event } as any)
-  
+
   // Get the canvas container's bounding rect to calculate relative position
   const rect = canvasContainer.value?.getBoundingClientRect()
   if (!rect) {
@@ -1676,16 +1879,21 @@ const onRightClick = (event: MouseEvent) => {
 const onDeviceClick = (device: Device, event: any) => {
   // Call composable handler first
   composableOnDeviceClick(device, event)
-  
+
   // Don't handle right-clicks in the click handler - they should be handled by mousedown only
   if (event.evt?.button === 2) {
     return
   }
 
+  // Deselect any selected connection when clicking a device (unless shift is held)
+  if (!event.evt?.shiftKey && selectedConnection.value !== null) {
+    selectedConnection.value = null
+  }
+
   // Handle device selection using the composable
   const isShiftClick = event.evt?.shiftKey || false
   composableSelectDevice(device, isShiftClick)
-  
+
   // Don't hide context menu if it's showing a device context menu for this device
   // or if it's a multi-device menu and this device is part of the selection
   if (
@@ -1785,6 +1993,9 @@ const dragState = ref<{
   initialPositions: Map<number, { x: number; y: number }>
 } | null>(null)
 
+// Track real-time positions of devices during drag for connection rendering
+const dragPositions = ref<Map<number, { x: number; y: number }>>(new Map())
+
 const onDeviceDragStart = (device: Device) => {
   // Initialize drag state
   dragState.value = {
@@ -1806,11 +2017,14 @@ const onDeviceDragStart = (device: Device) => {
 }
 
 const onDeviceDragMove = (device: Device, event: any) => {
-  // Only handle multi-device dragging during dragmove
-  if (selectedDevices.value.size > 1 && selectedDevices.value.has(device.id) && dragState.value) {
-    const currentX = event.target.x()
-    const currentY = event.target.y()
+  const currentX = event.target.x()
+  const currentY = event.target.y()
 
+  // Update drag position for the dragged device for real-time connection rendering
+  dragPositions.value.set(device.id, { x: currentX, y: currentY })
+
+  // Handle multi-device dragging
+  if (selectedDevices.value.size > 1 && selectedDevices.value.has(device.id) && dragState.value) {
     // Calculate the delta from the device's initial position
     const initialPos = dragState.value.initialPositions.get(device.id)
     if (!initialPos) return
@@ -1827,11 +2041,17 @@ const onDeviceDragMove = (device: Device, event: any) => {
       const initialDevicePos = dragState.value!.initialPositions.get(selectedDevice.id)
       if (!initialDevicePos) return
 
+      const newX = initialDevicePos.x + deltaX
+      const newY = initialDevicePos.y + deltaY
+
+      // Update drag position for other selected devices for real-time connection rendering
+      dragPositions.value.set(selectedDevice.id, { x: newX, y: newY })
+
       // Update the device position in the store in real-time
       // This will cause Vue's reactivity to update the visual position automatically
       deviceStore.updateDevice(selectedDevice.id, {
-        position_x: initialDevicePos.x + deltaX,
-        position_y: initialDevicePos.y + deltaY,
+        position_x: newX,
+        position_y: newY,
       })
     })
   }
@@ -1863,6 +2083,9 @@ const onDeviceDragEnd = (device: Device, event: any) => {
 
   // Clean up drag state
   dragState.value = null
+
+  // Clear all drag positions for connection rendering
+  dragPositions.value.clear()
 }
 
 const onDeviceMouseEnter = () => {
@@ -1876,6 +2099,136 @@ const onDeviceMouseLeave = () => {
   // Restore default canvas cursor when leaving device
   if (canvasContainer.value) {
     canvasContainer.value.style.cursor = mouseState.isDragging ? 'grabbing' : 'grab'
+  }
+}
+
+const onConnectionMouseEnter = () => {
+  // Change cursor to pointer when hovering over connections
+  if (canvasContainer.value) {
+    canvasContainer.value.style.cursor = 'pointer'
+  }
+}
+
+const onConnectionMouseLeave = () => {
+  // Restore default canvas cursor when leaving connection
+  if (canvasContainer.value) {
+    canvasContainer.value.style.cursor = mouseState.isDragging ? 'grabbing' : 'grab'
+  }
+}
+
+// Connection click and context menu handlers
+const onConnectionClick = (connection: any, event: any) => {
+  event.cancelBubble = true
+
+  // Don't handle click if it's a right-click (context menu)
+  if (event.evt?.button === 2) {
+    console.log('🔗 DEBUG: onConnectionClick - ignoring right-click')
+    return
+  }
+
+  // Toggle selection: if already selected, deselect it
+  if (selectedConnection.value === connection.id) {
+    selectedConnection.value = null
+    console.log('🔗 Connection deselected')
+  } else {
+    selectedConnection.value = connection.id
+    console.log('🔗 Connection selected:', connection.id)
+  }
+}
+
+const onConnectionRightClick = (connection: any, event: any) => {
+  console.log('🔗 DEBUG: onConnectionRightClick called for connection:', connection.id)
+  event.evt.preventDefault()
+  event.evt.stopPropagation()
+  event.cancelBubble = true
+
+  // Set flag to prevent canvas right-click from overriding
+  connectionRightClickInProgress.value = true
+  console.log('🔗 DEBUG: connectionRightClickInProgress set to TRUE')
+
+  // Select the connection
+  selectedConnection.value = connection.id
+  console.log('🔗 DEBUG: selectedConnection set to:', connection.id)
+
+  // Get the canvas container's bounding rect to calculate relative position
+  const rect = canvasContainer.value?.getBoundingClientRect()
+  if (!rect) return
+
+  // Calculate position relative to the canvas container
+  let menuX = event.evt.clientX - rect.left
+  let menuY = event.evt.clientY - rect.top
+
+  // Menu dimensions (approximate)
+  const menuWidth = 200
+  const menuHeight = 200
+
+  // Ensure menu doesn't go outside the canvas bounds
+  if (menuX + menuWidth > rect.width) {
+    menuX = rect.width - menuWidth
+  }
+  if (menuY + menuHeight > rect.height) {
+    menuY = rect.height - menuHeight
+  }
+
+  // Ensure menu doesn't go negative
+  menuX = Math.max(0, menuX)
+  menuY = Math.max(0, menuY)
+
+  console.log('🔗 DEBUG: About to show context menu')
+  // Show context menu with connection as target
+  showContextMenu(menuX, menuY, connection.id as any, 'connection' as any)
+}
+
+// Connection menu action functions
+const showConnectionInfo = (connectionId: number) => {
+  const connection = deviceStore.connections.find(c => c.id === connectionId)
+  if (!connection) return
+
+  const sourceDevice = deviceStore.devices.find(d => d.id === connection.source_device_id)
+  const targetDevice = deviceStore.devices.find(d => d.id === connection.target_device_id)
+
+  const info = `Connection ID: ${connection.id}
+Source: ${sourceDevice?.name || 'Unknown'} (${sourceDevice?.ip_address || 'N/A'})
+Target: ${targetDevice?.name || 'Unknown'} (${targetDevice?.ip_address || 'N/A'})
+Type: ${connection.connection_type}
+Properties: ${JSON.stringify(connection.properties || {}, null, 2)}`
+
+  alert(info)
+}
+
+const showConnectionStatus = (connectionId: number) => {
+  const connection = deviceStore.connections.find(c => c.id === connectionId)
+  if (!connection) return
+
+  console.log('📊 Show connection status:', connectionId)
+  // TODO: Implement connection status display
+  alert('Connection Status feature coming soon!')
+}
+
+const showConnectionStats = (connectionId: number) => {
+  const connection = deviceStore.connections.find(c => c.id === connectionId)
+  if (!connection) return
+
+  console.log('📈 Show connection stats:', connectionId)
+  // TODO: Implement connection stats display
+  alert('Connection Stats feature coming soon!')
+}
+
+const deleteConnection = (connectionId: number) => {
+  const connection = deviceStore.connections.find(c => c.id === connectionId)
+  if (!connection) return
+
+  const sourceDevice = deviceStore.devices.find(d => d.id === connection.source_device_id)
+  const targetDevice = deviceStore.devices.find(d => d.id === connection.target_device_id)
+
+  if (confirm(`Delete connection between ${sourceDevice?.name} and ${targetDevice?.name}?`)) {
+    // Remove connection from the store's connections array
+    const index = deviceStore.connections.findIndex(c => c.id === connectionId)
+    if (index !== -1) {
+      deviceStore.connections.splice(index, 1)
+      selectedConnection.value = null
+      console.log('✅ Connection deleted:', connectionId)
+    }
   }
 }
 

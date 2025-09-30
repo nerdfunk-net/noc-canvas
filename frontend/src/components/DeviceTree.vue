@@ -472,7 +472,7 @@ const mapNautobotDeviceType = (
   return 'router'
 }
 
-const loadDevices = async () => {
+const loadDevices = async (disableCache: boolean = false) => {
   // Check if Nautobot is properly configured before attempting to load
   if (!isNautobotConfigured.value) {
     devices.value = []
@@ -485,8 +485,8 @@ const loadDevices = async () => {
   error.value = null
 
   try {
-    console.log('🔍 Loading devices from API...')
-    const response = await nautobotApi.getAllDevices()
+    console.log('🔍 Loading devices from API...', disableCache ? '(without cache)' : '')
+    const response = await nautobotApi.getAllDevices(disableCache)
     console.log('📡 API Response:', response)
     devices.value = response.devices || []
     console.log('📊 Devices loaded:', devices.value.length)
@@ -520,8 +520,8 @@ const loadDevices = async () => {
   }
 }
 
-const refreshDevices = () => {
-  loadDevices()
+const refreshDevices = (disableCache: boolean = false) => {
+  loadDevices(disableCache)
 }
 
 const toggleGroup = (groupName: string) => {

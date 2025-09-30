@@ -192,20 +192,22 @@ export const nautobotApi = {
     offset?: number
     filter_type?: string
     filter_value?: string
+    disable_cache?: boolean
   }) {
     const searchParams = new URLSearchParams()
     if (params?.limit) searchParams.append('limit', params.limit.toString())
     if (params?.offset) searchParams.append('offset', params.offset.toString())
     if (params?.filter_type) searchParams.append('filter_type', params.filter_type)
     if (params?.filter_value) searchParams.append('filter_value', params.filter_value)
+    if (params?.disable_cache) searchParams.append('disable_cache', 'true')
 
     const endpoint = `/api/nautobot/devices${searchParams.toString() ? '?' + searchParams.toString() : ''}`
     return apiClient.get<NautobotDeviceResponse>(endpoint)
   },
 
-  async getAllDevices() {
+  async getAllDevices(disableCache: boolean = false) {
     // Load all devices without pagination
-    return this.getDevices({ limit: 10000 })
+    return this.getDevices({ limit: 10000, disable_cache: disableCache })
   },
 
   async getDeviceById(deviceId: string) {

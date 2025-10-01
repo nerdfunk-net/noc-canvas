@@ -519,6 +519,9 @@
                   <thead class="bg-gray-50">
                     <tr>
                       <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Icon
+                      </th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Template Name
                       </th>
                       <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -537,6 +540,16 @@
                   </thead>
                   <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-for="template in deviceTemplates" :key="template.id">
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-lg">
+                          <img
+                            :src="`/icons/${template.filename}`"
+                            :alt="template.name"
+                            class="w-10 h-10 object-contain"
+                            @error="(e) => (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2212%22%3E%3F%3C/text%3E%3C/svg%3E'"
+                          />
+                        </div>
+                      </td>
                       <td class="px-6 py-4 whitespace-nowrap">
                         <div class="text-sm font-medium text-gray-900">{{ template.name }}</div>
                       </td>

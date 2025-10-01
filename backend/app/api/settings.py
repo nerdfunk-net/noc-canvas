@@ -3,10 +3,12 @@ Settings API router for managing application configuration.
 """
 
 import logging
-from typing import List
+import json
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from ..core.config import settings as app_settings
 from ..core.security import verify_token
 from ..core.database import get_db
 from ..models.user import User
@@ -33,6 +35,95 @@ from ..services.checkmk import checkmk_service
 logger = logging.getLogger(__name__)
 router = APIRouter()
 security = HTTPBearer()
+
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+def get_setting_value(db: Session, key: str, default: str = "") -> str:
+    """Get a setting value from database or return default."""
+    setting = db.query(AppSettings).filter(AppSettings.key == key).first()
+    return setting.value if setting else default
+
+
+def upsert_setting(db: Session, key: str, value: str, description: Optional[str] = None) -> AppSettings:
+    """Create or update a setting in the database."""
+    setting = db.query(AppSettings).filter(AppSettings.key == key).first()
+
+    if setting:
+        setting.value = value
+        if description is not None:
+            setting.description = description
+    else:
+        setting = AppSettings(key=key, value=value, description=description)
+        db.add(setting)
+
+    return setting
+
+
+def build_nautobot_settings(db: Session) -> Dict[str, Any]:
+    """Build Nautobot settings dict from database and environment."""
+    stored_settings = {s.key: s.value for s in db.query(AppSettings).all()}
+
+    return {
+        "enabled": stored_settings.get("nautobot_enabled", "false").lower() == "true",
+        "url": stored_settings.get("nautobot_url") or app_settings.nautobot_url or "",
+        "token": "***" if (stored_settings.get("nautobot_token") or app_settings.nautobot_token) else "",
+        "verifyTls": stored_settings.get("nautobot_verify_tls", str(app_settings.nautobot_verify_ssl)).lower() == "true",
+        "timeout": int(stored_settings.get("nautobot_timeout", str(app_settings.nautobot_timeout))),
+    }
+
+
+def build_checkmk_settings(db: Session) -> Dict[str, Any]:
+    """Build CheckMK settings dict from database and environment."""
+    stored_settings = {s.key: s.value for s in db.query(AppSettings).all()}
+
+    return {
+        "enabled": stored_settings.get("checkmk_enabled", "false").lower() == "true",
+        "url": stored_settings.get("checkmk_url") or app_settings.checkmk_url or "",
+        "site": stored_settings.get("checkmk_site") or app_settings.checkmk_site or "cmk",
+        "username": stored_settings.get("checkmk_username") or app_settings.checkmk_username or "",
+        "password": "***" if (stored_settings.get("checkmk_password") or app_settings.checkmk_password) else "",
+        "verifyTls": stored_settings.get("checkmk_verify_tls", str(app_settings.checkmk_verify_ssl)).lower() == "true",
+    }
+
+
+def build_canvas_settings(db: Session) -> Dict[str, Any]:
+    """Build canvas settings dict from database."""
+    return {
+        "autoSaveInterval": int(get_setting_value(db, "canvas_autosave_interval", "60")),
+        "gridEnabled": get_setting_value(db, "canvas_grid_enabled", "true").lower() == "true",
+    }
+
+
+def build_database_settings() -> Dict[str, Any]:
+    """Build database settings dict from YAML config."""
+    try:
+        from ..core.yaml_config import load_database_config
+
+        db_config = load_database_config()
+        if db_config:
+            return {
+                "host": db_config.host,
+                "port": db_config.port,
+                "database": db_config.database,
+                "username": db_config.username,
+                "password": "***" if db_config.password else "",
+                "ssl": db_config.ssl,
+            }
+    except Exception as e:
+        logger.warning(f"Could not load database config: {e}")
+
+    # Default empty configuration
+    return {
+        "host": "",
+        "port": 5432,
+        "database": "noc_canvas",
+        "username": "",
+        "password": "",
+        "ssl": False,
+    }
 
 
 def get_current_user(
@@ -67,94 +158,11 @@ async def get_unified_settings(
     current_user: User = Depends(get_current_user),
 ):
     """Get unified settings for frontend."""
-    from ..core.config import settings as app_settings
-
-    # Build unified settings from various sources
     unified = UnifiedSettings()
-
-    # Get stored settings from database
-    stored_settings = {}
-    db_settings = db.query(AppSettings).all()
-    for setting in db_settings:
-        stored_settings[setting.key] = setting.value
-
-    # Nautobot settings (prefer database, fallback to environment)
-    unified.nautobot = {
-        "enabled": stored_settings.get("nautobot_enabled", "false").lower() == "true",
-        "url": stored_settings.get("nautobot_url") or app_settings.nautobot_url or "",
-        "token": "***"
-        if (stored_settings.get("nautobot_token") or app_settings.nautobot_token)
-        else "",
-        "verifyTls": stored_settings.get(
-            "nautobot_verify_tls", str(app_settings.nautobot_verify_ssl)
-        ).lower()
-        == "true",
-        "timeout": int(
-            stored_settings.get("nautobot_timeout", str(app_settings.nautobot_timeout))
-        ),
-    }
-
-    # CheckMK settings (prefer database, fallback to environment)
-    unified.checkmk = {
-        "enabled": stored_settings.get("checkmk_enabled", "false").lower() == "true",
-        "url": stored_settings.get("checkmk_url") or app_settings.checkmk_url or "",
-        "site": stored_settings.get("checkmk_site")
-        or app_settings.checkmk_site
-        or "cmk",
-        "username": stored_settings.get("checkmk_username")
-        or app_settings.checkmk_username
-        or "",
-        "password": "***"
-        if (stored_settings.get("checkmk_password") or app_settings.checkmk_password)
-        else "",
-        "verifyTls": stored_settings.get(
-            "checkmk_verify_tls", str(app_settings.checkmk_verify_ssl)
-        ).lower()
-        == "true",
-    }
-
-    # Canvas settings
-    unified.canvas = {
-        "autoSaveInterval": int(stored_settings.get("canvas_autosave_interval", "60")),
-        "gridEnabled": stored_settings.get("canvas_grid_enabled", "true").lower()
-        == "true",
-    }
-
-    # Database settings (from YAML config or environment)
-    try:
-        from ..core.yaml_config import load_database_config
-
-        db_config = load_database_config()
-        if db_config:
-            unified.database = {
-                "host": db_config.host,
-                "port": db_config.port,
-                "database": db_config.database,
-                "username": db_config.username,
-                "password": "***" if db_config.password else "",
-                "ssl": db_config.ssl,
-            }
-        else:
-            # Default empty configuration
-            unified.database = {
-                "host": "",
-                "port": 5432,
-                "database": "noc_canvas",
-                "username": "",
-                "password": "",
-                "ssl": False,
-            }
-    except Exception as e:
-        logger.warning(f"Could not load database config: {e}")
-        unified.database = {
-            "host": "",
-            "port": 5432,
-            "database": "noc_canvas",
-            "username": "",
-            "password": "",
-            "ssl": False,
-        }
-
+    unified.nautobot = build_nautobot_settings(db)
+    unified.checkmk = build_checkmk_settings(db)
+    unified.canvas = build_canvas_settings(db)
+    unified.database = build_database_settings()
     return unified
 
 
@@ -165,15 +173,10 @@ async def get_user_credentials(
 ):
     """Get user credentials."""
     try:
-        setting = (
-            db.query(AppSettings)
-            .filter(AppSettings.key == f"user_credentials_{current_user.username}")
-            .first()
-        )
-        if setting and setting.value:
-            import json
-
-            credentials = json.loads(setting.value)
+        key = f"user_credentials_{current_user.username}"
+        value = get_setting_value(db, key)
+        if value:
+            credentials = json.loads(value)
             return {"credentials": credentials}
         return {"credentials": []}
     except Exception as e:
@@ -380,24 +383,12 @@ async def create_or_update_setting(
     current_user: User = Depends(get_current_user),
 ):
     """Create or update a setting."""
-    setting = (
-        db.query(AppSettings).filter(AppSettings.key == setting_update.key).first()
+    setting = upsert_setting(
+        db,
+        setting_update.key,
+        setting_update.value,
+        setting_update.description
     )
-
-    if setting:
-        # Update existing setting
-        setting.value = setting_update.value
-        if setting_update.description is not None:
-            setting.description = setting_update.description
-    else:
-        # Create new setting
-        setting = AppSettings(
-            key=setting_update.key,
-            value=setting_update.value,
-            description=setting_update.description,
-        )
-        db.add(setting)
-
     db.commit()
     db.refresh(setting)
     return setting
@@ -430,13 +421,11 @@ async def get_nautobot_settings(
     current_user: User = Depends(get_current_user),
 ):
     """Get current Nautobot settings."""
-    from ..core.config import settings
-
     return NautobotSettings(
-        url=settings.nautobot_url,
-        token="***" if settings.nautobot_token else None,  # Hide actual token
-        timeout=settings.nautobot_timeout,
-        verify_ssl=settings.nautobot_verify_ssl,
+        url=app_settings.nautobot_url,
+        token="***" if app_settings.nautobot_token else None,
+        timeout=app_settings.nautobot_timeout,
+        verify_ssl=app_settings.nautobot_verify_ssl,
     )
 
 
@@ -476,15 +465,13 @@ async def get_checkmk_settings(
     current_user: User = Depends(get_current_user),
 ):
     """Get current CheckMK settings."""
-    from ..core.config import settings
-
     return CheckMKSettings(
-        url=settings.checkmk_url,
-        site=settings.checkmk_site,
-        username=settings.checkmk_username,
-        password="***" if settings.checkmk_password else None,  # Hide actual password
-        timeout=settings.checkmk_timeout,
-        verify_ssl=settings.checkmk_verify_ssl,
+        url=app_settings.checkmk_url,
+        site=app_settings.checkmk_site,
+        username=app_settings.checkmk_username,
+        password="***" if app_settings.checkmk_password else None,
+        timeout=app_settings.checkmk_timeout,
+        verify_ssl=app_settings.checkmk_verify_ssl,
     )
 
 
@@ -525,11 +512,9 @@ async def get_cache_settings(
     current_user: User = Depends(get_current_user),
 ):
     """Get current cache settings."""
-    from ..core.config import settings
-
     return CacheSettings(
-        enabled=True,  # Always enabled if Redis is available
-        ttl_seconds=settings.cache_ttl_seconds,
+        enabled=True,
+        ttl_seconds=app_settings.cache_ttl_seconds,
         prefetch_on_startup=True,
         refresh_interval_minutes=0,
         prefetch_items={
@@ -608,64 +593,45 @@ async def save_unified_settings(
 ):
     """Save unified settings from frontend."""
     try:
-        # Save plugin enabled states and canvas settings
+        # Collect all settings to save
         settings_to_save = [
             ("nautobot_enabled", str(settings_data.nautobot.get("enabled", False))),
             ("checkmk_enabled", str(settings_data.checkmk.get("enabled", False))),
-            (
-                "canvas_autosave_interval",
-                str(settings_data.canvas.get("autoSaveInterval", 60)),
-            ),
+            ("canvas_autosave_interval", str(settings_data.canvas.get("autoSaveInterval", 60))),
             ("canvas_grid_enabled", str(settings_data.canvas.get("gridEnabled", True))),
         ]
 
-        # Add Nautobot configuration settings
+        # Add Nautobot settings
         if hasattr(settings_data, "nautobot") and settings_data.nautobot:
             nautobot_config = settings_data.nautobot
-            settings_to_save.extend(
-                [
-                    ("nautobot_url", nautobot_config.get("url", "")),
-                    ("nautobot_token", nautobot_config.get("token", "")),
-                    (
-                        "nautobot_verify_tls",
-                        str(nautobot_config.get("verifyTls", True)),
-                    ),
-                    ("nautobot_timeout", str(nautobot_config.get("timeout", 30))),
-                ]
-            )
+            settings_to_save.extend([
+                ("nautobot_url", nautobot_config.get("url", "")),
+                ("nautobot_token", nautobot_config.get("token", "")),
+                ("nautobot_verify_tls", str(nautobot_config.get("verifyTls", True))),
+                ("nautobot_timeout", str(nautobot_config.get("timeout", 30))),
+            ])
 
-        # Add CheckMK configuration settings
+        # Add CheckMK settings
         if hasattr(settings_data, "checkmk") and settings_data.checkmk:
             checkmk_config = settings_data.checkmk
-            settings_to_save.extend(
-                [
-                    ("checkmk_url", checkmk_config.get("url", "")),
-                    ("checkmk_site", checkmk_config.get("site", "")),
-                    ("checkmk_username", checkmk_config.get("username", "")),
-                    ("checkmk_password", checkmk_config.get("password", "")),
-                    ("checkmk_verify_tls", str(checkmk_config.get("verifyTls", True))),
-                ]
-            )
+            settings_to_save.extend([
+                ("checkmk_url", checkmk_config.get("url", "")),
+                ("checkmk_site", checkmk_config.get("site", "")),
+                ("checkmk_username", checkmk_config.get("username", "")),
+                ("checkmk_password", checkmk_config.get("password", "")),
+                ("checkmk_verify_tls", str(checkmk_config.get("verifyTls", True))),
+            ])
 
-        # Save all settings to database
+        # Save all settings using helper function
         for key, value in settings_to_save:
-            # Skip saving masked passwords
-            if value == "***":
-                continue
+            if value != "***":  # Skip masked passwords
+                upsert_setting(db, key, value)
 
-            setting = db.query(AppSettings).filter(AppSettings.key == key).first()
-            if setting:
-                setting.value = value
-            else:
-                setting = AppSettings(key=key, value=value)
-                db.add(setting)
-
-        # Save database configuration to YAML file
+        # Save database configuration to YAML
         if hasattr(settings_data, "database") and settings_data.database:
             try:
                 from ..core.yaml_config import DatabaseConfig, save_database_config
 
-                # Only save if we have actual values (not masked passwords)
                 db_data = settings_data.database
                 if db_data.get("password") != "***" and db_data.get("host"):
                     config = DatabaseConfig(
@@ -678,61 +644,17 @@ async def save_unified_settings(
                     )
                     save_database_config(config)
                     logger.info("Database configuration saved to YAML file")
-
             except Exception as db_error:
                 logger.warning(f"Could not save database config: {db_error}")
-                # Don't fail the entire request if database config save fails
 
         db.commit()
         return {"message": "Settings saved successfully"}
-
     except Exception as e:
         logger.error(f"Error saving unified settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to save settings: {str(e)}",
         )
-
-
-@router.post("/test-nautobot")
-async def test_nautobot_connection(
-    test_data: dict,
-    current_user: User = Depends(get_current_user),
-):
-    """Test Nautobot connection with provided settings."""
-    try:
-        success, message = await nautobot_service.test_connection(
-            url=test_data.get("url", ""),
-            token=test_data.get("token", ""),
-            timeout=test_data.get("timeout", 30),
-            verify_ssl=test_data.get("verify_ssl", True),
-        )
-
-        return {"success": success, "message": message}
-    except Exception as e:
-        logger.error(f"Error testing Nautobot connection: {str(e)}")
-        return {"success": False, "message": f"Connection test failed: {str(e)}"}
-
-
-@router.post("/test-checkmk")
-async def test_checkmk_connection(
-    test_data: dict,
-    current_user: User = Depends(get_current_user),
-):
-    """Test CheckMK connection with provided settings."""
-    try:
-        success, message = await checkmk_service.test_connection(
-            url=test_data.get("url", ""),
-            site=test_data.get("site", ""),
-            username=test_data.get("username", ""),
-            password=test_data.get("password", ""),
-            verify_ssl=test_data.get("verify_ssl", True),
-        )
-
-        return {"success": success, "message": message}
-    except Exception as e:
-        logger.error(f"Error testing CheckMK connection: {str(e)}")
-        return {"success": False, "message": f"Connection test failed: {str(e)}"}
 
 
 @router.post("/test-database")
@@ -828,22 +750,11 @@ async def save_user_credentials(
 ):
     """Save user credentials."""
     try:
-        import json
-
         key = f"user_credentials_{current_user.username}"
-        setting = db.query(AppSettings).filter(AppSettings.key == key).first()
-
         credentials_json = json.dumps(credentials_data.credentials)
-
-        if setting:
-            setting.value = credentials_json
-        else:
-            setting = AppSettings(key=key, value=credentials_json)
-            db.add(setting)
-
+        upsert_setting(db, key, credentials_json)
         db.commit()
         return {"message": "Credentials saved successfully"}
-
     except Exception as e:
         logger.error(f"Error saving credentials: {str(e)}")
         raise HTTPException(

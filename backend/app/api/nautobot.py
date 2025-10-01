@@ -3,8 +3,10 @@ Nautobot API router for device management and API interactions.
 """
 
 import logging
-from typing import Optional, List
+from typing import Optional, List, Union, Dict, Any
+from functools import wraps
 from fastapi import APIRouter, Depends, HTTPException, status
+from ..core.config import settings
 from ..core.security import get_current_user
 from ..models.nautobot import (
     DeviceFilter,
@@ -32,21 +34,306 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# Helper function to extract username from current_user
+def get_username(current_user: Union[Dict, Any]) -> str:
+    """Extract username from current_user dict or object."""
+    return (
+        current_user.get("username")
+        if isinstance(current_user, dict)
+        else current_user.username
+    )
+
+
+# GraphQL query constants
+COMPLETE_DEVICE_DATA_QUERY = """
+query GetCompleteDeviceData($device_id: ID!) {
+  device(id: $device_id) {
+    id
+    name
+    display
+    device_type {
+      id
+      manufacturer {
+        name
+      }
+      model
+    }
+    role {
+      id
+      name
+    }
+    platform {
+      id
+      name
+      network_driver
+    }
+    location {
+      id
+      name
+      parent {
+        name
+      }
+    }
+    status {
+      id
+      name
+    }
+    primary_ip4 {
+      id
+      address
+      family
+    }
+    primary_ip6 {
+      id
+      address
+      family
+    }
+    serial
+    asset_tag
+    config_context
+    local_config_context_data
+    local_config_context_data_owner_content_type {
+      model
+    }
+    local_config_context_data_owner_object_id
+    secrets_group {
+      id
+      name
+    }
+    tenant {
+      id
+      name
+    }
+    cluster {
+      id
+      name
+    }
+    virtual_chassis {
+      id
+      name
+    }
+    vc_position
+    vc_priority
+    comments
+    last_updated
+    created
+    custom_fields
+    tags {
+      id
+      name
+    }
+    cf_last_backup
+  }
+}
+"""
+
+DEVICE_DETAILS_QUERY = """
+query DeviceDetails($deviceId: ID!) {
+    device(id: $deviceId) {
+        id
+        name
+        hostname: name
+        asset_tag
+        serial
+        position
+        face
+        config_context
+        local_config_context_data
+        _custom_field_data
+        primary_ip4 {
+            id
+            address
+            description
+            ip_version
+            host
+            mask_length
+            dns_name
+            status {
+                id
+                name
+            }
+            parent {
+                id
+                prefix
+            }
+        }
+        role {
+            id
+            name
+        }
+        device_type {
+            id
+            model
+            manufacturer {
+                id
+                name
+            }
+        }
+        platform {
+            id
+            name
+            network_driver
+            manufacturer {
+                id
+                name
+            }
+        }
+        location {
+            id
+            name
+            description
+            location_type {
+                id
+                name
+            }
+            parent {
+                id
+                name
+                description
+                location_type {
+                    id
+                    name
+                }
+            }
+        }
+        status {
+            id
+            name
+        }
+        tenant {
+            id
+            name
+            tenant_group {
+                name
+            }
+        }
+        rack {
+            id
+            name
+            rack_group {
+                id
+                name
+            }
+        }
+        tags {
+            id
+            name
+        }
+        interfaces {
+            id
+            name
+            description
+            enabled
+            mac_address
+            type
+            mode
+            mtu
+            status {
+                id
+                name
+            }
+            ip_addresses {
+                address
+                status {
+                    id
+                    name
+                }
+                role {
+                    id
+                    name
+                }
+            }
+            tagged_vlans {
+                id
+                name
+                vid
+            }
+            untagged_vlan {
+                id
+                name
+                vid
+            }
+        }
+        vrfs {
+            id
+            name
+            rd
+            description
+            namespace {
+                id
+                name
+            }
+        }
+    }
+}
+"""
+
+NAMESPACES_QUERY = """
+query {
+  namespaces {
+    id
+    name
+    description
+  }
+}
+"""
+
+SECRET_GROUPS_QUERY = """
+query secrets_groups {
+  secrets_groups {
+    id
+    name
+  }
+}
+"""
+
+
+# Helper function for job execution
+async def execute_nautobot_job(
+    job_url: str,
+    job_data: Dict[str, Any],
+    username: str,
+    job_description: str = "Job"
+) -> Dict[str, Any]:
+    """
+    Execute a Nautobot job and return standardized response.
+
+    Args:
+        job_url: The job endpoint URL
+        job_data: The job data payload
+        username: Username for authentication
+        job_description: Description of the job for logging
+
+    Returns:
+        Dict containing job_id, job_status, and full result
+    """
+    result = await nautobot_service.rest_request(
+        job_url, method="POST", data=job_data, username=username
+    )
+
+    job_id = result.get("job_result", {}).get("id") or result.get("id")
+    job_status = result.get("job_result", {}).get("status") or result.get("status", "pending")
+
+    return {
+        "job_id": job_id,
+        "job_status": job_status,
+        "result": result
+    }
+
+
+# =============================================================================
+# DEBUG ENDPOINTS - For development and troubleshooting only
+# =============================================================================
+
 @router.get("/debug/platform-test")
 async def test_platform_fields(
     current_user: dict = Depends(get_current_user),
 ):
     """Test different platform field variations in GraphQL."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
-
+        username = get_username(current_user)
         results = await nautobot_service.test_platform_fields(username)
         return results
-
     except Exception as e:
         logger.error(f"Platform field test failed: {str(e)}")
         raise HTTPException(
@@ -61,11 +348,7 @@ async def simple_device_test(
 ):
     """Simple test to check device fields including platform."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
 
         # Simple query to get one device with platform field
         query = """
@@ -83,13 +366,7 @@ async def simple_device_test(
         }
         """
 
-        print("=== SIMPLE DEVICE TEST ===")
-        print(f"Query: {query}")
-
         result = await nautobot_service.graphql_query(query, {}, username)
-
-        print(f"Result: {result}")
-        print("=== END SIMPLE DEVICE TEST ===")
 
         return {
             "query": query,
@@ -101,9 +378,7 @@ async def simple_device_test(
                 "first_device": result.get("data", {}).get("devices", [{}])[0] if result.get("data", {}).get("devices") else None
             }
         }
-
     except Exception as e:
-        print(f"Simple device test failed: {str(e)}")
         logger.error(f"Simple device test failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -117,11 +392,7 @@ async def debug_nautobot_config(
 ):
     """Debug endpoint to check Nautobot configuration."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         config = nautobot_service._get_config(username)
 
         # Return sanitized config for debugging
@@ -139,15 +410,17 @@ async def debug_nautobot_config(
         return {"error": str(e)}
 
 
+# =============================================================================
+# MAIN API ENDPOINTS
+# =============================================================================
+
+
 @router.get("/test", response_model=ConnectionTestResponse)
 async def test_nautobot_connection(
     current_user: dict = Depends(get_current_user),
 ):
     """Test current Nautobot connection using configured settings."""
     try:
-        from ..core.config import settings
-
-        # Use global environment settings
         if not settings.nautobot_url or not settings.nautobot_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -167,6 +440,8 @@ async def test_nautobot_connection(
             nautobot_url=settings.nautobot_url,
             connection_source="environment",
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error testing Nautobot connection: {str(e)}")
         raise HTTPException(
@@ -185,7 +460,7 @@ async def get_devices(
     current_user: dict = Depends(get_current_user),
 ):
     """Get list of devices from Nautobot with optional filtering and pagination.
-    
+
     Args:
         limit: Maximum number of devices to return
         offset: Number of devices to skip for pagination
@@ -195,11 +470,7 @@ async def get_devices(
         current_user: Current authenticated user
     """
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         logger.info(f"Fetching devices for user: {username}, disable_cache: {disable_cache}")
         result = await nautobot_service.get_devices(
             limit=limit,
@@ -211,7 +482,7 @@ async def get_devices(
         )
         return DeviceListResponse(**result)
     except Exception as e:
-        logger.error(f"Error fetching devices for user {username}: {str(e)}")
+        logger.error(f"Error fetching devices: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch devices: {str(e)}",
@@ -225,11 +496,7 @@ async def get_device(
 ):
     """Get specific device details from Nautobot."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         device = await nautobot_service.get_device(device_id, username=username)
         if not device:
             raise HTTPException(
@@ -254,97 +521,11 @@ async def get_device_nautobot_data(
 ):
     """Get complete device data from Nautobot including all fields."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
-
-        # Use GraphQL to get all device data
-        query = """
-        query GetCompleteDeviceData($device_id: ID!) {
-          device(id: $device_id) {
-            id
-            name
-            display
-            device_type {
-              id
-              manufacturer {
-                name
-              }
-              model
-            }
-            role {
-              id
-              name
-            }
-            platform {
-              id
-              name
-              network_driver
-            }
-            location {
-              id
-              name
-              parent {
-                name
-              }
-            }
-            status {
-              id
-              name
-            }
-            primary_ip4 {
-              id
-              address
-              family
-            }
-            primary_ip6 {
-              id
-              address
-              family
-            }
-            serial
-            asset_tag
-            config_context
-            local_config_context_data
-            local_config_context_data_owner_content_type {
-              model
-            }
-            local_config_context_data_owner_object_id
-            secrets_group {
-              id
-              name
-            }
-            tenant {
-              id
-              name
-            }
-            cluster {
-              id
-              name
-            }
-            virtual_chassis {
-              id
-              name
-            }
-            vc_position
-            vc_priority
-            comments
-            last_updated
-            created
-            custom_fields
-            tags {
-              id
-              name
-            }
-            cf_last_backup
-          }
-        }
-        """
-
+        username = get_username(current_user)
         variables = {"device_id": device_id}
-        result = await nautobot_service.graphql_query(query, variables, username=username)
+        result = await nautobot_service.graphql_query(
+            COMPLETE_DEVICE_DATA_QUERY, variables, username=username
+        )
 
         if "errors" in result:
             logger.error(f"GraphQL errors fetching device data: {result['errors']}")
@@ -361,7 +542,6 @@ async def get_device_nautobot_data(
             )
 
         return device_data
-
     except HTTPException:
         raise
     except Exception as e:
@@ -379,157 +559,11 @@ async def get_device_details(
 ):
     """Get detailed device information using the comprehensive devices.md query."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
-
-        # Start with a simplified query based on the working get_device method, then add more fields
-        query = """
-        query DeviceDetails($deviceId: ID!) {
-            device(id: $deviceId) {
-                id
-                name
-                hostname: name
-                asset_tag
-                serial
-                position
-                face
-                config_context
-                local_config_context_data
-                _custom_field_data
-                primary_ip4 {
-                    id
-                    address
-                    description
-                    ip_version
-                    host
-                    mask_length
-                    dns_name
-                    status {
-                        id
-                        name
-                    }
-                    parent {
-                        id
-                        prefix
-                    }
-                }
-                role {
-                    id
-                    name
-                }
-                device_type {
-                    id
-                    model
-                    manufacturer {
-                        id
-                        name
-                    }
-                }
-                platform {
-                    id
-                    name
-                    network_driver
-                    manufacturer {
-                        id
-                        name
-                    }
-                }
-                location {
-                    id
-                    name
-                    description
-                    location_type {
-                        id
-                        name
-                    }
-                    parent {
-                        id
-                        name
-                        description
-                        location_type {
-                            id
-                            name
-                        }
-                    }
-                }
-                status {
-                    id
-                    name
-                }
-                tenant {
-                    id
-                    name
-                    tenant_group {
-                        name
-                    }
-                }
-                rack {
-                    id
-                    name
-                    rack_group {
-                        id
-                        name
-                    }
-                }
-                tags {
-                    id
-                    name
-                }
-                interfaces {
-                    id
-                    name
-                    description
-                    enabled
-                    mac_address
-                    type
-                    mode
-                    mtu
-                    status {
-                        id
-                        name
-                    }
-                    ip_addresses {
-                        address
-                        status {
-                            id
-                            name
-                        }
-                        role {
-                            id
-                            name
-                        }
-                    }
-                    tagged_vlans {
-                        id
-                        name
-                        vid
-                    }
-                    untagged_vlan {
-                        id
-                        name
-                        vid
-                    }
-                }
-                vrfs {
-                    id
-                    name
-                    rd
-                    description
-                    namespace {
-                        id
-                        name
-                    }
-                }
-            }
-        }
-        """
-
+        username = get_username(current_user)
         variables = {"deviceId": device_id}
-
-        result = await nautobot_service.graphql_query(query, variables, username=username)
+        result = await nautobot_service.graphql_query(
+            DEVICE_DETAILS_QUERY, variables, username=username
+        )
 
         if "errors" in result:
             logger.error(f"GraphQL errors fetching device details: {result['errors']}")
@@ -546,7 +580,6 @@ async def get_device_details(
             )
 
         return device
-
     except HTTPException:
         raise
     except Exception as e:
@@ -563,17 +596,13 @@ async def search_devices(
     current_user: dict = Depends(get_current_user),
 ):
     """Search devices with filters.
-    
+
     Args:
         filters: Device filter parameters including disable_cache option
         current_user: Current authenticated user
     """
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         logger.info(f"Searching devices for user: {username}, disable_cache: {filters.disable_cache}")
         result = await nautobot_service.get_devices(
             limit=filters.limit,
@@ -599,11 +628,7 @@ async def check_ip_address(
 ):
     """Check if an IP address is available in Nautobot."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         result = await nautobot_service.check_ip_address(
             request.ip_address, username=username
         )
@@ -623,13 +648,13 @@ async def onboard_device(
 ):
     """Onboard a new device to Nautobot."""
     try:
-        from ..core.config import settings
-
         if not settings.nautobot_url or not settings.nautobot_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Nautobot settings not configured.",
             )
+
+        username = get_username(current_user)
 
         # Prepare job data
         job_data = {
@@ -642,40 +667,29 @@ async def onboard_device(
                 "device_status": request.status_id,
                 "interface_status": request.interface_status_id,
                 "ip_address_status": request.ip_address_status_id,
-                "platform": None
-                if request.platform_id == "detect"
-                else request.platform_id,
+                "platform": None if request.platform_id == "detect" else request.platform_id,
                 "port": request.port,
                 "timeout": request.timeout,
                 "update_devices_without_primary_ip": False,
             }
         }
 
-        # Make job API call via REST
+        # Execute onboarding job
         job_url = "extras/jobs/Sync%20Devices%20From%20Network/run/"
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
-        result = await nautobot_service.rest_request(
-            job_url, method="POST", data=job_data, username=username
-        )
-
-        job_id = result.get("job_result", {}).get("id") or result.get("id")
-        job_status = result.get("job_result", {}).get("status") or result.get(
-            "status", "pending"
+        job_result = await execute_nautobot_job(
+            job_url, job_data, username, "Device onboarding"
         )
 
         return OnboardingResponse(
             success=True,
             message=f"Device onboarding job started successfully for {request.ip_address}",
-            job_id=job_id,
-            job_status=job_status,
+            job_id=job_result["job_id"],
+            job_status=job_result["job_status"],
             device_data=request.dict(),
-            nautobot_response=result,
+            nautobot_response=job_result["result"],
         )
-
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error onboarding device: {str(e)}")
         return OnboardingResponse(
@@ -692,13 +706,13 @@ async def sync_network_data(
 ):
     """Sync network data with Nautobot."""
     try:
-        from ..core.config import settings
-
         if not settings.nautobot_url or not settings.nautobot_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Nautobot settings not configured.",
             )
+
+        username = get_username(current_user)
 
         # Prepare job data
         job_data = {
@@ -709,38 +723,27 @@ async def sync_network_data(
                 "ip_address_status": request.data.get("ip_address_status"),
                 "namespace": request.data.get("namespace"),
                 "sync_cables": request.data.get("sync_cables", False),
-                "sync_software_version": request.data.get(
-                    "sync_software_version", False
-                ),
+                "sync_software_version": request.data.get("sync_software_version", False),
                 "sync_vlans": request.data.get("sync_vlans", False),
                 "sync_vrfs": request.data.get("sync_vrfs", False),
             }
         }
 
-        # Make job API call via REST
+        # Execute network data sync job
         job_url = "extras/jobs/Sync%20Network%20Data%20From%20Network/run/"
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
-        result = await nautobot_service.rest_request(
-            job_url, method="POST", data=job_data, username=username
-        )
-
-        job_id = result.get("job_result", {}).get("id") or result.get("id")
-        job_status = result.get("job_result", {}).get("status") or result.get(
-            "status", "pending"
+        job_result = await execute_nautobot_job(
+            job_url, job_data, username, "Network data sync"
         )
 
         return SyncResponse(
             success=True,
             message="Network data sync job started successfully",
-            job_id=job_id,
-            job_status=job_status,
-            nautobot_response=result,
+            job_id=job_result["job_id"],
+            job_status=job_result["job_status"],
+            nautobot_response=job_result["result"],
         )
-
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error syncing network data: {str(e)}")
         return SyncResponse(
@@ -755,11 +758,7 @@ async def get_locations(
 ):
     """Get list of locations from Nautobot."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         locations = await nautobot_service.get_locations(username=username)
         return [Location(**location) for location in locations]
     except Exception as e:
@@ -776,11 +775,7 @@ async def get_nautobot_stats(
 ):
     """Get Nautobot statistics."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         stats = await nautobot_service.get_stats(username=username)
         return NautobotStats(**stats)
     except Exception as e:
@@ -797,21 +792,10 @@ async def get_namespaces(
 ):
     """Get list of namespaces from Nautobot."""
     try:
-        query = """
-        query {
-          namespaces {
-            id
-            name
-            description
-          }
-        }
-        """
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
+        username = get_username(current_user)
+        result = await nautobot_service.graphql_query(
+            NAMESPACES_QUERY, username=username
         )
-        result = await nautobot_service.graphql_query(query, username=username)
 
         if "errors" in result:
             raise Exception(f"GraphQL errors: {result['errors']}")
@@ -832,11 +816,7 @@ async def get_nautobot_roles(
 ):
     """Get Nautobot device roles."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         result = await nautobot_service.rest_request("extras/roles/", username=username)
         roles = result.get("results", [])
         return [NautobotRole(**role) for role in roles]
@@ -854,11 +834,7 @@ async def get_nautobot_device_roles(
 ):
     """Get Nautobot roles specifically for dcim.device content type."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         result = await nautobot_service.rest_request(
             "extras/roles/?content_types=dcim.device", username=username
         )
@@ -878,11 +854,7 @@ async def get_nautobot_platforms(
 ):
     """Get Nautobot platforms."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         result = await nautobot_service.rest_request(
             "dcim/platforms/", username=username
         )
@@ -902,11 +874,7 @@ async def get_nautobot_statuses(
 ):
     """Get all Nautobot statuses."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         result = await nautobot_service.rest_request(
             "extras/statuses/", username=username
         )
@@ -926,11 +894,7 @@ async def get_nautobot_device_statuses(
 ):
     """Get Nautobot device statuses."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         result = await nautobot_service.rest_request(
             "extras/statuses/?content_types=dcim.device", username=username
         )
@@ -950,20 +914,10 @@ async def get_nautobot_secret_groups(
 ):
     """Get Nautobot secret groups."""
     try:
-        query = """
-        query secrets_groups {
-          secrets_groups {
-            id
-            name
-          }
-        }
-        """
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
+        username = get_username(current_user)
+        result = await nautobot_service.graphql_query(
+            SECRET_GROUPS_QUERY, username=username
         )
-        result = await nautobot_service.graphql_query(query, username=username)
 
         if "errors" in result:
             logger.warning(f"GraphQL errors fetching secret groups: {result['errors']}")
@@ -982,11 +936,7 @@ async def nautobot_health_check(
 ):
     """Simple health check to verify Nautobot connectivity."""
     try:
-        username = (
-            current_user.get("username")
-            if isinstance(current_user, dict)
-            else current_user.username
-        )
+        username = get_username(current_user)
         result = await nautobot_service.rest_request(
             "dcim/devices/?limit=1", username=username
         )

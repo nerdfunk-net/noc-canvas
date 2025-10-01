@@ -20,6 +20,7 @@ router = APIRouter()
 
 class DeviceCommandResponse(BaseModel):
     """Response model for device commands."""
+
     success: bool
     output: Optional[Any] = None  # Can be string (raw) or list/dict (parsed)
     error: Optional[str] = None
@@ -32,6 +33,7 @@ class DeviceCommandResponse(BaseModel):
 
 class DeviceConnectionInfo(BaseModel):
     """Device connection information extracted from Nautobot."""
+
     device_id: str
     name: str
     primary_ip: str
@@ -39,7 +41,9 @@ class DeviceConnectionInfo(BaseModel):
     network_driver: str
 
 
-async def get_device_connection_info(device_id: str, username: str) -> DeviceConnectionInfo:
+async def get_device_connection_info(
+    device_id: str, username: str
+) -> DeviceConnectionInfo:
     """Get device connection information from Nautobot."""
     try:
         # Get device details from Nautobot
@@ -48,41 +52,41 @@ async def get_device_connection_info(device_id: str, username: str) -> DeviceCon
         if not device_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Device {device_id} not found in Nautobot"
+                detail=f"Device {device_id} not found in Nautobot",
             )
 
         # Extract primary IP address
-        primary_ip4 = device_data.get('primary_ip4')
-        if not primary_ip4 or not primary_ip4.get('address'):
+        primary_ip4 = device_data.get("primary_ip4")
+        if not primary_ip4 or not primary_ip4.get("address"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Device {device_id} does not have a primary IPv4 address configured"
+                detail=f"Device {device_id} does not have a primary IPv4 address configured",
             )
 
         # Extract IP address without subnet mask
-        primary_ip = primary_ip4['address'].split('/')[0]
+        primary_ip = primary_ip4["address"].split("/")[0]
 
         # Extract platform information
-        platform_info = device_data.get('platform')
+        platform_info = device_data.get("platform")
         if not platform_info:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Device {device_id} does not have a platform configured"
+                detail=f"Device {device_id} does not have a platform configured",
             )
 
-        network_driver = platform_info.get('network_driver')
+        network_driver = platform_info.get("network_driver")
         if not network_driver:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Device {device_id} platform does not have a network_driver configured"
+                detail=f"Device {device_id} platform does not have a network_driver configured",
             )
 
         return DeviceConnectionInfo(
             device_id=device_id,
-            name=device_data.get('name', ''),
+            name=device_data.get("name", ""),
             primary_ip=primary_ip,
-            platform=platform_info.get('name', ''),
-            network_driver=network_driver
+            platform=platform_info.get("name", ""),
+            network_driver=network_driver,
         )
 
     except HTTPException:
@@ -91,7 +95,7 @@ async def get_device_connection_info(device_id: str, username: str) -> DeviceCon
         logger.error(f"Error getting device connection info for {device_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get device connection information: {str(e)}"
+            detail=f"Failed to get device connection information: {str(e)}",
         )
 
 
@@ -116,11 +120,11 @@ async def get_running_config(
         logger.debug(f"Device connection info type: {type(device_info)}")
 
         # Execute command on device
-        logger.debug(f"Executing command 'show running-config' on device {device_info.name}")
+        logger.debug(
+            f"Executing command 'show running-config' on device {device_info.name}"
+        )
         result = await device_communication_service.execute_command(
-            device_info=device_info,
-            command="show running-config",
-            username=username
+            device_info=device_info, command="show running-config", username=username
         )
         logger.debug(f"Command execution result: success={result.get('success')}")
 
@@ -132,7 +136,7 @@ async def get_running_config(
             command="show running-config",
             execution_time=result.get("execution_time"),
             parsed=result.get("parsed", False),
-            parser_used=result.get("parser_used")
+            parser_used=result.get("parser_used"),
         )
 
     except HTTPException:
@@ -142,7 +146,7 @@ async def get_running_config(
         logger.exception("Full exception details:")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get running configuration: {str(e)}"
+            detail=f"Failed to get running configuration: {str(e)}",
         )
 
 
@@ -164,9 +168,7 @@ async def get_startup_config(
 
         # Execute command on device
         result = await device_communication_service.execute_command(
-            device_info=device_info,
-            command="show startup-config",
-            username=username
+            device_info=device_info, command="show startup-config", username=username
         )
 
         return DeviceCommandResponse(
@@ -177,7 +179,7 @@ async def get_startup_config(
             command="show startup-config",
             execution_time=result.get("execution_time"),
             parsed=result.get("parsed", False),
-            parser_used=result.get("parser_used")
+            parser_used=result.get("parser_used"),
         )
 
     except HTTPException:
@@ -186,7 +188,7 @@ async def get_startup_config(
         logger.error(f"Error getting startup config for device {device_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get startup configuration: {str(e)}"
+            detail=f"Failed to get startup configuration: {str(e)}",
         )
 
 
@@ -221,7 +223,7 @@ async def get_cdp_neighbors(
             device_info=device_info,
             command="show cdp neighbors",
             username=username,
-            parser="TEXTFSM" if use_textfsm else None
+            parser="TEXTFSM" if use_textfsm else None,
         )
 
         return DeviceCommandResponse(
@@ -232,7 +234,7 @@ async def get_cdp_neighbors(
             command="show cdp neighbors",
             execution_time=result.get("execution_time"),
             parsed=result.get("parsed", False),
-            parser_used=result.get("parser_used")
+            parser_used=result.get("parser_used"),
         )
 
     except HTTPException:
@@ -241,7 +243,7 @@ async def get_cdp_neighbors(
         logger.error(f"Error getting CDP neighbors for device {device_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get CDP neighbors: {str(e)}"
+            detail=f"Failed to get CDP neighbors: {str(e)}",
         )
 
 
@@ -263,9 +265,7 @@ async def get_ospf_neighbors(
 
         # Execute command on device
         result = await device_communication_service.execute_command(
-            device_info=device_info,
-            command="show ip ospf neighbor",
-            username=username
+            device_info=device_info, command="show ip ospf neighbor", username=username
         )
 
         return DeviceCommandResponse(
@@ -276,7 +276,7 @@ async def get_ospf_neighbors(
             command="show ip ospf neighbor",
             execution_time=result.get("execution_time"),
             parsed=result.get("parsed", False),
-            parser_used=result.get("parser_used")
+            parser_used=result.get("parser_used"),
         )
 
     except HTTPException:
@@ -285,7 +285,7 @@ async def get_ospf_neighbors(
         logger.error(f"Error getting OSPF neighbors for device {device_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get OSPF neighbors: {str(e)}"
+            detail=f"Failed to get OSPF neighbors: {str(e)}",
         )
 
 
@@ -307,9 +307,7 @@ async def get_ip_routes(
 
         # Execute command on device
         result = await device_communication_service.execute_command(
-            device_info=device_info,
-            command="show ip route",
-            username=username
+            device_info=device_info, command="show ip route", username=username
         )
 
         return DeviceCommandResponse(
@@ -320,7 +318,7 @@ async def get_ip_routes(
             command="show ip route",
             execution_time=result.get("execution_time"),
             parsed=result.get("parsed", False),
-            parser_used=result.get("parser_used")
+            parser_used=result.get("parser_used"),
         )
 
     except HTTPException:
@@ -329,7 +327,7 @@ async def get_ip_routes(
         logger.error(f"Error getting IP routes for device {device_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get IP routes: {str(e)}"
+            detail=f"Failed to get IP routes: {str(e)}",
         )
 
 
@@ -351,9 +349,7 @@ async def get_access_lists(
 
         # Execute command on device
         result = await device_communication_service.execute_command(
-            device_info=device_info,
-            command="show access-lists",
-            username=username
+            device_info=device_info, command="show access-lists", username=username
         )
 
         return DeviceCommandResponse(
@@ -364,7 +360,7 @@ async def get_access_lists(
             command="show access-lists",
             execution_time=result.get("execution_time"),
             parsed=result.get("parsed", False),
-            parser_used=result.get("parser_used")
+            parser_used=result.get("parser_used"),
         )
 
     except HTTPException:
@@ -373,7 +369,7 @@ async def get_access_lists(
         logger.error(f"Error getting access lists for device {device_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get access lists: {str(e)}"
+            detail=f"Failed to get access lists: {str(e)}",
         )
 
 
@@ -397,22 +393,26 @@ async def send_custom_command(
 
         # Get command from database using command_id
         logger.debug(f"Fetching command with ID {command_id} from database")
-        device_command = db.query(DeviceCommand).filter(DeviceCommand.id == command_id).first()
+        device_command = (
+            db.query(DeviceCommand).filter(DeviceCommand.id == command_id).first()
+        )
 
         if not device_command:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Command with ID {command_id} not found"
+                detail=f"Command with ID {command_id} not found",
             )
 
-        logger.info(f"Found command: {device_command.command} (parser: {device_command.parser.value})")
+        logger.info(
+            f"Found command: {device_command.command} (parser: {device_command.parser.value})"
+        )
 
         # Execute command on device with parser if specified
         result = await device_communication_service.execute_command(
             device_info=device_info,
             command=device_command.command,
             username=username,
-            parser=device_command.parser.value
+            parser=device_command.parser.value,
         )
 
         return DeviceCommandResponse(
@@ -423,14 +423,16 @@ async def send_custom_command(
             command=device_command.command,
             execution_time=result.get("execution_time"),
             parsed=result.get("parsed", False),
-            parser_used=result.get("parser_used")
+            parser_used=result.get("parser_used"),
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error sending custom command {command_id} to device {device_id}: {str(e)}")
+        logger.error(
+            f"Error sending custom command {command_id} to device {device_id}: {str(e)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send custom command: {str(e)}"
+            detail=f"Failed to send custom command: {str(e)}",
         )

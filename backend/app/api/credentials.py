@@ -3,7 +3,6 @@ Credentials API router for managing user credentials with database storage.
 """
 
 import logging
-from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from ..core.security import get_current_user
@@ -19,8 +18,6 @@ from ..models.credential import (
     CredentialPurpose,
     encrypt_password,
     decrypt_password,
-    create_credentials_tables,
-    get_credentials_session,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,9 +42,7 @@ async def get_user_credentials(
 
         # Query credentials for the current user
         credentials = (
-            db.query(UserCredential)
-            .filter(UserCredential.owner == username)
-            .all()
+            db.query(UserCredential).filter(UserCredential.owner == username).all()
         )
 
         # Convert to response models
@@ -90,9 +85,7 @@ async def get_user_credentials_with_passwords(
 
         # Query credentials for the current user
         credentials = (
-            db.query(UserCredential)
-            .filter(UserCredential.owner == username)
-            .all()
+            db.query(UserCredential).filter(UserCredential.owner == username).all()
         )
 
         # Convert to response models with passwords
@@ -109,11 +102,15 @@ async def get_user_credentials_with_passwords(
                         purpose=cred.purpose,
                         password=decrypted_password,
                         created_at=cred.created_at.isoformat(),
-                        updated_at=cred.updated_at.isoformat() if cred.updated_at else None,
+                        updated_at=cred.updated_at.isoformat()
+                        if cred.updated_at
+                        else None,
                     )
                 )
             except Exception as decrypt_error:
-                logger.error(f"Error decrypting password for credential {cred.id}: {str(decrypt_error)}")
+                logger.error(
+                    f"Error decrypting password for credential {cred.id}: {str(decrypt_error)}"
+                )
                 # Skip credentials that can't be decrypted
                 continue
 
@@ -144,8 +141,7 @@ async def get_credential(
         credential = (
             db.query(UserCredential)
             .filter(
-                UserCredential.id == credential_id,
-                UserCredential.owner == username
+                UserCredential.id == credential_id, UserCredential.owner == username
             )
             .first()
         )
@@ -153,7 +149,7 @@ async def get_credential(
         if not credential:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Credential {credential_id} not found"
+                detail=f"Credential {credential_id} not found",
             )
 
         return CredentialResponse(
@@ -163,7 +159,9 @@ async def get_credential(
             username=credential.username,
             purpose=credential.purpose,
             created_at=credential.created_at.isoformat(),
-            updated_at=credential.updated_at.isoformat() if credential.updated_at else None,
+            updated_at=credential.updated_at.isoformat()
+            if credential.updated_at
+            else None,
         )
 
     except HTTPException:
@@ -206,7 +204,9 @@ async def create_credential(
         db.commit()
         db.refresh(new_credential)
 
-        logger.info(f"Created new credential '{credential_data.name}' for user {username}")
+        logger.info(
+            f"Created new credential '{credential_data.name}' for user {username}"
+        )
 
         return CredentialResponse(
             id=new_credential.id,
@@ -215,7 +215,9 @@ async def create_credential(
             username=new_credential.username,
             purpose=new_credential.purpose,
             created_at=new_credential.created_at.isoformat(),
-            updated_at=new_credential.updated_at.isoformat() if new_credential.updated_at else None,
+            updated_at=new_credential.updated_at.isoformat()
+            if new_credential.updated_at
+            else None,
         )
 
     except Exception as e:
@@ -246,8 +248,7 @@ async def update_credential(
         credential = (
             db.query(UserCredential)
             .filter(
-                UserCredential.id == credential_id,
-                UserCredential.owner == username
+                UserCredential.id == credential_id, UserCredential.owner == username
             )
             .first()
         )
@@ -255,7 +256,7 @@ async def update_credential(
         if not credential:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Credential {credential_id} not found"
+                detail=f"Credential {credential_id} not found",
             )
 
         # Update fields if provided
@@ -280,7 +281,9 @@ async def update_credential(
             username=credential.username,
             purpose=credential.purpose,
             created_at=credential.created_at.isoformat(),
-            updated_at=credential.updated_at.isoformat() if credential.updated_at else None,
+            updated_at=credential.updated_at.isoformat()
+            if credential.updated_at
+            else None,
         )
 
     except HTTPException:
@@ -312,8 +315,7 @@ async def delete_credential(
         credential = (
             db.query(UserCredential)
             .filter(
-                UserCredential.id == credential_id,
-                UserCredential.owner == username
+                UserCredential.id == credential_id, UserCredential.owner == username
             )
             .first()
         )
@@ -321,7 +323,7 @@ async def delete_credential(
         if not credential:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Credential {credential_id} not found"
+                detail=f"Credential {credential_id} not found",
             )
 
         db.delete(credential)
@@ -359,10 +361,7 @@ async def get_credentials_by_purpose(
         # Query credentials for the current user filtered by purpose
         credentials = (
             db.query(UserCredential)
-            .filter(
-                UserCredential.owner == username,
-                UserCredential.purpose == purpose
-            )
+            .filter(UserCredential.owner == username, UserCredential.purpose == purpose)
             .all()
         )
 

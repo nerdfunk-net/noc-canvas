@@ -42,14 +42,14 @@ class Settings(BaseSettings):
             return f"{scheme}://:{self.noc_redis_password}@{self.noc_redis_host}:{self.noc_redis_port}"
         return f"{scheme}://{self.noc_redis_host}:{self.noc_redis_port}"
 
-    @property 
+    @property
     def celery_broker_url(self) -> str:
         """Construct Celery broker URL with authentication."""
         return f"{self.redis_url}/1"
-        
+
     @property
     def celery_result_backend(self) -> str:
-        """Construct Celery result backend URL with authentication."""  
+        """Construct Celery result backend URL with authentication."""
         return f"{self.redis_url}/2"
 
     # Cache TTL settings

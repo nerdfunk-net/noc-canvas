@@ -151,8 +151,10 @@ class PasswordChangeRequest(BaseModel):
 
 # Device Commands models
 
+
 class CommandPlatform(enum.Enum):
     """Supported device platforms."""
+
     IOS = "IOS"
     IOS_XE = "IOS XE"
     NEXUS = "Nexus"
@@ -160,6 +162,7 @@ class CommandPlatform(enum.Enum):
 
 class CommandParser(enum.Enum):
     """Supported command parsers."""
+
     TEXTFSM = "TextFSM"
     TTP = "TTP"
     SCRAPLI = "Scrapli"
@@ -181,7 +184,7 @@ class DeviceCommand(Base):
 
     # Unique constraint on command + platform combination
     __table_args__ = (
-        UniqueConstraint('command', 'platform', name='unique_command_platform'),
+        UniqueConstraint("command", "platform", name="unique_command_platform"),
     )
 
 
@@ -220,18 +223,18 @@ class DeviceCommandResponse(BaseModel):
     class Config:
         from_attributes = True
 
-    @field_serializer('created_at')
+    @field_serializer("created_at")
     def serialize_created_at(self, value: datetime) -> str:
         return value.isoformat()
 
-    @field_serializer('updated_at')
+    @field_serializer("updated_at")
     def serialize_updated_at(self, value: Optional[datetime]) -> Optional[str]:
         return value.isoformat() if value else None
 
-    @field_serializer('platform')
+    @field_serializer("platform")
     def serialize_platform(self, value) -> str:
-        return value.value if hasattr(value, 'value') else str(value)
+        return value.value if hasattr(value, "value") else str(value)
 
-    @field_serializer('parser')
+    @field_serializer("parser")
     def serialize_parser(self, value) -> str:
-        return value.value if hasattr(value, 'value') else str(value)
+        return value.value if hasattr(value, "value") else str(value)

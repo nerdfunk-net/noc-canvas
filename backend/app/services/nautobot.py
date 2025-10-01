@@ -100,7 +100,9 @@ class NautobotService:
                     response_data = response.json()
                     return response_data
                 else:
-                    logger.error(f"GraphQL request failed: {response.status_code} - {response.text}")
+                    logger.error(
+                        f"GraphQL request failed: {response.status_code} - {response.text}"
+                    )
                     raise Exception(
                         f"GraphQL request failed with status {response.status_code}: {response.text}"
                     )
@@ -222,7 +224,7 @@ class NautobotService:
         disable_cache: bool = False,
     ) -> Dict[str, Any]:
         """Get devices with optional filtering and pagination.
-        
+
         Args:
             limit: Maximum number of devices to return
             offset: Number of devices to skip
@@ -231,11 +233,11 @@ class NautobotService:
             username: Username for authentication
             disable_cache: If True, bypass cache and fetch fresh data
         """
-        
+
         # Check cache first (only if cache is enabled)
         cached_result = None
         cache_key = None
-        
+
         if not disable_cache:
             cache_key = cache_service.generate_key(
                 "nautobot",
@@ -472,7 +474,9 @@ class NautobotService:
 
         return response_data
 
-    async def test_platform_fields(self, username: Optional[str] = None) -> Dict[str, Any]:
+    async def test_platform_fields(
+        self, username: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Test different possible platform field names and structures."""
         test_queries = [
             # Test 1: Try platform field directly
@@ -526,20 +530,17 @@ class NautobotService:
             try:
                 result = await self.graphql_query(query, {}, username)
                 if "errors" not in result:
-                    results[f"test_{i+1}"] = {
+                    results[f"test_{i + 1}"] = {
                         "success": True,
-                        "data": result.get("data", {})
+                        "data": result.get("data", {}),
                     }
                 else:
-                    results[f"test_{i+1}"] = {
+                    results[f"test_{i + 1}"] = {
                         "success": False,
-                        "errors": result["errors"]
+                        "errors": result["errors"],
                     }
             except Exception as e:
-                results[f"test_{i+1}"] = {
-                    "success": False,
-                    "error": str(e)
-                }
+                results[f"test_{i + 1}"] = {"success": False, "error": str(e)}
 
         return results
 

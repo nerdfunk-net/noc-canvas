@@ -4,7 +4,6 @@ Nautobot API router for device management and API interactions.
 
 import logging
 from typing import Optional, List, Union, Dict, Any
-from functools import wraps
 from fastapi import APIRouter, Depends, HTTPException, status
 from ..core.config import settings
 from ..core.security import get_current_user
@@ -290,10 +289,7 @@ query secrets_groups {
 
 # Helper function for job execution
 async def execute_nautobot_job(
-    job_url: str,
-    job_data: Dict[str, Any],
-    username: str,
-    job_description: str = "Job"
+    job_url: str, job_data: Dict[str, Any], username: str, job_description: str = "Job"
 ) -> Dict[str, Any]:
     """
     Execute a Nautobot job and return standardized response.
@@ -312,18 +308,17 @@ async def execute_nautobot_job(
     )
 
     job_id = result.get("job_result", {}).get("id") or result.get("id")
-    job_status = result.get("job_result", {}).get("status") or result.get("status", "pending")
+    job_status = result.get("job_result", {}).get("status") or result.get(
+        "status", "pending"
+    )
 
-    return {
-        "job_id": job_id,
-        "job_status": job_status,
-        "result": result
-    }
+    return {"job_id": job_id, "job_status": job_status, "result": result}
 
 
 # =============================================================================
 # DEBUG ENDPOINTS - For development and troubleshooting only
 # =============================================================================
+
 
 @router.get("/debug/platform-test")
 async def test_platform_fields(
@@ -375,8 +370,10 @@ async def simple_device_test(
                 "has_data": "data" in result,
                 "has_devices": "devices" in result.get("data", {}),
                 "device_count": len(result.get("data", {}).get("devices", [])),
-                "first_device": result.get("data", {}).get("devices", [{}])[0] if result.get("data", {}).get("devices") else None
-            }
+                "first_device": result.get("data", {}).get("devices", [{}])[0]
+                if result.get("data", {}).get("devices")
+                else None,
+            },
         }
     except Exception as e:
         logger.error(f"Simple device test failed: {str(e)}")
@@ -471,7 +468,9 @@ async def get_devices(
     """
     try:
         username = get_username(current_user)
-        logger.info(f"Fetching devices for user: {username}, disable_cache: {disable_cache}")
+        logger.info(
+            f"Fetching devices for user: {username}, disable_cache: {disable_cache}"
+        )
         result = await nautobot_service.get_devices(
             limit=limit,
             offset=offset,
@@ -603,7 +602,9 @@ async def search_devices(
     """
     try:
         username = get_username(current_user)
-        logger.info(f"Searching devices for user: {username}, disable_cache: {filters.disable_cache}")
+        logger.info(
+            f"Searching devices for user: {username}, disable_cache: {filters.disable_cache}"
+        )
         result = await nautobot_service.get_devices(
             limit=filters.limit,
             offset=filters.offset,
@@ -667,7 +668,9 @@ async def onboard_device(
                 "device_status": request.status_id,
                 "interface_status": request.interface_status_id,
                 "ip_address_status": request.ip_address_status_id,
-                "platform": None if request.platform_id == "detect" else request.platform_id,
+                "platform": None
+                if request.platform_id == "detect"
+                else request.platform_id,
                 "port": request.port,
                 "timeout": request.timeout,
                 "update_devices_without_primary_ip": False,
@@ -723,7 +726,9 @@ async def sync_network_data(
                 "ip_address_status": request.data.get("ip_address_status"),
                 "namespace": request.data.get("namespace"),
                 "sync_cables": request.data.get("sync_cables", False),
-                "sync_software_version": request.data.get("sync_software_version", False),
+                "sync_software_version": request.data.get(
+                    "sync_software_version", False
+                ),
                 "sync_vlans": request.data.get("sync_vlans", False),
                 "sync_vrfs": request.data.get("sync_vrfs", False),
             }

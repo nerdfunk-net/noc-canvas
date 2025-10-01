@@ -6,7 +6,6 @@ The new job monitoring functionality is now handled via /api/settings/jobs/* end
 """
 
 import logging
-from typing import Dict, Any
 from fastapi import APIRouter, Depends
 from ..core.security import get_current_user
 from ..services.background_jobs import background_job_service

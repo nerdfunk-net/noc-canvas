@@ -19,6 +19,7 @@ CredentialsBase = Base
 
 class CredentialPurpose(enum.Enum):
     """Purpose of the credential."""
+
     TACACS = "tacacs"
     SSH = "ssh"
 
@@ -33,7 +34,9 @@ class UserCredential(CredentialsBase):
     name = Column(String(255), nullable=False)  # Credential name/description
     username = Column(String(255), nullable=False)  # Stored username
     encrypted_password = Column(Text, nullable=False)  # Encrypted password
-    purpose = Column(Enum(CredentialPurpose), nullable=False, default=CredentialPurpose.SSH)
+    purpose = Column(
+        Enum(CredentialPurpose), nullable=False, default=CredentialPurpose.SSH
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

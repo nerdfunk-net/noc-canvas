@@ -41,13 +41,16 @@ security = HTTPBearer()
 # Helper Functions
 # =============================================================================
 
+
 def get_setting_value(db: Session, key: str, default: str = "") -> str:
     """Get a setting value from database or return default."""
     setting = db.query(AppSettings).filter(AppSettings.key == key).first()
     return setting.value if setting else default
 
 
-def upsert_setting(db: Session, key: str, value: str, description: Optional[str] = None) -> AppSettings:
+def upsert_setting(
+    db: Session, key: str, value: str, description: Optional[str] = None
+) -> AppSettings:
     """Create or update a setting in the database."""
     setting = db.query(AppSettings).filter(AppSettings.key == key).first()
 
@@ -69,9 +72,16 @@ def build_nautobot_settings(db: Session) -> Dict[str, Any]:
     return {
         "enabled": stored_settings.get("nautobot_enabled", "false").lower() == "true",
         "url": stored_settings.get("nautobot_url") or app_settings.nautobot_url or "",
-        "token": "***" if (stored_settings.get("nautobot_token") or app_settings.nautobot_token) else "",
-        "verifyTls": stored_settings.get("nautobot_verify_tls", str(app_settings.nautobot_verify_ssl)).lower() == "true",
-        "timeout": int(stored_settings.get("nautobot_timeout", str(app_settings.nautobot_timeout))),
+        "token": "***"
+        if (stored_settings.get("nautobot_token") or app_settings.nautobot_token)
+        else "",
+        "verifyTls": stored_settings.get(
+            "nautobot_verify_tls", str(app_settings.nautobot_verify_ssl)
+        ).lower()
+        == "true",
+        "timeout": int(
+            stored_settings.get("nautobot_timeout", str(app_settings.nautobot_timeout))
+        ),
     }
 
 
@@ -82,18 +92,30 @@ def build_checkmk_settings(db: Session) -> Dict[str, Any]:
     return {
         "enabled": stored_settings.get("checkmk_enabled", "false").lower() == "true",
         "url": stored_settings.get("checkmk_url") or app_settings.checkmk_url or "",
-        "site": stored_settings.get("checkmk_site") or app_settings.checkmk_site or "cmk",
-        "username": stored_settings.get("checkmk_username") or app_settings.checkmk_username or "",
-        "password": "***" if (stored_settings.get("checkmk_password") or app_settings.checkmk_password) else "",
-        "verifyTls": stored_settings.get("checkmk_verify_tls", str(app_settings.checkmk_verify_ssl)).lower() == "true",
+        "site": stored_settings.get("checkmk_site")
+        or app_settings.checkmk_site
+        or "cmk",
+        "username": stored_settings.get("checkmk_username")
+        or app_settings.checkmk_username
+        or "",
+        "password": "***"
+        if (stored_settings.get("checkmk_password") or app_settings.checkmk_password)
+        else "",
+        "verifyTls": stored_settings.get(
+            "checkmk_verify_tls", str(app_settings.checkmk_verify_ssl)
+        ).lower()
+        == "true",
     }
 
 
 def build_canvas_settings(db: Session) -> Dict[str, Any]:
     """Build canvas settings dict from database."""
     return {
-        "autoSaveInterval": int(get_setting_value(db, "canvas_autosave_interval", "60")),
-        "gridEnabled": get_setting_value(db, "canvas_grid_enabled", "true").lower() == "true",
+        "autoSaveInterval": int(
+            get_setting_value(db, "canvas_autosave_interval", "60")
+        ),
+        "gridEnabled": get_setting_value(db, "canvas_grid_enabled", "true").lower()
+        == "true",
     }
 
 
@@ -186,6 +208,7 @@ async def get_user_credentials(
 
 # Device Commands endpoints (must be before generic /{key} route)
 
+
 @router.get("/commands", response_model=List[DeviceCommandResponse])
 async def get_device_commands(
     db: Session = Depends(get_db),
@@ -275,8 +298,16 @@ async def update_device_command(
 
     try:
         # If updating command or platform, check for duplicates
-        new_command = command_update.command if command_update.command is not None else command.command
-        new_platform = command_update.platform if command_update.platform is not None else command.platform
+        new_command = (
+            command_update.command
+            if command_update.command is not None
+            else command.command
+        )
+        new_platform = (
+            command_update.platform
+            if command_update.platform is not None
+            else command.platform
+        )
 
         # Check for existing command with same command + platform combination (excluding current record)
         existing_command = (
@@ -290,7 +321,11 @@ async def update_device_command(
         )
 
         if existing_command:
-            platform_value = new_platform.value if hasattr(new_platform, 'value') else str(new_platform)
+            platform_value = (
+                new_platform.value
+                if hasattr(new_platform, "value")
+                else str(new_platform)
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"A command '{new_command}' already exists for platform '{platform_value}'. Duplicates are not allowed.",
@@ -384,10 +419,7 @@ async def create_or_update_setting(
 ):
     """Create or update a setting."""
     setting = upsert_setting(
-        db,
-        setting_update.key,
-        setting_update.value,
-        setting_update.description
+        db, setting_update.key, setting_update.value, setting_update.description
     )
     db.commit()
     db.refresh(setting)
@@ -597,30 +629,40 @@ async def save_unified_settings(
         settings_to_save = [
             ("nautobot_enabled", str(settings_data.nautobot.get("enabled", False))),
             ("checkmk_enabled", str(settings_data.checkmk.get("enabled", False))),
-            ("canvas_autosave_interval", str(settings_data.canvas.get("autoSaveInterval", 60))),
+            (
+                "canvas_autosave_interval",
+                str(settings_data.canvas.get("autoSaveInterval", 60)),
+            ),
             ("canvas_grid_enabled", str(settings_data.canvas.get("gridEnabled", True))),
         ]
 
         # Add Nautobot settings
         if hasattr(settings_data, "nautobot") and settings_data.nautobot:
             nautobot_config = settings_data.nautobot
-            settings_to_save.extend([
-                ("nautobot_url", nautobot_config.get("url", "")),
-                ("nautobot_token", nautobot_config.get("token", "")),
-                ("nautobot_verify_tls", str(nautobot_config.get("verifyTls", True))),
-                ("nautobot_timeout", str(nautobot_config.get("timeout", 30))),
-            ])
+            settings_to_save.extend(
+                [
+                    ("nautobot_url", nautobot_config.get("url", "")),
+                    ("nautobot_token", nautobot_config.get("token", "")),
+                    (
+                        "nautobot_verify_tls",
+                        str(nautobot_config.get("verifyTls", True)),
+                    ),
+                    ("nautobot_timeout", str(nautobot_config.get("timeout", 30))),
+                ]
+            )
 
         # Add CheckMK settings
         if hasattr(settings_data, "checkmk") and settings_data.checkmk:
             checkmk_config = settings_data.checkmk
-            settings_to_save.extend([
-                ("checkmk_url", checkmk_config.get("url", "")),
-                ("checkmk_site", checkmk_config.get("site", "")),
-                ("checkmk_username", checkmk_config.get("username", "")),
-                ("checkmk_password", checkmk_config.get("password", "")),
-                ("checkmk_verify_tls", str(checkmk_config.get("verifyTls", True))),
-            ])
+            settings_to_save.extend(
+                [
+                    ("checkmk_url", checkmk_config.get("url", "")),
+                    ("checkmk_site", checkmk_config.get("site", "")),
+                    ("checkmk_username", checkmk_config.get("username", "")),
+                    ("checkmk_password", checkmk_config.get("password", "")),
+                    ("checkmk_verify_tls", str(checkmk_config.get("verifyTls", True))),
+                ]
+            )
 
         # Save all settings using helper function
         for key, value in settings_to_save:
@@ -770,7 +812,7 @@ async def get_job_status(
     """Get Celery job status and worker information."""
     try:
         from ..services.background_jobs import celery_app, CELERY_AVAILABLE
-        
+
         if not CELERY_AVAILABLE or not celery_app:
             return {
                 "workerActive": False,
@@ -778,30 +820,30 @@ async def get_job_status(
                 "activeJobs": 0,
                 "workers": [],
                 "recentJobs": [],
-                "error": "Celery not available"
+                "error": "Celery not available",
             }
-        
+
         # Get worker stats with error handling
         inspect = celery_app.control.inspect()
-        
+
         # Initialize default values
         active_workers = {}
         stats = {}
         worker_info = []
         total_active_jobs = 0
-        
+
         try:
             # Try to get active workers
             active_workers = inspect.active() or {}
         except Exception as e:
             logger.warning(f"Could not get active workers: {e}")
-            
+
         try:
             # Try to get worker stats
             stats = inspect.stats() or {}
         except Exception as e:
             logger.warning(f"Could not get worker stats: {e}")
-        
+
         # Check if any workers responded to ping
         try:
             ping_response = inspect.ping() or {}
@@ -809,31 +851,35 @@ async def get_job_status(
         except Exception as e:
             logger.warning(f"Could not ping workers: {e}")
             available_workers = []
-        
+
         # Process worker information
         for worker_name, worker_stats in stats.items():
             active_jobs_for_worker = len(active_workers.get(worker_name, []))
             total_active_jobs += active_jobs_for_worker
-            
-            worker_info.append({
-                "name": worker_name,
-                "status": "active" if worker_name in active_workers else "inactive",
-                "loadavg": worker_stats.get("rusage", {}).get("loadavg"),
-                "activeJobs": active_jobs_for_worker
-            })
-        
+
+            worker_info.append(
+                {
+                    "name": worker_name,
+                    "status": "active" if worker_name in active_workers else "inactive",
+                    "loadavg": worker_stats.get("rusage", {}).get("loadavg"),
+                    "activeJobs": active_jobs_for_worker,
+                }
+            )
+
         # If we have available workers from ping but no stats, add them
         for worker_name in available_workers:
             if worker_name not in [w["name"] for w in worker_info]:
                 active_jobs_for_worker = len(active_workers.get(worker_name, []))
                 total_active_jobs += active_jobs_for_worker
-                worker_info.append({
-                    "name": worker_name,
-                    "status": "active",
-                    "loadavg": None,
-                    "activeJobs": active_jobs_for_worker
-                })
-        
+                worker_info.append(
+                    {
+                        "name": worker_name,
+                        "status": "active",
+                        "loadavg": None,
+                        "activeJobs": active_jobs_for_worker,
+                    }
+                )
+
         # Get queue size (approximate)
         queue_size = 0
         try:
@@ -841,31 +887,33 @@ async def get_job_status(
             queue_size = sum(len(jobs) for jobs in reserved.values())
         except Exception as e:
             logger.warning(f"Could not get queue size: {e}")
-        
+
         # Get recent job results
         recent_jobs = []
         try:
             for worker_name in active_workers.keys():
                 for job in active_workers[worker_name]:
-                    recent_jobs.append({
-                        "id": job.get("id", "unknown"),
-                        "name": job.get("name", "Unknown Task"),
-                        "state": "RUNNING",
-                        "timestamp": job.get("time_start", ""),
-                        "worker": worker_name
-                    })
+                    recent_jobs.append(
+                        {
+                            "id": job.get("id", "unknown"),
+                            "name": job.get("name", "Unknown Task"),
+                            "state": "RUNNING",
+                            "timestamp": job.get("time_start", ""),
+                            "worker": worker_name,
+                        }
+                    )
         except Exception as e:
             logger.warning(f"Could not get recent jobs: {e}")
-        
+
         return {
             "workerActive": len(worker_info) > 0,
             "queueSize": queue_size,
             "activeJobs": total_active_jobs,
             "workers": worker_info,
             "recentJobs": recent_jobs[-10:] if recent_jobs else [],  # Last 10 jobs
-            "availableWorkers": available_workers
+            "availableWorkers": available_workers,
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting job status: {str(e)}")
         return {
@@ -874,7 +922,7 @@ async def get_job_status(
             "activeJobs": 0,
             "workers": [],
             "recentJobs": [],
-            "error": f"Connection error: {str(e)}"
+            "error": f"Connection error: {str(e)}",
         }
 
 
@@ -885,19 +933,21 @@ async def submit_test_job(
     """Submit a test job to verify Celery worker functionality."""
     try:
         from ..services.background_jobs import test_background_task, CELERY_AVAILABLE
-        
+
         if not CELERY_AVAILABLE:
             raise HTTPException(status_code=503, detail="Celery is not available")
-        
+
         # Submit test job with a 10-second delay to demonstrate functionality
         result = test_background_task.delay("Test job from settings", 10)
-        
+
         return {
             "success": True,
             "jobId": result.id,
-            "message": "Test job submitted successfully"
+            "message": "Test job submitted successfully",
         }
-        
+
     except Exception as e:
         logger.error(f"Error submitting test job: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to submit test job: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to submit test job: {str(e)}"
+        )

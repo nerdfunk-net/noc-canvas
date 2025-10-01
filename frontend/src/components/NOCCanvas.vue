@@ -142,13 +142,13 @@ cd<template>
 
           <!-- Device Icon -->
           <v-image
-            v-if="getDeviceIcon(device.device_type)"
+            v-if="getDeviceIcon(device)"
             :config="{
               x: 16,
               y: 16,
               width: 28,
               height: 28,
-              image: getDeviceIcon(device.device_type),
+              image: getDeviceIcon(device),
             }"
           />
 
@@ -509,11 +509,12 @@ cd<template>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useDevicesStore, type Device } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
 import { type NautobotDevice, canvasApi, nautobotApi, makeAuthenticatedRequest } from '@/services/api'
 import { useDeviceIcons } from '@/composables/useDeviceIcons'
+import { templateService } from '@/services/templateService'
 import { useCanvasControls } from '@/composables/useCanvasControls'
 import { useDeviceSelection } from '@/composables/useDeviceSelection'
 import { useContextMenu } from '@/composables/useContextMenu'
@@ -537,7 +538,66 @@ const DEVICE_TEXT_Y_OFFSET = 50
 
 const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
-const { loadDeviceIcons, getDeviceIcon } = useDeviceIcons()
+const { loadDeviceIcons, getDeviceIcon: getHardcodedIcon } = useDeviceIcons()
+
+// Map to store device-specific icons
+const deviceIconMap = ref<Map<number, HTMLImageElement>>(new Map())
+
+// Enhanced icon getter that uses templates first, then falls back to hardcoded icons
+const getDeviceIcon = (device: Device): HTMLImageElement | null => {
+  // Check if we have a cached icon for this device
+  if (deviceIconMap.value.has(device.id)) {
+    return deviceIconMap.value.get(device.id)!
+  }
+
+  // Fall back to hardcoded icon immediately for rendering
+  return getHardcodedIcon(device.device_type)
+}
+
+// Async function to load device icon from templates
+const loadDeviceIconFromTemplate = async (device: Device) => {
+  try {
+    // Parse device properties to get platform and device type info
+    const props = device.properties ? JSON.parse(device.properties) : {}
+    const platformId = props.platform_id
+    const deviceTypeModel = props.device_type_model
+    console.log('🔍 Loading icon for device:', device.name, {
+      deviceId: device.id,
+      rawProperties: device.properties,
+      parsedProperties: props,
+      platformId,
+      deviceTypeModel,
+      allKeys: Object.keys(props)
+    })
+
+    // Try to get icon from template service
+    const templateIcon = await templateService.getDeviceIcon(platformId, deviceTypeModel)
+    if (templateIcon) {
+      console.log('✅ Using template icon for device:', device.name)
+      // Create new Map to trigger reactivity
+      deviceIconMap.value = new Map(deviceIconMap.value).set(device.id, templateIcon)
+      console.log('🔄 Icon map updated, map size:', deviceIconMap.value.size)
+      return
+    }
+
+    // Use hardcoded icon as fallback
+    const fallbackIcon = getHardcodedIcon(device.device_type)
+    if (fallbackIcon) {
+      deviceIconMap.value = new Map(deviceIconMap.value).set(device.id, fallbackIcon)
+    }
+  } catch (error) {
+    console.error('Error loading device icon:', error)
+  }
+}
+
+// Watch for device changes and load template icons
+watch(() => deviceStore.devices, async (devices) => {
+  for (const device of devices) {
+    if (!deviceIconMap.value.has(device.id)) {
+      await loadDeviceIconFromTemplate(device)
+    }
+  }
+}, { deep: true, immediate: true })
 
 // Initialize canvas controls composable
 const canvasControls = useCanvasControls()
@@ -1490,6 +1550,8 @@ const addNeighborsToCanvas = async (device: Device) => {
             status: neighborDevice.status?.name,
             device_model: neighborDevice.device_type?.model,
             platform: neighborDevice.platform?.network_driver,
+            platform_id: neighborDevice.platform?.id,
+            device_type_model: neighborDevice.device_type?.model,
           }),
         })
 
@@ -1808,12 +1870,23 @@ const onDrop = async (event: DragEvent) => {
             status: device.status?.name,
             device_model: device.device_type?.model,
             platform: device.platform?.network_driver,
+            platform_id: device.platform?.id,
+            device_type_model: device.device_type?.model,
             last_backup: device.cf_last_backup,
           }),
         }
         showDuplicateDialog.value = true
         return
       }
+
+      // Debug: Log the Nautobot device object to see platform structure
+      console.log('🔍 Creating device from Nautobot:', {
+        name: device.name,
+        platform: device.platform,
+        platform_id: device.platform?.id,
+        device_type: device.device_type,
+        device_type_model: device.device_type?.model
+      })
 
       deviceStore.createDevice({
         name: device.name,
@@ -1828,6 +1901,8 @@ const onDrop = async (event: DragEvent) => {
           status: device.status?.name,
           device_model: device.device_type?.model,
           platform: device.platform?.network_driver,
+          platform_id: device.platform?.id,
+          device_type_model: device.device_type?.model,
           last_backup: device.cf_last_backup,
         }),
       })
@@ -2599,8 +2674,11 @@ const handleUnsavedChangesDiscard = () => {
 onMounted(async () => {
   await nextTick()
 
-  // Load device icons first
-  await loadDeviceIcons()
+  // Load device icons and templates first
+  await Promise.all([
+    loadDeviceIcons(),
+    templateService.fetchTemplates()
+  ])
 
   // Debug: Check device count
 

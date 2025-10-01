@@ -234,6 +234,10 @@ class NautobotService:
             disable_cache: If True, bypass cache and fetch fresh data
         """
 
+        logging.debug(
+            f"Fetching devices with filter_type={filter_type}, filter_value={filter_value}, limit={limit}, offset={offset} disable_cache={disable_cache}"
+        )
+
         # Check cache first (only if cache is enabled)
         cached_result = None
         cache_key = None
@@ -299,6 +303,7 @@ class NautobotService:
                       model
                     }
                     platform {
+                      id
                       network_driver
                     }
                     cf_last_backup
@@ -331,6 +336,7 @@ class NautobotService:
                         model
                       }
                       platform {
+                        id
                         network_driver
                       }
                       cf_last_backup
@@ -365,6 +371,7 @@ class NautobotService:
                           model
                         }
                         platform {
+                          id
                           network_driver
                         }
                         cf_last_backup
@@ -398,6 +405,7 @@ class NautobotService:
                   model
                 }
                 platform {
+                  id
                   network_driver
                 }
                 cf_last_backup
@@ -474,76 +482,6 @@ class NautobotService:
 
         return response_data
 
-    async def test_platform_fields(
-        self, username: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Test different possible platform field names and structures."""
-        test_queries = [
-            # Test 1: Try platform field directly
-            """
-            query test_platform_direct {
-              devices(limit: 1) {
-                id
-                name
-                platform {
-                  name
-                }
-              }
-            }
-            """,
-            # Test 2: Try device_type with more fields
-            """
-            query test_device_type_extended {
-              devices(limit: 1) {
-                id
-                name
-                device_type {
-                  model
-                  manufacturer {
-                    name
-                  }
-                  part_number
-                  platform {
-                    name
-                  }
-                }
-              }
-            }
-            """,
-            # Test 3: Try alternative platform field names
-            """
-            query test_platform_alternatives {
-              devices(limit: 1) {
-                id
-                name
-                device_platform {
-                  name
-                }
-              }
-            }
-            """,
-        ]
-
-        results = {}
-
-        for i, query in enumerate(test_queries):
-            try:
-                result = await self.graphql_query(query, {}, username)
-                if "errors" not in result:
-                    results[f"test_{i + 1}"] = {
-                        "success": True,
-                        "data": result.get("data", {}),
-                    }
-                else:
-                    results[f"test_{i + 1}"] = {
-                        "success": False,
-                        "errors": result["errors"],
-                    }
-            except Exception as e:
-                results[f"test_{i + 1}"] = {"success": False, "error": str(e)}
-
-        return results
-
     async def get_device(
         self, device_id: str, username: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -572,6 +510,7 @@ class NautobotService:
               name
             }
             platform {
+              id
               network_driver
             }
             status {

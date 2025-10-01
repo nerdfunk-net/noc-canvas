@@ -67,7 +67,7 @@
       <!-- Main Content Area -->
       <div class="flex-1 overflow-y-auto">
         <div class="p-4 md:p-6">
-          <div class="max-w-4xl">
+          <div :class="activeTab === 'templates' ? 'max-w-7xl' : 'max-w-4xl'">
             <!-- Page Header (hidden on mobile when menu is open) -->
             <div class="mb-6" :class="{ 'hidden md:block': showMobileMenu }">
               <h2 class="text-xl md:text-2xl font-bold text-gray-900">
@@ -467,7 +467,7 @@
           <!-- Templates Tab -->
           <div v-if="activeTab === 'templates'" class="space-y-6">
             <!-- Device Shape Templates -->
-            <div class="card p-6">
+            <div class="card p-6 w-full max-w-full">
               <div class="flex items-center justify-between mb-4">
                 <div>
                   <h2 class="text-lg font-semibold text-gray-900">Device Shape Templates</h2>
@@ -515,7 +515,7 @@
 
               <!-- Templates Table -->
               <div v-else class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
+                  <table class="w-full divide-y divide-gray-200">
                   <thead class="bg-gray-50">
                     <tr>
                       <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1749,7 +1749,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
 import { useNotificationStore } from '@/stores/notification'
@@ -1763,8 +1763,15 @@ const router = useRouter()
 const deviceStore = useDevicesStore()
 const { reloadCommands } = useCommands()
 
-const activeTab = ref('general')
+// Persist active tab in sessionStorage to survive re-renders/HMR
+const activeTab = ref(sessionStorage.getItem('settings-active-tab') || 'general')
 const showMobileMenu = ref(false)
+
+// Watch for tab changes and persist to sessionStorage
+watch(activeTab, (newTab) => {
+  sessionStorage.setItem('settings-active-tab', newTab)
+  console.log('📑 Active tab changed to:', newTab)
+})
 const saving = ref(false)
 const savingProfile = ref(false)
 const changingPassword = ref(false)
@@ -2228,6 +2235,17 @@ watch(activeTab, async (newTab) => {
   }
 })
 
+// Also fetch on mount if templates tab is already active (from sessionStorage)
+onMounted(() => {
+  if (activeTab.value === 'templates') {
+    console.log('🔄 Templates tab active on mount, fetching templates...')
+    Promise.all([
+      fetchTemplates(),
+      fetchPlatforms()
+    ])
+  }
+})
+
 // Auto-refresh job status when Jobs tab is selected
 watch(activeTab, async (newTab) => {
   if (newTab === 'jobs') {
@@ -2378,14 +2396,19 @@ const fetchTemplates = async () => {
   loadingTemplates.value = true
   templatesError.value = null
   try {
+    console.log('🔄 Fetching templates from API...')
     const response = await makeAuthenticatedRequest('/api/settings/device-templates')
+    console.log('📥 Templates API response:', response.status, response.ok)
     if (response.ok) {
-      deviceTemplates.value = await response.json()
+      const data = await response.json()
+      console.log('✅ Templates data received:', data)
+      deviceTemplates.value = data
+      console.log('📊 deviceTemplates.value now has', deviceTemplates.value.length, 'items')
     } else {
       throw new Error('Failed to fetch templates')
     }
   } catch (error) {
-    console.error('Error fetching templates:', error)
+    console.error('❌ Error fetching templates:', error)
     templatesError.value = 'Failed to load device templates'
   } finally {
     loadingTemplates.value = false
@@ -2565,6 +2588,8 @@ const saveTemplate = async () => {
     // Get token to verify it exists
     const token = secureStorage.getToken() || localStorage.getItem('token')
     console.log('📤 Saving template:', {
+      isEditing: !!editingTemplate.value,
+      editingTemplateId: editingTemplate.value?.id,
       url,
       method,
       templateData,
@@ -3034,3 +3059,16 @@ const loadSettings = async () => {
 
 loadSettings()
 </script>
+
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

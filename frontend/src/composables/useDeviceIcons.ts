@@ -1,34 +1,29 @@
 import { ref } from 'vue'
 
-// Import SVG icons
-// import routerIcon from '/icons/router-svgrepo-com.svg' // Commented out - file deleted
-import switchIcon from '/icons/switch-svgrepo-com.svg'
-import firewallIcon from '/icons/firewall-fire-svgrepo-com.svg'
-import shieldIcon from '/icons/shield-user-svgrepo-com.svg'
-
 export const useDeviceIcons = () => {
   const deviceIcons = ref<Map<string, HTMLImageElement>>(new Map())
   const iconsLoaded = ref(false)
 
-  // Load SVG icons as Image objects
+  // Dynamically load icons from public directory
   const loadDeviceIcons = async () => {
-    const iconPaths = {
-      // router: routerIcon, // Commented out - file deleted
-      switch: switchIcon,
-      firewall: firewallIcon,
-      vpn_gateway: shieldIcon,
+    // Define icon paths dynamically (no static imports needed)
+    const iconFiles: Record<string, string> = {
+      router: '/icons/default-icon.svg',
+      switch: '/icons/default-icon.svg',
+      firewall: '/icons/default-icon.svg',
+      vpn_gateway: '/icons/default-icon.svg',
     }
 
-    const loadPromises = Object.entries(iconPaths).map(([type, iconPath]) => {
-      return new Promise<void>((resolve, reject) => {
+    const loadPromises = Object.entries(iconFiles).map(([type, iconPath]) => {
+      return new Promise<void>((resolve) => {
         const img = new Image()
         img.onload = () => {
           deviceIcons.value.set(type, img)
           resolve()
         }
         img.onerror = () => {
-          console.error(`Failed to load icon for ${type}:`, iconPath)
-          reject(new Error(`Failed to load ${type} icon`))
+          console.warn(`Failed to load icon for ${type}:`, iconPath, '- will use template system')
+          resolve() // Don't reject, just skip
         }
         img.src = iconPath
       })
@@ -37,7 +32,7 @@ export const useDeviceIcons = () => {
     try {
       await Promise.all(loadPromises)
       iconsLoaded.value = true
-      console.log('✅ All device icons loaded successfully')
+      console.log('✅ Default device icons loaded')
     } catch (error) {
       console.error('❌ Error loading device icons:', error)
       iconsLoaded.value = false
@@ -46,18 +41,12 @@ export const useDeviceIcons = () => {
 
   // Get device icon (for Konva canvas)
   const getDeviceIcon = (type: string): HTMLImageElement | null => {
-    return deviceIcons.value.get(type) || deviceIcons.value.get('router') || null
+    return deviceIcons.value.get(type) || null
   }
 
-  // Get device icon URL (for regular HTML)
+  // Get device icon URL (for regular HTML) - return default icon
   const getDeviceIconUrl = (type: string): string => {
-    const iconPaths = {
-      // router: routerIcon, // Commented out - file deleted
-      switch: switchIcon,
-      firewall: firewallIcon,
-      vpn_gateway: shieldIcon,
-    }
-    return iconPaths[type as keyof typeof iconPaths] || iconPaths.switch
+    return '/icons/default-icon.svg'
   }
 
   // Get device icon as emoji (fallback)

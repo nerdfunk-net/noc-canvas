@@ -185,11 +185,18 @@
                   <div class="bg-white border border-gray-200 rounded-lg p-4">
                     <h5 class="font-medium text-gray-900 mb-3">Device Details</h5>
                     <div class="space-y-2 text-sm">
-                      <div v-if="nautobotData.hostname"><strong>Hostname:</strong> {{ nautobotData.hostname }}</div>
-                      <div v-if="nautobotData.serial"><strong>Serial:</strong> {{ nautobotData.serial }}</div>
-                      <div v-if="nautobotData.asset_tag"><strong>Asset Tag:</strong> {{ nautobotData.asset_tag }}</div>
-                      <div v-if="nautobotData.position"><strong>Position:</strong> {{ nautobotData.position }}</div>
-                      <div v-if="nautobotData.face"><strong>Face:</strong> {{ nautobotData.face }}</div>
+                      <div v-if="nautobotData.platform">
+                        <strong>Platform:</strong> {{ nautobotData.platform.name }}
+                      </div>
+                      <div v-if="nautobotData.device_type">
+                        <strong>Device Type:</strong> {{ nautobotData.device_type.model }}
+                        <div v-if="nautobotData.device_type.manufacturer" class="text-gray-600 ml-4">
+                          Manufacturer: {{ nautobotData.device_type.manufacturer.name }}
+                        </div>
+                      </div>
+                      <div v-if="nautobotData.serial">
+                        <strong>Serial:</strong> {{ nautobotData.serial }}
+                      </div>
                     </div>
                   </div>
 
@@ -198,15 +205,9 @@
                     <div class="space-y-2 text-sm">
                       <div v-if="nautobotData.primary_ip4">
                         <strong>Primary IPv4:</strong> {{ nautobotData.primary_ip4.address }}
-                        <div v-if="nautobotData.primary_ip4.dns_name" class="text-gray-600 ml-4">
-                          DNS: {{ nautobotData.primary_ip4.dns_name }}
-                        </div>
                       </div>
-                      <div v-if="nautobotData.platform">
-                        <strong>Platform:</strong> {{ nautobotData.platform.name }}
-                        <div v-if="nautobotData.platform.network_driver" class="text-gray-600 ml-4">
-                          Driver: {{ nautobotData.platform.network_driver }}
-                        </div>
+                      <div v-else class="text-gray-500 italic">
+                        No primary IPv4 address configured
                       </div>
                     </div>
                   </div>

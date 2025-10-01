@@ -120,10 +120,62 @@
       <!-- Left Panel - Only show on Dashboard -->
       <div
         v-if="$route.name === 'dashboard'"
-        class="panel relative"
+        class="panel relative flex flex-col"
         :style="`width: ${inventoryPanelWidth}px; min-width: 250px; max-width: 600px; background-color: #f9fafb; border-right: 2px solid #e5e7eb;`"
       >
-        <InventoryPanel />
+        <!-- Panel Toggle Headers -->
+        <div class="flex border-b border-gray-300 bg-white">
+          <button
+            @click="activePanel = 'inventory'"
+            class="flex-1 px-4 py-3 text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2"
+            :class="activePanel === 'inventory'
+              ? 'bg-gray-50 text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
+              />
+            </svg>
+            <span>Inventory</span>
+          </button>
+          <button
+            @click="activePanel = 'symbols'"
+            class="flex-1 px-4 py-3 text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2"
+            :class="activePanel === 'symbols'
+              ? 'bg-gray-50 text-purple-600 border-b-2 border-purple-600'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
+              />
+            </svg>
+            <span>Symbols</span>
+          </button>
+        </div>
+
+        <!-- Panel Content -->
+        <div class="flex-1 min-h-0">
+          <InventoryPanel v-if="activePanel === 'inventory'" />
+          <SymbolsPanel v-else-if="activePanel === 'symbols'" />
+        </div>
 
         <!-- Resize Handle -->
         <div
@@ -160,10 +212,14 @@ import { useAuthStore } from '@/stores/auth'
 import { useCanvasStore } from '@/stores/canvas'
 import { useRouter } from 'vue-router'
 import InventoryPanel from '@/components/InventoryPanel.vue'
+import SymbolsPanel from '@/components/SymbolsPanel.vue'
 
 const authStore = useAuthStore()
 const canvasStore = useCanvasStore()
 const router = useRouter()
+
+// Active panel state (inventory or symbols)
+const activePanel = ref<'inventory' | 'symbols'>('inventory')
 
 // Inventory panel resize state
 const PANEL_WIDTH_KEY = 'noc-canvas-inventory-panel-width'

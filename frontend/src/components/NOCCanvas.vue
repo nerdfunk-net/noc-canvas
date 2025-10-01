@@ -462,7 +462,7 @@
                 <span class="ml-3 text-gray-600">Loading configuration...</span>
               </div>
 
-              <div v-else class="max-h-96 overflow-y-auto">
+              <div v-else>
                 <!-- Error message styling -->
                 <div v-if="configModalContent.startsWith('Error:')" class="bg-red-50 border border-red-200 rounded-lg p-4">
                   <div class="flex items-start">
@@ -480,9 +480,13 @@
                   </div>
                 </div>
 
-                <!-- Success message styling -->
-                <div v-else class="bg-gray-50 rounded-lg p-4">
-                  <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono">{{ configModalContent }}</pre>
+                <!-- Success message with CodeBlock component -->
+                <div v-else>
+                  <CodeBlock
+                    :code="configModalContent"
+                    :title="configModalTitle"
+                    language="cisco"
+                  />
                 </div>
               </div>
             </div>
@@ -521,6 +525,7 @@ import SaveCanvasModal from './SaveCanvasModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import LoadCanvasModal from './LoadCanvasModal.vue'
 import DuplicateDeviceModal from './DuplicateDeviceModal.vue'
+import CodeBlock from './CodeBlock.vue'
 
 // Constants
 const DEVICE_SIZE = 60

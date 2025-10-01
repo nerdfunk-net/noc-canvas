@@ -64,12 +64,12 @@ export const makeAuthenticatedRequest = async (
   const token = secureStorage.getToken() || localStorage.getItem('token')
 
   const config: RequestInit = {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
       ...options.headers,
     },
-    ...options,
   }
 
   return fetch(url, config)

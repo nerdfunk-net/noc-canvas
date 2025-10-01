@@ -935,6 +935,44 @@ async def get_nautobot_secret_groups(
         return []
 
 
+@router.get("/device-types")
+async def get_device_types(
+    current_user: dict = Depends(get_current_user),
+):
+    """Get list of device types from Nautobot.
+
+    Returns a list of device types with their model names, which can be used
+    to assign shapes to devices in the canvas.
+    """
+    try:
+        username = get_username(current_user)
+        result = await nautobot_service.rest_request(
+            "dcim/device-types/", username=username
+        )
+
+        # Extract relevant fields from the response
+        device_types = []
+        for dt in result.get("results", []):
+            device_types.append({
+                "id": dt.get("id"),
+                "model": dt.get("model"),
+                "manufacturer": dt.get("manufacturer", {}).get("name"),
+                "display": dt.get("display"),
+                "device_count": dt.get("device_count", 0),
+            })
+
+        return {
+            "count": result.get("count", 0),
+            "results": device_types
+        }
+    except Exception as e:
+        logger.error(f"Error fetching device types: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch device types: {str(e)}",
+        )
+
+
 @router.get("/health-check", response_model=HealthCheckResponse)
 async def nautobot_health_check(
     current_user: dict = Depends(get_current_user),

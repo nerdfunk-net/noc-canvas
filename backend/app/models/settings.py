@@ -238,3 +238,49 @@ class DeviceCommandResponse(BaseModel):
     @field_serializer("parser")
     def serialize_parser(self, value) -> str:
         return value.value if hasattr(value, "value") else str(value)
+
+
+# Device Templates models
+
+
+class DeviceTemplate(Base):
+    """Device templates for custom shapes stored in database."""
+
+    __tablename__ = "device_templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, unique=True)
+    filename = Column(String(255), nullable=False)
+    platforms = Column(Text, nullable=True)  # JSON array of platform IDs/names
+    device_types = Column(Text, nullable=True)  # JSON array of device type models
+
+
+class DeviceTemplateCreate(BaseModel):
+    """Device template creation model."""
+
+    name: str
+    filename: str
+    platforms: list[str] = []
+    device_types: list[str] = []
+
+
+class DeviceTemplateUpdate(BaseModel):
+    """Device template update model."""
+
+    name: Optional[str] = None
+    filename: Optional[str] = None
+    platforms: Optional[list[str]] = None
+    device_types: Optional[list[str]] = None
+
+
+class DeviceTemplateResponse(BaseModel):
+    """Device template response model."""
+
+    id: int
+    name: str
+    filename: str
+    platforms: list[str]
+    device_types: list[str]
+
+    class Config:
+        from_attributes = True

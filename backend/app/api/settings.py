@@ -4,8 +4,11 @@ Settings API router for managing application configuration.
 
 import logging
 import json
+import os
+import shutil
+from pathlib import Path
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from ..core.config import settings as app_settings
@@ -28,6 +31,10 @@ from ..models.settings import (
     DeviceCommandCreate,
     DeviceCommandUpdate,
     DeviceCommandResponse,
+    DeviceTemplate,
+    DeviceTemplateCreate,
+    DeviceTemplateUpdate,
+    DeviceTemplateResponse,
 )
 from ..services.nautobot import nautobot_service
 from ..services.checkmk import checkmk_service
@@ -379,6 +386,261 @@ async def delete_device_command(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete device command: {str(e)}",
+        )
+
+
+# Device Templates endpoints (must be before generic /{key} route)
+
+
+@router.get("/device-templates", response_model=List[DeviceTemplateResponse])
+async def get_device_templates(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all device templates."""
+    templates = db.query(DeviceTemplate).all()
+    # Parse JSON strings to lists
+    result = []
+    for template in templates:
+        result.append(
+            DeviceTemplateResponse(
+                id=template.id,
+                name=template.name,
+                filename=template.filename,
+                platforms=json.loads(template.platforms) if template.platforms else [],
+                device_types=json.loads(template.device_types) if template.device_types else [],
+            )
+        )
+    return result
+
+
+@router.post("/device-templates", response_model=DeviceTemplateResponse)
+async def create_device_template(
+    template_data: DeviceTemplateCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a new device template."""
+    try:
+        # Check for existing template with same name
+        existing_template = (
+            db.query(DeviceTemplate)
+            .filter(DeviceTemplate.name == template_data.name)
+            .first()
+        )
+
+        if existing_template:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A device template with name '{template_data.name}' already exists.",
+            )
+
+        template = DeviceTemplate(
+            name=template_data.name,
+            filename=template_data.filename,
+            platforms=json.dumps(template_data.platforms),
+            device_types=json.dumps(template_data.device_types),
+        )
+        db.add(template)
+        db.commit()
+        db.refresh(template)
+
+        return DeviceTemplateResponse(
+            id=template.id,
+            name=template.name,
+            filename=template.filename,
+            platforms=template_data.platforms,
+            device_types=template_data.device_types,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating device template: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create device template: {str(e)}",
+        )
+
+
+@router.get("/device-templates/{template_id}", response_model=DeviceTemplateResponse)
+async def get_device_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get specific device template by ID."""
+    template = db.query(DeviceTemplate).filter(DeviceTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Device template with ID {template_id} not found",
+        )
+
+    return DeviceTemplateResponse(
+        id=template.id,
+        name=template.name,
+        filename=template.filename,
+        platforms=json.loads(template.platforms) if template.platforms else [],
+        device_types=json.loads(template.device_types) if template.device_types else [],
+    )
+
+
+@router.put("/device-templates/{template_id}", response_model=DeviceTemplateResponse)
+async def update_device_template(
+    template_id: int,
+    template_update: DeviceTemplateUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update a device template."""
+    template = db.query(DeviceTemplate).filter(DeviceTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Device template with ID {template_id} not found",
+        )
+
+    try:
+        # Check for name uniqueness if name is being updated
+        if template_update.name is not None and template_update.name != template.name:
+            existing_template = (
+                db.query(DeviceTemplate)
+                .filter(
+                    DeviceTemplate.name == template_update.name,
+                    DeviceTemplate.id != template_id,
+                )
+                .first()
+            )
+
+            if existing_template:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"A device template with name '{template_update.name}' already exists.",
+                )
+
+        if template_update.name is not None:
+            template.name = template_update.name
+        if template_update.filename is not None:
+            template.filename = template_update.filename
+        if template_update.platforms is not None:
+            template.platforms = json.dumps(template_update.platforms)
+        if template_update.device_types is not None:
+            template.device_types = json.dumps(template_update.device_types)
+
+        db.commit()
+        db.refresh(template)
+
+        return DeviceTemplateResponse(
+            id=template.id,
+            name=template.name,
+            filename=template.filename,
+            platforms=json.loads(template.platforms) if template.platforms else [],
+            device_types=json.loads(template.device_types) if template.device_types else [],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating device template: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update device template: {str(e)}",
+        )
+
+
+@router.delete("/device-templates/{template_id}")
+async def delete_device_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a device template."""
+    template = db.query(DeviceTemplate).filter(DeviceTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Device template with ID {template_id} not found",
+        )
+
+    try:
+        # Check if this filename is used by other templates before deleting the file
+        other_templates_using_file = (
+            db.query(DeviceTemplate)
+            .filter(
+                DeviceTemplate.filename == template.filename,
+                DeviceTemplate.id != template_id
+            )
+            .count()
+        )
+
+        # Only delete the file if no other templates are using it
+        if other_templates_using_file == 0:
+            icons_dir = Path(__file__).parent.parent.parent.parent / "frontend" / "icons"
+            file_path = icons_dir / template.filename
+            if file_path.exists():
+                file_path.unlink()
+                logger.info(f"Deleted icon file: {template.filename} (not used by other templates)")
+        else:
+            logger.info(f"Keeping icon file: {template.filename} (used by {other_templates_using_file} other template(s))")
+
+        db.delete(template)
+        db.commit()
+        return {"message": f"Device template with ID {template_id} deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting device template: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete device template: {str(e)}",
+        )
+
+
+@router.post("/device-templates/upload")
+async def upload_device_template_icon(
+    file: UploadFile = File(...),
+    override: bool = Query(False),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload an SVG icon for device templates."""
+    try:
+        # Validate file extension
+        if not file.filename.endswith('.svg'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only SVG files are supported",
+            )
+
+        # Create icons directory if it doesn't exist
+        icons_dir = Path(__file__).parent.parent.parent.parent / "frontend" / "icons"
+        icons_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate safe filename
+        filename = file.filename.replace(" ", "_")
+        file_path = icons_dir / filename
+
+        # Check if file already exists and override not confirmed
+        if file_path.exists() and not override:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File '{filename}' already exists",
+            )
+
+        # Save file (will overwrite if exists and override=True)
+        with file_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        logger.info(f"Uploaded icon file: {filename} (override={override})")
+
+        return {
+            "message": "File uploaded successfully",
+            "filename": filename,
+            "path": str(file_path.relative_to(icons_dir.parent)),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading icon file: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload file: {str(e)}",
         )
 
 

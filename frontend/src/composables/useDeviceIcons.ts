@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 
 // Import SVG icons
-import routerIcon from '/icons/router-svgrepo-com.svg'
+// import routerIcon from '/icons/router-svgrepo-com.svg' // Commented out - file deleted
 import switchIcon from '/icons/switch-svgrepo-com.svg'
 import firewallIcon from '/icons/firewall-fire-svgrepo-com.svg'
 import shieldIcon from '/icons/shield-user-svgrepo-com.svg'
@@ -13,7 +13,7 @@ export const useDeviceIcons = () => {
   // Load SVG icons as Image objects
   const loadDeviceIcons = async () => {
     const iconPaths = {
-      router: routerIcon,
+      // router: routerIcon, // Commented out - file deleted
       switch: switchIcon,
       firewall: firewallIcon,
       vpn_gateway: shieldIcon,
@@ -52,12 +52,12 @@ export const useDeviceIcons = () => {
   // Get device icon URL (for regular HTML)
   const getDeviceIconUrl = (type: string): string => {
     const iconPaths = {
-      router: routerIcon,
+      // router: routerIcon, // Commented out - file deleted
       switch: switchIcon,
       firewall: firewallIcon,
       vpn_gateway: shieldIcon,
     }
-    return iconPaths[type as keyof typeof iconPaths] || iconPaths.router
+    return iconPaths[type as keyof typeof iconPaths] || iconPaths.switch
   }
 
   // Get device icon as emoji (fallback)

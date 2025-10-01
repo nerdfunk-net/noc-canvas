@@ -464,6 +464,152 @@
             </div>
           </div>
 
+          <!-- Templates Tab -->
+          <div v-if="activeTab === 'templates'" class="space-y-6">
+            <!-- Device Shape Templates -->
+            <div class="card p-6">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-900">Device Shape Templates</h2>
+                  <p class="text-sm text-gray-600 mt-1">
+                    Create custom templates and assign them to platforms or device types.
+                  </p>
+                </div>
+                <button
+                  @click="openTemplateDialog()"
+                  class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                >
+                  <i class="fas fa-plus mr-2"></i>
+                  Add Template
+                </button>
+              </div>
+
+              <!-- Loading State -->
+              <div v-if="loadingTemplates" class="flex items-center justify-center py-12">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span class="ml-3 text-gray-600">Loading templates...</span>
+              </div>
+
+              <!-- Error State -->
+              <div
+                v-else-if="templatesError"
+                class="bg-red-50 border border-red-200 rounded-md p-4 mb-6"
+              >
+                <div class="flex items-center">
+                  <i class="fas fa-exclamation-circle text-red-600 mr-2"></i>
+                  <p class="text-sm text-red-800">{{ templatesError }}</p>
+                </div>
+              </div>
+
+              <!-- Empty State -->
+              <div
+                v-else-if="deviceTemplates.length === 0"
+                class="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300"
+              >
+                <div class="flex flex-col items-center">
+                  <i class="fas fa-shapes text-gray-400 text-4xl mb-4"></i>
+                  <p class="text-base font-medium text-gray-900 mb-1">No templates configured</p>
+                  <p class="text-sm text-gray-500">Add your first device template to get started</p>
+                </div>
+              </div>
+
+              <!-- Templates Table -->
+              <div v-else class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Template Name
+                      </th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Icon File
+                      </th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Platforms
+                      </th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Device Types
+                      </th>
+                      <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="bg-white divide-y divide-gray-200">
+                    <tr v-for="template in deviceTemplates" :key="template.id">
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">{{ template.name }}</div>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-500">{{ template.filename }}</div>
+                      </td>
+                      <td class="px-6 py-4">
+                        <div class="text-sm text-gray-500">
+                          <span v-if="template.platforms.length === 0" class="text-gray-400 italic">None</span>
+                          <span v-else class="inline-flex flex-wrap gap-1">
+                            <span
+                              v-for="platformId in template.platforms.slice(0, 3)"
+                              :key="platformId"
+                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                            >
+                              {{ getPlatformName(platformId) }}
+                            </span>
+                            <span
+                              v-if="template.platforms.length > 3"
+                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"
+                            >
+                              +{{ template.platforms.length - 3 }} more
+                            </span>
+                          </span>
+                        </div>
+                      </td>
+                      <td class="px-6 py-4">
+                        <div class="text-sm text-gray-500">
+                          <span v-if="template.device_types.length === 0" class="text-gray-400 italic">None</span>
+                          <span v-else class="inline-flex flex-wrap gap-1">
+                            <span
+                              v-for="deviceType in template.device_types.slice(0, 3)"
+                              :key="deviceType"
+                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
+                            >
+                              {{ deviceType }}
+                            </span>
+                            <span
+                              v-if="template.device_types.length > 3"
+                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"
+                            >
+                              +{{ template.device_types.length - 3 }} more
+                            </span>
+                          </span>
+                        </div>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                        <button
+                          @click="openTemplateDialog(template)"
+                          class="inline-flex items-center px-3 py-1.5 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 transition-colors"
+                        >
+                          <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Edit
+                        </button>
+                        <button
+                          @click="deleteTemplate(template)"
+                          class="inline-flex items-center px-3 py-1.5 border border-red-600 text-red-600 rounded hover:bg-red-50 transition-colors"
+                        >
+                          <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
           <!-- Commands Tab -->
           <div v-if="activeTab === 'commands'" class="space-y-6">
             <!-- Commands Management -->
@@ -665,7 +811,7 @@
                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       required
                     >
-                      <option v-for="platform in platforms" :key="platform.value" :value="platform.value">
+                      <option v-for="platform in commandPlatforms" :key="platform.value" :value="platform.value">
                         {{ platform.label }}
                       </option>
                     </select>
@@ -1435,6 +1581,145 @@
             </div>
           </div>
 
+          <!-- Template Dialog -->
+          <div
+            v-if="showTemplateDialog"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            @click.self="closeTemplateDialog"
+          >
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-semibold text-gray-900">
+                  {{ editingTemplate ? 'Edit Template' : 'Add Template' }}
+                </h3>
+                <button
+                  @click="closeTemplateDialog"
+                  class="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <i class="fas fa-times text-xl"></i>
+                </button>
+              </div>
+
+              <form @submit.prevent="saveTemplate" class="space-y-6">
+                <!-- Template Name -->
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Template Name <span class="text-red-500">*</span>
+                  </label>
+                  <input
+                    v-model="templateForm.name"
+                    type="text"
+                    required
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., Switch Template"
+                  />
+                </div>
+
+                <!-- File Upload -->
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    SVG Icon <span class="text-red-500">*</span>
+                  </label>
+                  <div class="flex items-center space-x-3">
+                    <input
+                      type="file"
+                      ref="fileInput"
+                      @change="onFileSelected"
+                      accept=".svg"
+                      class="hidden"
+                    />
+                    <button
+                      type="button"
+                      @click="$refs.fileInput.click()"
+                      class="px-4 py-2 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 transition-colors"
+                    >
+                      <i class="fas fa-upload mr-2"></i>
+                      Choose SVG File
+                    </button>
+                    <span v-if="selectedFile || templateForm.filename" class="text-sm text-gray-600">
+                      {{ selectedFile ? selectedFile.name : templateForm.filename }}
+                    </span>
+                  </div>
+                  <p v-if="uploadError" class="mt-2 text-sm text-red-600">{{ uploadError }}</p>
+                </div>
+
+                <!-- Platforms Multi-Select -->
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Platforms
+                  </label>
+                  <div class="border border-gray-300 rounded-md p-3 max-h-48 overflow-y-auto">
+                    <div v-if="loadingPlatforms" class="text-sm text-gray-500">Loading platforms...</div>
+                    <div v-else-if="platforms.length === 0" class="text-sm text-gray-500">No platforms available</div>
+                    <div v-else class="space-y-2">
+                      <label
+                        v-for="platform in platforms"
+                        :key="platform.id"
+                        class="flex items-center space-x-2 hover:bg-gray-50 p-2 rounded cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          :value="platform.id"
+                          v-model="templateForm.platforms"
+                          class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span class="text-sm text-gray-700">{{ platform.name }}</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Device Types Multi-Select -->
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Device Types
+                  </label>
+                  <div class="border border-gray-300 rounded-md p-3 max-h-48 overflow-y-auto">
+                    <div v-if="loadingDeviceTypes" class="text-sm text-gray-500">Loading device types...</div>
+                    <div v-else-if="deviceTypes.length === 0" class="text-sm text-gray-500">No device types available</div>
+                    <div v-else class="space-y-2">
+                      <label
+                        v-for="deviceType in deviceTypes"
+                        :key="deviceType.model"
+                        class="flex items-center space-x-2 hover:bg-gray-50 p-2 rounded cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          :value="deviceType.model"
+                          v-model="templateForm.device_types"
+                          class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span class="text-sm text-gray-700">
+                          {{ deviceType.manufacturer }} {{ deviceType.model }}
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="flex justify-end space-x-3 pt-4 border-t">
+                  <button
+                    type="button"
+                    @click="closeTemplateDialog"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    :disabled="savingTemplate"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    <i v-if="savingTemplate" class="fas fa-spinner fa-spin mr-2"></i>
+                    <i v-else class="fas fa-save mr-2"></i>
+                    {{ savingTemplate ? 'Saving...' : (editingTemplate ? 'Update Template' : 'Create Template') }}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
           <!-- Save Button (for Profile tab) -->
           <div v-if="activeTab === 'profile'" class="flex justify-end">
             <button @click="saveProfile" class="btn-primary" :disabled="savingProfile">
@@ -1457,6 +1742,7 @@ import MainLayout from '@/layouts/MainLayout.vue'
 import { useNotificationStore } from '@/stores/notification'
 import { canvasApi, type CanvasListItem, makeAuthenticatedRequest } from '@/services/api'
 import { useDevicesStore } from '@/stores/devices'
+import secureStorage from '@/services/secureStorage'
 import { useCommands } from '@/composables/useCommands'
 
 const notificationStore = useNotificationStore()
@@ -1506,6 +1792,7 @@ const tabs = [
   { id: 'general', name: 'General', icon: 'fas fa-cog' },
   { id: 'plugins', name: 'Plugins', icon: 'fas fa-plug' },
   { id: 'canvas', name: 'Canvas', icon: 'fas fa-layer-group' },
+  { id: 'templates', name: 'Templates', icon: 'fas fa-shapes' },
   { id: 'commands', name: 'Commands', icon: 'fas fa-terminal' },
   { id: 'jobs', name: 'Jobs', icon: 'fas fa-tasks' },
   { id: 'profile', name: 'Profile', icon: 'fas fa-user' },
@@ -1584,6 +1871,36 @@ const commands = ref<Array<{
 const loadingCommands = ref(false)
 const commandsError = ref<string | null>(null)
 const editingCommand = ref<any>(null)
+
+// Device Templates state
+const deviceTemplates = ref<Array<{
+  id: number
+  name: string
+  filename: string
+  platforms: string[]
+  device_types: string[]
+}>>([])
+const loadingTemplates = ref(false)
+const templatesError = ref<string | null>(null)
+const editingTemplate = ref<any>(null)
+const showTemplateDialog = ref(false)
+const savingTemplate = ref(false)
+const selectedFile = ref<File | null>(null)
+const uploadError = ref<string | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+// Platforms and Device Types
+const platforms = ref<Array<{ id: string; name: string }>>([])
+const deviceTypes = ref<Array<{ model: string; manufacturer: string; display: string }>>([])
+const loadingPlatforms = ref(false)
+const loadingDeviceTypes = ref(false)
+
+const templateForm = reactive({
+  name: '',
+  filename: '',
+  platforms: [] as string[],
+  device_types: [] as string[]
+})
 const showCommandDialog = ref(false)
 const commandForm = reactive({
   command: '',
@@ -1593,7 +1910,7 @@ const commandForm = reactive({
   parser: 'TextFSM'
 })
 
-const platforms = [
+const commandPlatforms = [
   { value: 'IOS', label: 'IOS' },
   { value: 'IOS XE', label: 'IOS XE' },
   { value: 'Nexus', label: 'Nexus' }
@@ -1888,6 +2205,16 @@ const loadCommandsIfNeeded = async () => {
 watch(activeTab, loadCanvasesIfNeeded)
 watch(activeTab, loadCommandsIfNeeded)
 
+// Auto-fetch templates and platforms when Templates tab is selected
+watch(activeTab, async (newTab) => {
+  if (newTab === 'templates') {
+    await Promise.all([
+      fetchTemplates(),
+      fetchPlatforms()
+    ])
+  }
+})
+
 // Auto-refresh job status when Jobs tab is selected
 watch(activeTab, async (newTab) => {
   if (newTab === 'jobs') {
@@ -2030,6 +2357,285 @@ const deleteCommand = async (command: any) => {
       })
     }
   }
+}
+
+// Device Templates Functions
+
+const fetchTemplates = async () => {
+  loadingTemplates.value = true
+  templatesError.value = null
+  try {
+    const response = await makeAuthenticatedRequest('/api/settings/device-templates')
+    if (response.ok) {
+      deviceTemplates.value = await response.json()
+    } else {
+      throw new Error('Failed to fetch templates')
+    }
+  } catch (error) {
+    console.error('Error fetching templates:', error)
+    templatesError.value = 'Failed to load device templates'
+  } finally {
+    loadingTemplates.value = false
+  }
+}
+
+const fetchPlatforms = async () => {
+  loadingPlatforms.value = true
+  try {
+    const response = await makeAuthenticatedRequest('/api/nautobot/platforms')
+    if (response.ok) {
+      const data = await response.json()
+      platforms.value = data.map((p: any) => ({ id: p.id, name: p.name }))
+    }
+  } catch (error) {
+    console.error('Error fetching platforms:', error)
+  } finally {
+    loadingPlatforms.value = false
+  }
+}
+
+const fetchDeviceTypes = async () => {
+  loadingDeviceTypes.value = true
+  try {
+    const response = await makeAuthenticatedRequest('/api/nautobot/device-types')
+    if (response.ok) {
+      const data = await response.json()
+      deviceTypes.value = data.results.map((dt: any) => ({
+        model: dt.model,
+        manufacturer: dt.manufacturer,
+        display: dt.display
+      }))
+    }
+  } catch (error) {
+    console.error('Error fetching device types:', error)
+  } finally {
+    loadingDeviceTypes.value = false
+  }
+}
+
+const openTemplateDialog = (template?: any) => {
+  editingTemplate.value = template || null
+  if (template) {
+    templateForm.name = template.name
+    templateForm.filename = template.filename
+    templateForm.platforms = [...template.platforms]
+    templateForm.device_types = [...template.device_types]
+  } else {
+    templateForm.name = ''
+    templateForm.filename = ''
+    templateForm.platforms = []
+    templateForm.device_types = []
+  }
+  selectedFile.value = null
+  uploadError.value = null
+  showTemplateDialog.value = true
+
+  // Fetch platforms and device types when opening dialog
+  fetchPlatforms()
+  fetchDeviceTypes()
+}
+
+const closeTemplateDialog = () => {
+  showTemplateDialog.value = false
+  editingTemplate.value = null
+  selectedFile.value = null
+  uploadError.value = null
+}
+
+const onFileSelected = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+
+  if (file) {
+    if (!file.name.endsWith('.svg')) {
+      uploadError.value = 'Only SVG files are supported'
+      selectedFile.value = null
+      return
+    }
+    selectedFile.value = file
+    uploadError.value = null
+  }
+}
+
+const saveTemplate = async () => {
+  savingTemplate.value = true
+  uploadError.value = null
+
+  try {
+    // Upload file if a new one is selected
+    let filename = templateForm.filename
+    if (selectedFile.value) {
+      // Get token for authentication - try secure storage first, fallback to localStorage
+      const token = secureStorage.getToken() || localStorage.getItem('token')
+
+      if (!token) {
+        throw new Error('Authentication token not found')
+      }
+
+      // Function to upload file with optional override
+      const uploadFile = async (override: boolean = false) => {
+        const formData = new FormData()
+        formData.append('file', selectedFile.value!)
+
+        const url = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/settings/device-templates/upload${override ? '?override=true' : ''}`
+
+        return await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+            // Don't set Content-Type - browser will set it with boundary for FormData
+          },
+          body: formData
+        })
+      }
+
+      // Try to upload file
+      let uploadResponse = await uploadFile(false)
+
+      // If file already exists, ask user if they want to override
+      if (!uploadResponse.ok) {
+        let error
+        try {
+          error = await uploadResponse.json()
+        } catch (e) {
+          console.error('Failed to parse upload error response:', e)
+          throw new Error(`Upload failed with status ${uploadResponse.status}`)
+        }
+
+        if (error.detail && error.detail.includes('already exists')) {
+          const confirmOverride = confirm(`The file '${selectedFile.value.name}' already exists. Do you want to override it?`)
+          if (!confirmOverride) {
+            savingTemplate.value = false
+            return
+          }
+          // User confirmed, upload with override=true
+          uploadResponse = await uploadFile(true)
+
+          if (!uploadResponse.ok) {
+            let retryError
+            try {
+              retryError = await uploadResponse.json()
+              throw new Error(retryError.detail || 'Failed to upload file even with override')
+            } catch (e) {
+              throw new Error(`Failed to upload file even with override (Status: ${uploadResponse.status})`)
+            }
+          }
+        } else {
+          throw new Error(error.detail || 'Failed to upload file')
+        }
+      }
+
+      const uploadResult = await uploadResponse.json()
+      filename = uploadResult.filename
+      console.log('✅ File uploaded successfully:', filename)
+    }
+
+    // Validate that we have a filename
+    if (!filename) {
+      throw new Error('No file selected. Please upload an SVG file.')
+    }
+
+    // Create or update template
+    const templateData = {
+      name: templateForm.name,
+      filename: filename,
+      platforms: templateForm.platforms,
+      device_types: templateForm.device_types
+    }
+
+    const url = editingTemplate.value
+      ? `/api/settings/device-templates/${editingTemplate.value.id}`
+      : '/api/settings/device-templates'
+
+    const method = editingTemplate.value ? 'PUT' : 'POST'
+
+    // Get token to verify it exists
+    const token = secureStorage.getToken() || localStorage.getItem('token')
+    console.log('📤 Saving template:', {
+      url,
+      method,
+      templateData,
+      hasToken: !!token,
+      tokenPreview: token ? `${token.substring(0, 20)}...` : 'NONE'
+    })
+
+    const response = await makeAuthenticatedRequest(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(templateData)
+    })
+
+    console.log('📥 Template save response:', {
+      status: response.status,
+      ok: response.ok,
+      statusText: response.statusText
+    })
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to save template'
+      try {
+        const error = await response.json()
+        errorMessage = error.detail || error.message || errorMessage
+        console.error('Template save error:', error)
+      } catch (e) {
+        console.error('Failed to parse error response:', e)
+      }
+      throw new Error(`${errorMessage} (Status: ${response.status})`)
+    }
+
+    notificationStore.addNotification({
+      title: 'Success',
+      message: `Template ${editingTemplate.value ? 'updated' : 'created'} successfully`,
+      type: 'success'
+    })
+
+    console.log('✅ Template saved, activeTab before close:', activeTab.value)
+    closeTemplateDialog()
+    console.log('✅ Dialog closed, activeTab:', activeTab.value)
+    await fetchTemplates()
+    console.log('✅ Templates fetched, activeTab:', activeTab.value)
+  } catch (error: any) {
+    uploadError.value = error.message
+    notificationStore.addNotification({
+      title: 'Error',
+      message: error.message || 'Failed to save template',
+      type: 'error'
+    })
+  } finally {
+    savingTemplate.value = false
+  }
+}
+
+const deleteTemplate = async (template: any) => {
+  if (confirm(`Are you sure you want to delete the template "${template.name}"?`)) {
+    try {
+      const response = await makeAuthenticatedRequest(`/api/settings/device-templates/${template.id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        notificationStore.addNotification({
+          title: 'Success',
+          message: 'Template deleted successfully',
+          type: 'success'
+        })
+        await fetchTemplates()
+      } else {
+        throw new Error('Failed to delete template')
+      }
+    } catch (error) {
+      notificationStore.addNotification({
+        title: 'Error',
+        message: 'Failed to delete template',
+        type: 'error'
+      })
+    }
+  }
+}
+
+const getPlatformName = (platformId: string) => {
+  const platform = platforms.value.find(p => p.id === platformId)
+  return platform ? platform.name : platformId
 }
 
 const formatDate = (dateString: string) => {

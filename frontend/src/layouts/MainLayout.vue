@@ -123,17 +123,33 @@
         class="panel relative flex flex-col"
         :style="`width: ${inventoryPanelWidth}px; min-width: 250px; max-width: 600px; background-color: #f9fafb; border-right: 2px solid #e5e7eb;`"
       >
-        <!-- Panel Toggle Headers -->
-        <div class="flex border-b border-gray-300 bg-white">
+        <!-- Inventory Panel (Stacked) -->
+        <div class="flex flex-col" :class="activePanel === 'inventory' ? 'flex-1' : 'flex-none'">
+          <!-- Inventory Header -->
           <button
             @click="activePanel = 'inventory'"
-            class="flex-1 px-4 py-3 text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2"
-            :class="activePanel === 'inventory'
-              ? 'bg-gray-50 text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
+            class="w-full px-4 py-3 text-sm font-medium transition-all duration-200 flex items-center justify-between border-b border-gray-300 bg-white hover:bg-gray-50"
+            :class="activePanel === 'inventory' ? 'text-blue-600' : 'text-gray-600'"
           >
+            <div class="flex items-center space-x-2">
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
+                />
+              </svg>
+              <span>Inventory</span>
+            </div>
             <svg
-              class="w-4 h-4"
+              class="w-4 h-4 transition-transform duration-200"
+              :class="activePanel === 'inventory' ? 'rotate-180' : ''"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -142,39 +158,67 @@
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
-                d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
+                d="M19 9l-7 7-7-7"
               />
             </svg>
-            <span>Inventory</span>
           </button>
-          <button
-            @click="activePanel = 'symbols'"
-            class="flex-1 px-4 py-3 text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2"
-            :class="activePanel === 'symbols'
-              ? 'bg-gray-50 text-purple-600 border-b-2 border-purple-600'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
+
+          <!-- Inventory Content -->
+          <div
+            v-if="activePanel === 'inventory'"
+            class="flex-1 min-h-0 overflow-hidden"
           >
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
-              />
-            </svg>
-            <span>Symbols</span>
-          </button>
+            <InventoryPanel />
+          </div>
         </div>
 
-        <!-- Panel Content -->
-        <div class="flex-1 min-h-0">
-          <InventoryPanel v-if="activePanel === 'inventory'" />
-          <SymbolsPanel v-else-if="activePanel === 'symbols'" />
+        <!-- Symbols Panel (Stacked) -->
+        <div class="flex flex-col" :class="activePanel === 'symbols' ? 'flex-1' : 'flex-none'">
+          <!-- Symbols Header -->
+          <button
+            @click="activePanel = 'symbols'"
+            class="w-full px-4 py-3 text-sm font-medium transition-all duration-200 flex items-center justify-between border-b border-gray-300 bg-white hover:bg-gray-50"
+            :class="activePanel === 'symbols' ? 'text-purple-600' : 'text-gray-600'"
+          >
+            <div class="flex items-center space-x-2">
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
+                />
+              </svg>
+              <span>Symbols</span>
+            </div>
+            <svg
+              class="w-4 h-4 transition-transform duration-200"
+              :class="activePanel === 'symbols' ? 'rotate-180' : ''"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+
+          <!-- Symbols Content -->
+          <div
+            v-if="activePanel === 'symbols'"
+            class="flex-1 min-h-0 overflow-hidden"
+          >
+            <SymbolsPanel />
+          </div>
         </div>
 
         <!-- Resize Handle -->

@@ -1,15 +1,18 @@
 import { ref, computed } from 'vue'
 import { useDevicesStore, type Device } from '@/stores/devices'
+import { useShapesStore } from '@/stores/shapes'
 import { canvasApi } from '@/services/api'
 
 export function useCanvasState() {
   const deviceStore = useDevicesStore()
+  const shapesStore = useShapesStore()
 
   // Canvas save state tracking
   const currentCanvasId = ref<number | null>(null)
-  const lastSavedState = ref<{ devices: Device[]; connections: any[] }>({
+  const lastSavedState = ref<{ devices: Device[]; connections: any[]; shapes: any[] }>({
     devices: [],
     connections: [],
+    shapes: [],
   })
 
   // Modal states
@@ -27,13 +30,16 @@ export function useCanvasState() {
   const hasUnsavedChanges = computed(() => {
     const currentDevices = deviceStore.devices
     const currentConnections = deviceStore.connections
+    const currentShapes = shapesStore.shapes
 
     // If canvas is empty and was empty when last saved, no changes
     if (
       currentDevices.length === 0 &&
       currentConnections.length === 0 &&
+      currentShapes.length === 0 &&
       lastSavedState.value.devices.length === 0 &&
-      lastSavedState.value.connections.length === 0
+      lastSavedState.value.connections.length === 0 &&
+      lastSavedState.value.shapes.length === 0
     ) {
       return false
     }
@@ -45,6 +51,11 @@ export function useCanvasState() {
 
     // Check if connections have changed
     if (currentConnections.length !== lastSavedState.value.connections.length) {
+      return true
+    }
+
+    // Check if shapes have changed
+    if (currentShapes.length !== lastSavedState.value.shapes.length) {
       return true
     }
 
@@ -86,13 +97,16 @@ export function useCanvasState() {
     lastSavedState.value = {
       devices: [...deviceStore.devices],
       connections: [...deviceStore.connections],
+      shapes: [...shapesStore.shapes],
     }
     console.log(
       '💾 Saved state updated with',
       lastSavedState.value.devices.length,
-      'devices and',
+      'devices,',
       lastSavedState.value.connections.length,
-      'connections'
+      'connections, and',
+      lastSavedState.value.shapes.length,
+      'shapes'
     )
   }
 
@@ -128,7 +142,25 @@ export function useCanvasState() {
         connection_type: connection.connection_type,
         properties: connection.properties,
       })),
+      shapes: shapesStore.shapes.map((shape) => ({
+        id: shape.id,
+        shape_type: shape.shape_type,
+        position_x: shape.position_x,
+        position_y: shape.position_y,
+        width: shape.width,
+        height: shape.height,
+        fill_color: shape.fill_color,
+        stroke_color: shape.stroke_color,
+        stroke_width: shape.stroke_width,
+      })),
     }
+
+    console.log('💾 DEBUG: Saving canvas with shapes:', {
+      deviceCount: canvasData.devices.length,
+      connectionCount: canvasData.connections.length,
+      shapeCount: canvasData.shapes.length,
+      shapes: canvasData.shapes,
+    })
 
     let response
     if (data.canvasId) {
@@ -166,10 +198,15 @@ export function useCanvasState() {
   const loadCanvasById = async (canvasId: number) => {
     console.log('🔄 Loading canvas from database...', canvasId)
 
-    // Clear current canvas first if it has devices
+    // Clear current canvas first if it has devices or shapes
     if (deviceStore.devices.length > 0) {
       deviceStore.clearDevices()
-      console.log('✅ Current canvas cleared')
+      console.log('✅ Current devices cleared')
+    }
+
+    if (shapesStore.shapes.length > 0) {
+      shapesStore.clearShapes()
+      console.log('✅ Current shapes cleared')
     }
 
     // Fetch canvas data
@@ -185,6 +222,15 @@ export function useCanvasState() {
 
     deviceStore.loadDevicesFromCanvasData(devicesWithCorrectTypes, canvas.canvas_data.connections)
 
+    // Load shapes if they exist in the canvas data
+    console.log('💾 DEBUG: Canvas data shapes:', canvas.canvas_data.shapes)
+    if (canvas.canvas_data.shapes && Array.isArray(canvas.canvas_data.shapes)) {
+      console.log('💾 DEBUG: Loading', canvas.canvas_data.shapes.length, 'shapes')
+      shapesStore.loadShapesFromCanvasData(canvas.canvas_data.shapes)
+    } else {
+      console.log('💾 DEBUG: No shapes in canvas data')
+    }
+
     // Update tracking state
     currentCanvasId.value = canvasId
     updateSavedState()
@@ -192,19 +238,23 @@ export function useCanvasState() {
     console.log(
       '✅ Canvas loaded successfully with',
       canvas.canvas_data.devices.length,
-      'devices and',
+      'devices,',
       canvas.canvas_data.connections.length,
-      'connections'
+      'connections, and',
+      canvas.canvas_data.shapes?.length || 0,
+      'shapes'
     )
 
     return canvas
   }
 
   const quickSave = async () => {
-    console.log('Quick Save Canvas')
+    console.log('💾 Quick Save Canvas')
+    console.log('💾 Current shapes count:', shapesStore.shapes.length)
+    console.log('💾 Current shapes:', shapesStore.shapes)
 
     if (!currentCanvasId.value) {
-      console.log('No canvas ID found, opening Save As dialog')
+      console.log('💾 No canvas ID found, opening Save As dialog')
       showSaveModal.value = true
       return
     }
@@ -236,9 +286,11 @@ export function useCanvasState() {
     })
   }
 
-  const executeClearCanvas = () => {
+  const executeClearCanvas = async () => {
     try {
       deviceStore.clearDevices()
+      shapesStore.clearShapes()
+
       // Reset tracking state
       currentCanvasId.value = null
       updateSavedState()

@@ -2,24 +2,21 @@
   <div class="h-full flex flex-col bg-white border-r border-gray-200">
     <!-- Symbols Content -->
     <div class="flex-1 overflow-y-auto p-4">
-      <!-- Background Symbols Section -->
+      <!-- Shapes Section -->
       <div class="mb-6">
-        <h4 class="text-xs font-semibold text-gray-600 uppercase mb-3">Backgrounds</h4>
+        <h4 class="text-xs font-semibold text-gray-600 uppercase mb-3">Shapes</h4>
         <div class="grid grid-cols-2 gap-3">
           <div
-            v-for="bg in backgrounds"
-            :key="bg.id"
+            v-for="shape in shapes"
+            :key="shape.id"
             :draggable="true"
-            @dragstart="onDragStart($event, bg)"
+            @dragstart="onDragStart($event, shape)"
             class="bg-gray-50 border-2 border-gray-200 rounded-lg p-3 cursor-move hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 flex flex-col items-center justify-center"
           >
-            <div
-              class="w-12 h-12 rounded mb-2 flex items-center justify-center"
-              :style="{ backgroundColor: bg.color }"
-            >
-              <span class="text-2xl">{{ bg.icon }}</span>
+            <div class="w-12 h-12 rounded mb-2 flex items-center justify-center">
+              <span class="text-4xl">{{ shape.icon }}</span>
             </div>
-            <span class="text-xs text-gray-700 text-center">{{ bg.name }}</span>
+            <span class="text-xs text-gray-700 text-center">{{ shape.name }}</span>
           </div>
         </div>
       </div>
@@ -91,18 +88,15 @@ interface Symbol {
   id: string
   name: string
   icon: string
-  type: 'background' | 'cloud' | 'network' | 'other'
+  type: 'shape' | 'cloud' | 'network' | 'other'
+  shapeType?: 'rectangle' | 'circle'
   color?: string
 }
 
-// Background symbols
-const backgrounds = ref<Symbol[]>([
-  { id: 'bg-white', name: 'White', icon: '⬜', type: 'background', color: '#ffffff' },
-  { id: 'bg-gray', name: 'Gray', icon: '⬜', type: 'background', color: '#e5e7eb' },
-  { id: 'bg-blue', name: 'Blue', icon: '⬜', type: 'background', color: '#dbeafe' },
-  { id: 'bg-green', name: 'Green', icon: '⬜', type: 'background', color: '#dcfce7' },
-  { id: 'bg-yellow', name: 'Yellow', icon: '⬜', type: 'background', color: '#fef3c7' },
-  { id: 'bg-red', name: 'Red', icon: '⬜', type: 'background', color: '#fee2e2' },
+// Shape symbols
+const shapes = ref<Symbol[]>([
+  { id: 'shape-rectangle', name: 'Rectangle', icon: '▭', type: 'shape', shapeType: 'rectangle' },
+  { id: 'shape-circle', name: 'Circle', icon: '●', type: 'shape', shapeType: 'circle' },
 ])
 
 // Cloud service symbols

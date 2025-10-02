@@ -1,7 +1,7 @@
 import { ref, reactive } from 'vue'
 import type { Device } from '@/stores/devices'
 
-export type ContextMenuTargetType = 'canvas' | 'device' | 'multi-device'
+export type ContextMenuTargetType = 'canvas' | 'device' | 'multi-device' | 'connection' | 'shape' | 'multi-shape'
 
 export interface ContextMenuItem {
   icon: string

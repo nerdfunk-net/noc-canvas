@@ -30,9 +30,22 @@ class CanvasConnectionData(BaseModel):
     properties: Optional[str] = None
 
 
+class CanvasShapeData(BaseModel):
+    id: int
+    shape_type: str
+    position_x: float
+    position_y: float
+    width: float
+    height: float
+    fill_color: Optional[str] = None
+    stroke_color: Optional[str] = None
+    stroke_width: Optional[float] = None
+
+
 class CanvasData(BaseModel):
     devices: List[CanvasDeviceData]
     connections: List[CanvasConnectionData]
+    shapes: Optional[List[CanvasShapeData]] = []
 
 
 class CanvasCreate(BaseModel):

@@ -13,6 +13,7 @@ from .api import (
     canvas,
     devices,
     credentials,
+    shapes,
 )
 import logging
 import sys
@@ -106,6 +107,7 @@ app.include_router(credentials.router, prefix="/api/credentials", tags=["credent
 app.include_router(checkmk.router, prefix="/api/checkmk", tags=["checkmk"])
 app.include_router(settings_api.router, prefix="/api/settings", tags=["settings"])
 app.include_router(jobs.router, prefix="/api/jobs", tags=["background-jobs"])
+app.include_router(shapes.router, prefix="/api", tags=["shapes"])
 
 
 @app.get("/")
@@ -123,6 +125,7 @@ async def root():
             "checkmk": "/api/checkmk",
             "settings": "/api/settings",
             "jobs": "/api/jobs",
+            "shapes": "/api/shapes",
             "docs": "/docs",
             "openapi": "/openapi.json",
         },

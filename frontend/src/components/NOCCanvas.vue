@@ -185,6 +185,45 @@ cd<template>
         </v-group>
       </v-layer>
 
+      <!-- Shapes Layer -->
+      <v-layer ref="shapesLayer">
+        <v-group
+          v-for="shape in shapesStore.shapes"
+          :key="`shape-${shape.id}`"
+          :config="{
+            x: shape.position_x,
+            y: shape.position_y,
+            draggable: true,
+          }"
+          @dragend="onShapeDragEnd(shape, $event)"
+          @click="onShapeClick(shape, $event)"
+          @contextmenu="onShapeRightClick(shape, $event)"
+        >
+          <v-rect
+            v-if="shape.shape_type === 'rectangle'"
+            :config="{
+              width: shape.width,
+              height: shape.height,
+              fill: shape.fill_color || '#93c5fd',
+              stroke: selectedShapes.has(shape.id) ? '#1d4ed8' : (shape.stroke_color || '#3b82f6'),
+              strokeWidth: selectedShapes.has(shape.id) ? 3 : (shape.stroke_width || 2),
+            }"
+          />
+          <v-circle
+            v-else-if="shape.shape_type === 'circle'"
+            :config="{
+              x: shape.width / 2,
+              y: shape.height / 2,
+              radius: shape.width / 2,
+              fill: shape.fill_color || '#93c5fd',
+              stroke: selectedShapes.has(shape.id) ? '#1d4ed8' : (shape.stroke_color || '#3b82f6'),
+              strokeWidth: selectedShapes.has(shape.id) ? 3 : (shape.stroke_width || 2),
+            }"
+          />
+        </v-group>
+        <v-transformer ref="transformer" />
+      </v-layer>
+
       <!-- Selection Layer -->
       <v-layer ref="selectionLayer">
         <v-rect
@@ -409,6 +448,17 @@ cd<template>
       @add="handleDuplicateAdd"
     />
 
+    <!-- Shape Color Modal -->
+    <ShapeColorModal
+      :show="showShapeColorModal"
+      :shape-id="shapeColorToEdit"
+      :initial-fill-color="currentShapeColors.fill"
+      :initial-stroke-color="currentShapeColors.stroke"
+      :initial-stroke-width="currentShapeColors.strokeWidth"
+      @close="showShapeColorModal = false"
+      @save="handleShapeColorSave"
+    />
+
     <!-- Unsaved Changes Warning Dialog -->
     <ConfirmDialog
       :show="showUnsavedChangesDialog"
@@ -512,6 +562,7 @@ cd<template>
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useDevicesStore, type Device } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
+import { useShapesStore } from '@/stores/shapes'
 import { type NautobotDevice, canvasApi, nautobotApi, makeAuthenticatedRequest } from '@/services/api'
 import { useDeviceIcons } from '@/composables/useDeviceIcons'
 import { templateService } from '@/services/templateService'
@@ -526,6 +577,7 @@ import SaveCanvasModal from './SaveCanvasModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import LoadCanvasModal from './LoadCanvasModal.vue'
 import DuplicateDeviceModal from './DuplicateDeviceModal.vue'
+import ShapeColorModal from './ShapeColorModal.vue'
 import CodeBlock from './CodeBlock.vue'
 
 // Constants
@@ -538,6 +590,7 @@ const DEVICE_TEXT_Y_OFFSET = 50
 
 const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
+const shapesStore = useShapesStore()
 const { loadDeviceIcons, getDeviceIcon: getHardcodedIcon } = useDeviceIcons()
 
 // Map to store device-specific icons
@@ -667,6 +720,8 @@ const {
   executeClearCanvas,
   promptToSaveBeforeAction,
   updateSavedState,
+  saveCanvasData,
+  loadCanvasById: composableLoadCanvasById,
 } = canvasStateComposable
 
 const canvasContainer = ref<HTMLElement>()
@@ -712,6 +767,44 @@ const connectionStart = ref<{
 
 // Selected connection state
 const selectedConnection = ref<number | null>(null)
+
+// Selected shape state
+const selectedShape = ref<number | null>(null)
+const selectedShapes = ref<Set<number>>(new Set())
+const transformer = ref<any>(null)
+const showShapeColorModal = ref(false)
+const shapeColorToEdit = ref<number | null>(null)
+
+// Watch for transformer changes to update shape size
+watch(transformer, () => {
+  if (transformer.value) {
+    const tr = transformer.value.getNode()
+    tr.on('transformend', async () => {
+      const nodes = tr.nodes()
+      if (nodes.length > 0 && selectedShape.value) {
+        const groupNode = nodes[0]
+        const scaleX = groupNode.scaleX()
+        const scaleY = groupNode.scaleY()
+
+        // Get the shape data to calculate new dimensions
+        const shape = shapesStore.shapes.find((s) => s.id === selectedShape.value)
+        if (shape) {
+          const newWidth = shape.width * scaleX
+          const newHeight = shape.height * scaleY
+
+          shapesStore.updateShape(selectedShape.value, {
+            width: newWidth,
+            height: newHeight,
+          })
+
+          // Reset scale after updating dimensions
+          groupNode.scaleX(1)
+          groupNode.scaleY(1)
+        }
+      }
+    })
+  }
+})
 
 // Initialize commands composable
 const commandsComposable = useCommands()
@@ -823,6 +916,48 @@ const renderConnections = computed(() => {
 
 // Context menu items
 const contextMenuItems = computed(() => {
+  console.log('🔵 DEBUG: contextMenuItems computed, targetType:', contextMenu.targetType, 'target:', contextMenu.target)
+
+  // Shape context menu
+  if (contextMenu.targetType === 'shape') {
+    console.log('🔵 DEBUG: Building shape context menu')
+    const items = [
+      { icon: '🎨', label: 'Color', action: () => { hideContextMenu(); openShapeColorModal(contextMenu.target as any) } },
+      {
+        icon: '📐',
+        label: 'Alignment',
+        submenu: [
+          { icon: '↔️', label: 'Horizontal', action: () => { hideContextMenu(); alignShapesHorizontally() } },
+          { icon: '↕️', label: 'Vertical', action: () => { hideContextMenu(); alignShapesVertically() } },
+        ],
+      },
+      { icon: '─', label: '─────────', action: () => {}, separator: true },
+      { icon: '🗑️', label: 'Remove', action: () => { hideContextMenu(); deleteShape(contextMenu.target as any) } },
+    ]
+    console.log('🔵 DEBUG: Shape context menu items:', items)
+    return items
+  }
+
+  // Multi-shape context menu
+  if (contextMenu.targetType === 'multi-shape') {
+    console.log('🔵 DEBUG: Building multi-shape context menu')
+    const selectedCount = selectedShapes.value.size
+    const items = [
+      {
+        icon: '📐',
+        label: 'Alignment',
+        submenu: [
+          { icon: '↔️', label: 'Horizontal', action: () => { hideContextMenu(); alignShapesHorizontally() } },
+          { icon: '↕️', label: 'Vertical', action: () => { hideContextMenu(); alignShapesVertically() } },
+        ],
+      },
+      { icon: '─', label: '─────────', action: () => {}, separator: true },
+      { icon: '🗑️', label: `Remove ${selectedCount} shapes`, action: () => { hideContextMenu(); deleteMultiShapes() } },
+    ]
+    console.log('🔵 DEBUG: Multi-shape context menu items:', items)
+    return items
+  }
+
   // Connection context menu
   if (contextMenu.targetType === 'connection') {
     const items = [
@@ -1056,27 +1191,8 @@ const handleLoadCancel = () => {
 
 const loadCanvasById = async (canvasId: number) => {
   try {
-
-    // Clear current canvas first if it has devices
-    if (deviceStore.devices.length > 0) {
-      deviceStore.clearDevices()
-    }
-
-    // Fetch canvas data
-    const canvas = await canvasApi.getCanvas(canvasId)
-
-    // Load devices and connections directly from canvas data (pure frontend)
-    // Convert CanvasDeviceData to Device with proper types
-    const devicesWithCorrectTypes = canvas.canvas_data.devices.map((device) => ({
-      ...device,
-      device_type: device.device_type as Device['device_type'],
-    }))
-
-    deviceStore.loadDevicesFromCanvasData(devicesWithCorrectTypes, canvas.canvas_data.connections)
-
-    // Update tracking state
-    composableCanvasId.value = canvasId
-    updateSavedState()
+    // Use the composable's loadCanvasById which includes shapes
+    await composableLoadCanvasById(canvasId)
 
     // Close the load modal after successful loading
     composableShowLoadModal.value = false
@@ -1114,50 +1230,8 @@ const closeSaveModal = () => {
 
 const handleCanvasSave = async (data: { name: string; sharable: boolean; canvasId?: number }) => {
   try {
-    // Import the canvas API
-    const { canvasApi } = await import('@/services/api')
-
-    // Collect current canvas state
-    const canvasData = {
-      devices: deviceStore.devices.map((device) => ({
-        id: device.id,
-        name: device.name,
-        device_type: device.device_type,
-        ip_address: device.ip_address,
-        position_x: device.position_x,
-        position_y: device.position_y,
-        properties: device.properties,
-      })),
-      connections: deviceStore.connections.map((connection) => ({
-        id: connection.id,
-        source_device_id: connection.source_device_id,
-        target_device_id: connection.target_device_id,
-        connection_type: connection.connection_type,
-        properties: connection.properties,
-      })),
-    }
-
-    let response
-    if (data.canvasId) {
-      // Update existing canvas
-      response = await canvasApi.updateCanvas(data.canvasId, {
-        name: data.name,
-        sharable: data.sharable,
-        canvas_data: canvasData,
-      })
-      composableCanvasId.value = data.canvasId
-    } else {
-      // Create new canvas
-      response = await canvasApi.saveCanvas({
-        name: data.name,
-        sharable: data.sharable,
-        canvas_data: canvasData,
-      })
-      composableCanvasId.value = response.id
-    }
-
-    // Update saved state after successful save
-    updateSavedState()
+    // Use the composable's saveCanvasData function which includes shapes
+    await saveCanvasData(data)
 
     composableShowSaveModal.value = false
 
@@ -1906,7 +1980,25 @@ const onDrop = async (event: DragEvent) => {
           last_backup: device.cf_last_backup,
         }),
       })
-    } else {
+    } else if (type === 'symbol') {
+      const { symbol } = parsedData as { type: string; symbol: any }
+
+      if (symbol.type === 'shape') {
+        // Create a shape on the canvas
+        const defaultWidth = symbol.shapeType === 'circle' ? 100 : 150
+        const defaultHeight = symbol.shapeType === 'circle' ? 100 : 100
+
+        shapesStore.createShape({
+          shape_type: symbol.shapeType,
+          position_x: x,
+          position_y: y,
+          width: defaultWidth,
+          height: defaultHeight,
+          fill_color: '#93c5fd',
+          stroke_color: '#3b82f6',
+          stroke_width: 2,
+        })
+      }
     }
   } catch (error) {
     console.error('❌ Failed to create device:', error)
@@ -1967,6 +2059,11 @@ const onStageMouseDown = (event: any) => {
     console.log('🖱️ DEBUG: onStageMouseDown - about to deselect. selectedConnection before:', selectedConnection.value)
     selectedDevice.value = null
     selectedConnection.value = null  // Deselect connection when clicking canvas
+    selectedShape.value = null  // Deselect shape when clicking canvas
+    selectedShapes.value.clear()  // Clear multi-shape selection
+    if (transformer.value) {
+      transformer.value.getNode().nodes([])  // Clear transformer
+    }
     console.log('🖱️ DEBUG: onStageMouseDown - selectedConnection after:', selectedConnection.value)
     hideContextMenu()
 
@@ -2350,6 +2447,166 @@ const onConnectionMouseLeave = () => {
   }
 }
 
+// Shape handlers
+const onShapeClick = (shape: any, event: any) => {
+  // Ignore right-clicks (they're handled by onShapeRightClick)
+  if (event.evt.button === 2) {
+    console.log('🔴 DEBUG: onShapeClick - ignoring right-click')
+    return
+  }
+
+  event.cancelBubble = true
+  selectedDevice.value = null
+  selectedConnection.value = null
+
+  // Multi-selection with Shift key
+  if (event.evt.shiftKey) {
+    if (selectedShapes.value.has(shape.id)) {
+      selectedShapes.value.delete(shape.id)
+      if (selectedShape.value === shape.id) {
+        selectedShape.value = selectedShapes.value.size > 0 ? Array.from(selectedShapes.value)[0] : null
+      }
+    } else {
+      selectedShapes.value.add(shape.id)
+      selectedShape.value = shape.id
+    }
+  } else {
+    selectedShapes.value.clear()
+    selectedShapes.value.add(shape.id)
+    selectedShape.value = shape.id
+  }
+
+  // Attach transformer to the clicked shape (only for single selection)
+  if (transformer.value && selectedShapes.value.size === 1) {
+    const stage = event.target.getStage()
+    const shapeNode = event.target.getParent()
+    transformer.value.getNode().nodes([shapeNode])
+    transformer.value.getNode().getLayer().batchDraw()
+  } else if (transformer.value) {
+    // Clear transformer for multi-selection
+    transformer.value.getNode().nodes([])
+  }
+}
+
+const onShapeDragEnd = (shape: any, event: any) => {
+  const node = event.target
+  shapesStore.updateShape(shape.id, {
+    position_x: node.x(),
+    position_y: node.y(),
+  })
+}
+
+const onShapeRightClick = (shape: any, event: any) => {
+  console.log('🔴 DEBUG: onShapeRightClick called', { shape, event })
+  event.evt.preventDefault()
+  event.evt.stopPropagation()
+  event.cancelBubble = true
+
+  // If the clicked shape is not in selection, select only it
+  if (!selectedShapes.value.has(shape.id)) {
+    console.log('🔴 DEBUG: Shape not in selection, adding to selection', shape.id)
+    selectedShapes.value.clear()
+    selectedShapes.value.add(shape.id)
+    selectedShape.value = shape.id
+  } else {
+    console.log('🔴 DEBUG: Shape already in selection', shape.id, 'Selected shapes:', Array.from(selectedShapes.value))
+  }
+
+  // Show context menu
+  const stage = event.target.getStage()
+  const pointerPosition = stage.getPointerPosition()
+
+  console.log('🔴 DEBUG: Pointer position:', pointerPosition)
+  console.log('🔴 DEBUG: Selected shapes count:', selectedShapes.value.size)
+
+  if (selectedShapes.value.size > 1) {
+    console.log('🔴 DEBUG: Showing multi-shape context menu')
+    showContextMenu(pointerPosition.x, pointerPosition.y, Array.from(selectedShapes.value) as any, 'multi-shape')
+  } else {
+    console.log('🔴 DEBUG: Showing single shape context menu')
+    showContextMenu(pointerPosition.x, pointerPosition.y, shape, 'shape')
+  }
+}
+
+const currentShapeColors = computed(() => {
+  if (!shapeColorToEdit.value) {
+    return { fill: '#93c5fd', stroke: '#3b82f6', strokeWidth: 2 }
+  }
+  const shape = shapesStore.shapes.find(s => s.id === shapeColorToEdit.value)
+  return {
+    fill: shape?.fill_color || '#93c5fd',
+    stroke: shape?.stroke_color || '#3b82f6',
+    strokeWidth: shape?.stroke_width || 2,
+  }
+})
+
+const openShapeColorModal = (shape: any) => {
+  shapeColorToEdit.value = shape.id
+  showShapeColorModal.value = true
+}
+
+const handleShapeColorSave = (colors: { fillColor: string; strokeColor: string; strokeWidth: number }) => {
+  if (shapeColorToEdit.value) {
+    shapesStore.updateShape(shapeColorToEdit.value, {
+      fill_color: colors.fillColor,
+      stroke_color: colors.strokeColor,
+      stroke_width: colors.strokeWidth,
+    })
+  }
+  showShapeColorModal.value = false
+}
+
+const deleteShape = (shape: any) => {
+  shapesStore.deleteShape(shape.id)
+  selectedShape.value = null
+  selectedShapes.value.delete(shape.id)
+}
+
+const deleteMultiShapes = () => {
+  const shapesToDelete = Array.from(selectedShapes.value)
+  for (const shapeId of shapesToDelete) {
+    shapesStore.deleteShape(shapeId)
+  }
+  selectedShape.value = null
+  selectedShapes.value.clear()
+}
+
+const alignShapesHorizontally = () => {
+  const shapes = Array.from(selectedShapes.value)
+    .map(id => shapesStore.shapes.find(s => s.id === id))
+    .filter(s => s !== undefined)
+
+  if (shapes.length < 2) return
+
+  // Calculate average Y position
+  const avgY = shapes.reduce((sum, s) => sum + s!.position_y, 0) / shapes.length
+
+  // Update all shapes to align horizontally
+  shapes.forEach(shape => {
+    if (shape) {
+      shapesStore.updateShape(shape.id, { position_y: avgY })
+    }
+  })
+}
+
+const alignShapesVertically = () => {
+  const shapes = Array.from(selectedShapes.value)
+    .map(id => shapesStore.shapes.find(s => s.id === id))
+    .filter(s => s !== undefined)
+
+  if (shapes.length < 2) return
+
+  // Calculate average X position
+  const avgX = shapes.reduce((sum, s) => sum + s!.position_x, 0) / shapes.length
+
+  // Update all shapes to align vertically
+  shapes.forEach(shape => {
+    if (shape) {
+      shapesStore.updateShape(shape.id, { position_x: avgX })
+    }
+  })
+}
+
 // Connection click and context menu handlers
 const onConnectionClick = (connection: any, event: any) => {
   event.cancelBubble = true
@@ -2675,6 +2932,7 @@ onMounted(async () => {
   await nextTick()
 
   // Load device icons and templates first
+  // Note: Shapes are NOT loaded here - they're only loaded when a canvas is loaded
   await Promise.all([
     loadDeviceIcons(),
     templateService.fetchTemplates()

@@ -196,7 +196,7 @@ cd<template>
             draggable: true,
           }"
           @dragend="onShapeDragEnd(shape, $event)"
-          @click="onShapeClick(shape, $event)"
+          @click="handleShapeClick(shape, $event)"
           @contextmenu="onShapeRightClick(shape, $event)"
         >
           <v-rect
@@ -573,6 +573,7 @@ import { useCanvasState } from '@/composables/useCanvasState'
 import { useDeviceOperations } from '@/composables/useDeviceOperations'
 import { useCanvasEvents } from '@/composables/useCanvasEvents'
 import { useCommands } from '@/composables/useCommands'
+import { useShapeOperations } from '@/composables/useShapeOperations'
 import SaveCanvasModal from './SaveCanvasModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import LoadCanvasModal from './LoadCanvasModal.vue'
@@ -768,12 +769,26 @@ const connectionStart = ref<{
 // Selected connection state
 const selectedConnection = ref<number | null>(null)
 
-// Selected shape state
-const selectedShape = ref<number | null>(null)
-const selectedShapes = ref<Set<number>>(new Set())
-const transformer = ref<any>(null)
-const showShapeColorModal = ref(false)
-const shapeColorToEdit = ref<number | null>(null)
+// Initialize shape operations composable
+const shapeOperationsComposable = useShapeOperations()
+const {
+  selectedShape,
+  selectedShapes,
+  transformer,
+  showShapeColorModal,
+  shapeColorToEdit,
+  currentShapeColors,
+  onShapeClick,
+  onShapeDragEnd,
+  onShapeRightClick: composableOnShapeRightClick,
+  openShapeColorModal,
+  handleShapeColorSave,
+  deleteShape,
+  deleteMultiShapes,
+  alignShapesHorizontally,
+  alignShapesVertically,
+  clearShapeSelection,
+} = shapeOperationsComposable
 
 // Watch for transformer changes to update shape size
 watch(transformer, () => {
@@ -845,6 +860,7 @@ const pendingDeviceData = ref<any>(null)
 const duplicateExistingDevice = ref<Device | null>(null)
 
 // Device Configuration Modal state
+// Device Configuration Modal state (using local implementations, not composable)
 const showConfigModal = ref(false)
 const configModalTitle = ref('')
 const configModalContent = ref('')
@@ -2059,11 +2075,7 @@ const onStageMouseDown = (event: any) => {
     console.log('🖱️ DEBUG: onStageMouseDown - about to deselect. selectedConnection before:', selectedConnection.value)
     selectedDevice.value = null
     selectedConnection.value = null  // Deselect connection when clicking canvas
-    selectedShape.value = null  // Deselect shape when clicking canvas
-    selectedShapes.value.clear()  // Clear multi-shape selection
-    if (transformer.value) {
-      transformer.value.getNode().nodes([])  // Clear transformer
-    }
+    clearShapeSelection()  // Deselect shapes when clicking canvas
     console.log('🖱️ DEBUG: onStageMouseDown - selectedConnection after:', selectedConnection.value)
     hideContextMenu()
 
@@ -2448,163 +2460,16 @@ const onConnectionMouseLeave = () => {
 }
 
 // Shape handlers
-const onShapeClick = (shape: any, event: any) => {
-  // Ignore right-clicks (they're handled by onShapeRightClick)
-  if (event.evt.button === 2) {
-    console.log('🔴 DEBUG: onShapeClick - ignoring right-click')
-    return
-  }
-
-  event.cancelBubble = true
+// Wrapper for shape click that also clears device/connection selection
+const handleShapeClick = (shape: any, event: any) => {
   selectedDevice.value = null
   selectedConnection.value = null
-
-  // Multi-selection with Shift key
-  if (event.evt.shiftKey) {
-    if (selectedShapes.value.has(shape.id)) {
-      selectedShapes.value.delete(shape.id)
-      if (selectedShape.value === shape.id) {
-        selectedShape.value = selectedShapes.value.size > 0 ? Array.from(selectedShapes.value)[0] : null
-      }
-    } else {
-      selectedShapes.value.add(shape.id)
-      selectedShape.value = shape.id
-    }
-  } else {
-    selectedShapes.value.clear()
-    selectedShapes.value.add(shape.id)
-    selectedShape.value = shape.id
-  }
-
-  // Attach transformer to the clicked shape (only for single selection)
-  if (transformer.value && selectedShapes.value.size === 1) {
-    const stage = event.target.getStage()
-    const shapeNode = event.target.getParent()
-    transformer.value.getNode().nodes([shapeNode])
-    transformer.value.getNode().getLayer().batchDraw()
-  } else if (transformer.value) {
-    // Clear transformer for multi-selection
-    transformer.value.getNode().nodes([])
-  }
+  onShapeClick(shape, event)
 }
 
-const onShapeDragEnd = (shape: any, event: any) => {
-  const node = event.target
-  shapesStore.updateShape(shape.id, {
-    position_x: node.x(),
-    position_y: node.y(),
-  })
-}
-
+// Wrapper for shape right-click that passes showContextMenu
 const onShapeRightClick = (shape: any, event: any) => {
-  console.log('🔴 DEBUG: onShapeRightClick called', { shape, event })
-  event.evt.preventDefault()
-  event.evt.stopPropagation()
-  event.cancelBubble = true
-
-  // If the clicked shape is not in selection, select only it
-  if (!selectedShapes.value.has(shape.id)) {
-    console.log('🔴 DEBUG: Shape not in selection, adding to selection', shape.id)
-    selectedShapes.value.clear()
-    selectedShapes.value.add(shape.id)
-    selectedShape.value = shape.id
-  } else {
-    console.log('🔴 DEBUG: Shape already in selection', shape.id, 'Selected shapes:', Array.from(selectedShapes.value))
-  }
-
-  // Show context menu
-  const stage = event.target.getStage()
-  const pointerPosition = stage.getPointerPosition()
-
-  console.log('🔴 DEBUG: Pointer position:', pointerPosition)
-  console.log('🔴 DEBUG: Selected shapes count:', selectedShapes.value.size)
-
-  if (selectedShapes.value.size > 1) {
-    console.log('🔴 DEBUG: Showing multi-shape context menu')
-    showContextMenu(pointerPosition.x, pointerPosition.y, Array.from(selectedShapes.value) as any, 'multi-shape')
-  } else {
-    console.log('🔴 DEBUG: Showing single shape context menu')
-    showContextMenu(pointerPosition.x, pointerPosition.y, shape, 'shape')
-  }
-}
-
-const currentShapeColors = computed(() => {
-  if (!shapeColorToEdit.value) {
-    return { fill: '#93c5fd', stroke: '#3b82f6', strokeWidth: 2 }
-  }
-  const shape = shapesStore.shapes.find(s => s.id === shapeColorToEdit.value)
-  return {
-    fill: shape?.fill_color || '#93c5fd',
-    stroke: shape?.stroke_color || '#3b82f6',
-    strokeWidth: shape?.stroke_width || 2,
-  }
-})
-
-const openShapeColorModal = (shape: any) => {
-  shapeColorToEdit.value = shape.id
-  showShapeColorModal.value = true
-}
-
-const handleShapeColorSave = (colors: { fillColor: string; strokeColor: string; strokeWidth: number }) => {
-  if (shapeColorToEdit.value) {
-    shapesStore.updateShape(shapeColorToEdit.value, {
-      fill_color: colors.fillColor,
-      stroke_color: colors.strokeColor,
-      stroke_width: colors.strokeWidth,
-    })
-  }
-  showShapeColorModal.value = false
-}
-
-const deleteShape = (shape: any) => {
-  shapesStore.deleteShape(shape.id)
-  selectedShape.value = null
-  selectedShapes.value.delete(shape.id)
-}
-
-const deleteMultiShapes = () => {
-  const shapesToDelete = Array.from(selectedShapes.value)
-  for (const shapeId of shapesToDelete) {
-    shapesStore.deleteShape(shapeId)
-  }
-  selectedShape.value = null
-  selectedShapes.value.clear()
-}
-
-const alignShapesHorizontally = () => {
-  const shapes = Array.from(selectedShapes.value)
-    .map(id => shapesStore.shapes.find(s => s.id === id))
-    .filter(s => s !== undefined)
-
-  if (shapes.length < 2) return
-
-  // Calculate average Y position
-  const avgY = shapes.reduce((sum, s) => sum + s!.position_y, 0) / shapes.length
-
-  // Update all shapes to align horizontally
-  shapes.forEach(shape => {
-    if (shape) {
-      shapesStore.updateShape(shape.id, { position_y: avgY })
-    }
-  })
-}
-
-const alignShapesVertically = () => {
-  const shapes = Array.from(selectedShapes.value)
-    .map(id => shapesStore.shapes.find(s => s.id === id))
-    .filter(s => s !== undefined)
-
-  if (shapes.length < 2) return
-
-  // Calculate average X position
-  const avgX = shapes.reduce((sum, s) => sum + s!.position_x, 0) / shapes.length
-
-  // Update all shapes to align vertically
-  shapes.forEach(shape => {
-    if (shape) {
-      shapesStore.updateShape(shape.id, { position_x: avgX })
-    }
-  })
+  composableOnShapeRightClick(shape, event, showContextMenu)
 }
 
 // Connection click and context menu handlers

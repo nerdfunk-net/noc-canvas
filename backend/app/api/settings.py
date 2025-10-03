@@ -79,9 +79,7 @@ def build_nautobot_settings(db: Session) -> Dict[str, Any]:
     return {
         "enabled": stored_settings.get("nautobot_enabled", "false").lower() == "true",
         "url": stored_settings.get("nautobot_url") or app_settings.nautobot_url or "",
-        "token": "***"
-        if (stored_settings.get("nautobot_token") or app_settings.nautobot_token)
-        else "",
+        "token": stored_settings.get("nautobot_token") or app_settings.nautobot_token or "",
         "verifyTls": stored_settings.get(
             "nautobot_verify_tls", str(app_settings.nautobot_verify_ssl)
         ).lower()
@@ -105,9 +103,9 @@ def build_checkmk_settings(db: Session) -> Dict[str, Any]:
         "username": stored_settings.get("checkmk_username")
         or app_settings.checkmk_username
         or "",
-        "password": "***"
-        if (stored_settings.get("checkmk_password") or app_settings.checkmk_password)
-        else "",
+        "password": stored_settings.get("checkmk_password")
+        or app_settings.checkmk_password
+        or "",
         "verifyTls": stored_settings.get(
             "checkmk_verify_tls", str(app_settings.checkmk_verify_ssl)
         ).lower()

@@ -91,12 +91,13 @@ interface Symbol {
   type: 'shape' | 'cloud' | 'network' | 'other'
   shapeType?: 'rectangle' | 'circle'
   color?: string
+  layer?: 'background' | 'devices'
 }
 
-// Shape symbols
+// Shape symbols - background layer (renders behind devices)
 const shapes = ref<Symbol[]>([
-  { id: 'shape-rectangle', name: 'Rectangle', icon: '▭', type: 'shape', shapeType: 'rectangle' },
-  { id: 'shape-circle', name: 'Circle', icon: '●', type: 'shape', shapeType: 'circle' },
+  { id: 'shape-rectangle', name: 'Rectangle', icon: '▭', type: 'shape', shapeType: 'rectangle', layer: 'background' },
+  { id: 'shape-circle', name: 'Circle', icon: '●', type: 'shape', shapeType: 'circle', layer: 'background' },
 ])
 
 // Cloud service symbols

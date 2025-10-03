@@ -9,6 +9,7 @@ export interface Device {
   position_x: number
   position_y: number
   properties?: string
+  layer?: string // 'background' or 'devices'
 }
 
 export interface Connection {

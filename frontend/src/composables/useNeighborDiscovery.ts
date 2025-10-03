@@ -268,11 +268,198 @@ export function useNeighborDiscovery() {
 
   /**
    * Add static route neighbors to the canvas
-   * TODO: Implement when static routes API endpoint is available
+   * Returns structured result data for display in modal
    */
-  const addStaticNeighbors = async (device: Device): Promise<void> => {
+  const addStaticNeighbors = async (device: Device): Promise<NeighborDiscoveryResult | null> => {
     console.log('➕ Adding static route neighbors to canvas for device:', device.name)
-    alert('Static route neighbor discovery is not yet implemented. Coming soon!')
+
+    const result: NeighborDiscoveryResult = {
+      success: false,
+      addedDevices: [],
+      skippedDevices: [],
+      notFoundDevices: []
+    }
+
+    try {
+      const nautobotId = getNautobotId(device)
+      if (!nautobotId) {
+        result.error = 'Device does not have a Nautobot ID'
+        return result
+      }
+
+      // Call the static routes endpoint with TextFSM parsing
+      const response = await makeAuthenticatedRequest(
+        `/api/devices/${nautobotId}/ip-route/static?use_textfsm=true`
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        result.error = errorData.detail || 'Failed to retrieve static routes'
+        return result
+      }
+
+      const data = await response.json()
+
+      if (!data.success) {
+        result.error = data.error || 'Failed to retrieve static routes'
+        return result
+      }
+
+      // Check if output is an array (parsed data)
+      if (!Array.isArray(data.output)) {
+        result.error = 'Expected parsed route data but received raw output'
+        return result
+      }
+
+      const routes = data.output
+      console.log('📋 Found static routes:', routes)
+
+      if (routes.length === 0) {
+        result.success = true
+        return result
+      }
+
+      // Get all devices from Nautobot for matching
+      const nautobotDevices = await nautobotApi.getAllDevices()
+      console.log('📦 Inventory devices loaded:', nautobotDevices.devices.length)
+
+      // Extract unique next-hop IPs from static routes
+      const nextHopIps = new Set<string>()
+      routes.forEach((route: any) => {
+        if (route.nexthop_ip && route.nexthop_ip !== '0.0.0.0') {
+          // Remove subnet mask if present
+          const ip = route.nexthop_ip.split('/')[0]
+          nextHopIps.add(ip)
+        }
+      })
+
+      console.log('🔍 Unique static route next-hop IPs:', Array.from(nextHopIps))
+
+      let addedCount = 0
+
+      for (const nextHopIp of nextHopIps) {
+        console.log(`🔍 Searching for device with IP: ${nextHopIp}`)
+
+        // Find device by IP address in inventory
+        const neighborDevice = nautobotDevices.devices.find((d: any) => {
+          const primaryIp = d.primary_ip4?.address || d.primary_ip6?.address
+          if (!primaryIp) return false
+          
+          // Remove subnet mask from inventory IP for comparison
+          const inventoryIp = primaryIp.split('/')[0]
+          return inventoryIp === nextHopIp
+        })
+
+        if (neighborDevice) {
+          console.log(`✅ Found neighbor in inventory: ${neighborDevice.name}`)
+
+          // Check if device already exists on canvas
+          if (isDeviceOnCanvas(neighborDevice)) {
+            console.log(`⚠️ Neighbor already on canvas: ${neighborDevice.name}`)
+            result.skippedDevices.push({
+              name: neighborDevice.name,
+              ipAddress: neighborDevice.primary_ip4?.address,
+              status: 'Already on canvas'
+            })
+            continue
+          }
+
+          // Calculate position in grid around the source device
+          const position = calculateNeighborPosition(device, addedCount, Array.from(nextHopIps).length)
+
+          // Add neighbor to canvas
+          const newDevice = await addDeviceToCanvas(neighborDevice, position)
+
+          // Create connection between source device and neighbor
+          createConnection(device, newDevice)
+
+          addedCount++
+          console.log(`✅ Added static route neighbor to canvas: ${neighborDevice.name}`)
+
+          result.addedDevices.push({
+            name: neighborDevice.name,
+            ipAddress: neighborDevice.primary_ip4?.address,
+            role: neighborDevice.role?.name,
+            location: neighborDevice.location?.name
+          })
+        } else {
+          console.log(`❌ Neighbor not found in inventory for IP: ${nextHopIp}`)
+          
+          // Try to search for the IP address in Nautobot
+          console.log(`🔍 Searching Nautobot for IP: ${nextHopIp}`)
+          try {
+            const nautobotSearchResponse = await nautobotApi.getDevices({
+              filter_type: 'ip_address',
+              filter_value: nextHopIp,
+              disable_cache: true
+            })
+
+            if (nautobotSearchResponse.devices.length > 0) {
+              const foundDevice = nautobotSearchResponse.devices[0]
+              console.log(`✅ Found device in Nautobot: ${foundDevice.name}`)
+              
+              // Check if this device is in our inventory (by name)
+              const deviceInInventory = nautobotDevices.devices.find((d: any) => 
+                d.id === foundDevice.id || d.name === foundDevice.name
+              )
+              
+              if (!deviceInInventory) {
+                console.log(`⚠️ Device ${foundDevice.name} found in Nautobot but not in inventory`)
+                result.notFoundDevices.push(
+                  `${nextHopIp} - Found device "${foundDevice.name}" in Nautobot but not in inventory`
+                )
+              } else {
+                console.log(`✅ Device ${foundDevice.name} is in inventory, attempting to add to canvas`)
+                
+                // Check if device already exists on canvas
+                if (isDeviceOnCanvas(foundDevice)) {
+                  console.log(`⚠️ Device already on canvas: ${foundDevice.name}`)
+                  result.skippedDevices.push({
+                    name: foundDevice.name,
+                    ipAddress: foundDevice.primary_ip4?.address,
+                    status: 'Already on canvas'
+                  })
+                  continue
+                }
+
+                // Calculate position in grid around the source device
+                const position = calculateNeighborPosition(device, addedCount, Array.from(nextHopIps).length)
+
+                // Add device to canvas
+                const newDevice = await addDeviceToCanvas(foundDevice, position)
+
+                // Create connection between source device and neighbor
+                createConnection(device, newDevice)
+
+                addedCount++
+                console.log(`✅ Added static route neighbor to canvas: ${foundDevice.name}`)
+
+                result.addedDevices.push({
+                  name: foundDevice.name,
+                  ipAddress: foundDevice.primary_ip4?.address,
+                  role: foundDevice.role?.name,
+                  location: foundDevice.location?.name
+                })
+              }
+            } else {
+              console.log(`❌ IP address ${nextHopIp} not found in Nautobot`)
+              result.notFoundDevices.push(`${nextHopIp} - Not found in Nautobot`)
+            }
+          } catch (error) {
+            console.error(`❌ Error searching Nautobot for IP ${nextHopIp}:`, error)
+            result.notFoundDevices.push(`${nextHopIp} - Error searching Nautobot: ${error}`)
+          }
+        }
+      }
+
+      result.success = true
+      return result
+
+    } catch (error) {
+      console.error('❌ Error adding static route neighbors to canvas:', error)
+      result.error = error instanceof Error ? error.message : 'Unknown error occurred'
+      return result
+    }
   }
 
   /**

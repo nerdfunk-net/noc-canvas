@@ -134,6 +134,7 @@ export function useCanvasState() {
         position_x: device.position_x,
         position_y: device.position_y,
         properties: device.properties,
+        layer: device.layer || 'devices',
       })),
       connections: deviceStore.connections.map((connection) => ({
         id: connection.id,
@@ -152,6 +153,7 @@ export function useCanvasState() {
         fill_color: shape.fill_color,
         stroke_color: shape.stroke_color,
         stroke_width: shape.stroke_width,
+        layer: shape.layer || 'devices',
       })),
     }
 

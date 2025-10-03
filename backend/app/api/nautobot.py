@@ -316,100 +316,10 @@ async def execute_nautobot_job(
 
 
 # =============================================================================
-# DEBUG ENDPOINTS - For development and troubleshooting only
-# =============================================================================
-
-
-@router.get("/debug/platform-test")
-async def test_platform_fields(
-    current_user: dict = Depends(get_current_user),
-):
-    """Test different platform field variations in GraphQL."""
-    try:
-        username = get_username(current_user)
-        results = await nautobot_service.test_platform_fields(username)
-        return results
-    except Exception as e:
-        logger.error(f"Platform field test failed: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Platform field test failed: {str(e)}",
-        )
-
-
-@router.get("/debug/simple-device-test")
-async def simple_device_test(
-    current_user: dict = Depends(get_current_user),
-):
-    """Simple test to check device fields including platform."""
-    try:
-        username = get_username(current_user)
-
-        # Simple query to get one device with platform field
-        query = """
-        query test_device_platform {
-          devices(limit: 1) {
-            id
-            name
-            platform {
-              network_driver
-            }
-            device_type {
-              model
-            }
-          }
-        }
-        """
-
-        result = await nautobot_service.graphql_query(query, {}, username)
-
-        return {
-            "query": query,
-            "result": result,
-            "analysis": {
-                "has_data": "data" in result,
-                "has_devices": "devices" in result.get("data", {}),
-                "device_count": len(result.get("data", {}).get("devices", [])),
-                "first_device": result.get("data", {}).get("devices", [{}])[0]
-                if result.get("data", {}).get("devices")
-                else None,
-            },
-        }
-    except Exception as e:
-        logger.error(f"Simple device test failed: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Simple device test failed: {str(e)}",
-        )
-
-
-@router.get("/debug/config")
-async def debug_nautobot_config(
-    current_user: dict = Depends(get_current_user),
-):
-    """Debug endpoint to check Nautobot configuration."""
-    try:
-        username = get_username(current_user)
-        config = nautobot_service._get_config(username)
-
-        # Return sanitized config for debugging
-        return {
-            "username": username,
-            "config_source": config.get("_source"),
-            "url_present": bool(config.get("url")),
-            "token_present": bool(config.get("token")),
-            "url": config.get("url") if config.get("url") else None,
-            "timeout": config.get("timeout"),
-            "verify_ssl": config.get("verify_ssl"),
-        }
-    except Exception as e:
-        logger.error(f"Error getting debug config: {str(e)}")
-        return {"error": str(e)}
-
-
-# =============================================================================
 # MAIN API ENDPOINTS
 # =============================================================================
+# Note: Debug endpoints have been removed for security reasons.
+# They exposed sensitive configuration information and should not be available in production.
 
 
 @router.get("/test", response_model=ConnectionTestResponse)

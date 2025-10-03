@@ -14,3 +14,4 @@ class Shape(Base):
     fill_color = Column(String, default="#93c5fd")
     stroke_color = Column(String, default="#3b82f6")
     stroke_width = Column(Float, default=2)
+    layer = Column(String, default="devices", nullable=False)  # 'background' or 'devices'

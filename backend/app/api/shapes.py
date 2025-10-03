@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models.shape import Shape
 
 router = APIRouter()
@@ -17,6 +18,7 @@ class ShapeCreate(BaseModel):
     fill_color: str = "#93c5fd"
     stroke_color: str = "#3b82f6"
     stroke_width: float = 2
+    layer: str = "devices"  # 'background' or 'devices'
 
 
 class ShapeUpdate(BaseModel):
@@ -28,6 +30,7 @@ class ShapeUpdate(BaseModel):
     fill_color: str | None = None
     stroke_color: str | None = None
     stroke_width: float | None = None
+    layer: str | None = None
 
 
 class ShapeResponse(BaseModel):
@@ -40,20 +43,28 @@ class ShapeResponse(BaseModel):
     fill_color: str
     stroke_color: str
     stroke_width: float
+    layer: str
 
     class Config:
         from_attributes = True
 
 
 @router.get("/shapes", response_model=List[ShapeResponse])
-def get_shapes(db: Session = Depends(get_db)):
+def get_shapes(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
     """Get all shapes"""
     shapes = db.query(Shape).all()
     return shapes
 
 
 @router.post("/shapes", response_model=ShapeResponse)
-def create_shape(shape: ShapeCreate, db: Session = Depends(get_db)):
+def create_shape(
+    shape: ShapeCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
     """Create a new shape"""
     db_shape = Shape(**shape.model_dump())
     db.add(db_shape)
@@ -63,7 +74,12 @@ def create_shape(shape: ShapeCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/shapes/{shape_id}", response_model=ShapeResponse)
-def update_shape(shape_id: int, shape: ShapeUpdate, db: Session = Depends(get_db)):
+def update_shape(
+    shape_id: int,
+    shape: ShapeUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
     """Update a shape"""
     db_shape = db.query(Shape).filter(Shape.id == shape_id).first()
     if not db_shape:
@@ -79,7 +95,11 @@ def update_shape(shape_id: int, shape: ShapeUpdate, db: Session = Depends(get_db
 
 
 @router.delete("/shapes/{shape_id}")
-def delete_shape(shape_id: int, db: Session = Depends(get_db)):
+def delete_shape(
+    shape_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
     """Delete a shape"""
     db_shape = db.query(Shape).filter(Shape.id == shape_id).first()
     if not db_shape:

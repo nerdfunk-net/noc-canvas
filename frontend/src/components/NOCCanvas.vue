@@ -82,6 +82,46 @@ cd<template>
         </v-group>
       </v-layer>
 
+      <!-- Background Shapes Layer (renders behind devices) -->
+      <v-layer ref="backgroundLayer">
+        <v-group
+          v-for="shape in backgroundShapes"
+          :key="`shape-bg-${shape.id}`"
+          :config="{
+            x: shape.position_x,
+            y: shape.position_y,
+            draggable: true,
+          }"
+          @dragstart="onShapeDragStart(shape)"
+          @dragmove="onShapeDragMove(shape, $event)"
+          @dragend="onShapeDragEnd(shape, $event)"
+          @click="handleShapeClick(shape, $event)"
+          @contextmenu="onShapeRightClick(shape, $event)"
+        >
+          <v-rect
+            v-if="shape.shape_type === 'rectangle'"
+            :config="{
+              width: shape.width,
+              height: shape.height,
+              fill: shape.fill_color || '#93c5fd',
+              stroke: selectedShapes.has(shape.id) ? '#1d4ed8' : (shape.stroke_color || '#3b82f6'),
+              strokeWidth: selectedShapes.has(shape.id) ? 3 : (shape.stroke_width || 2),
+            }"
+          />
+          <v-circle
+            v-else-if="shape.shape_type === 'circle'"
+            :config="{
+              x: shape.width / 2,
+              y: shape.height / 2,
+              radius: shape.width / 2,
+              fill: shape.fill_color || '#93c5fd',
+              stroke: selectedShapes.has(shape.id) ? '#1d4ed8' : (shape.stroke_color || '#3b82f6'),
+              strokeWidth: selectedShapes.has(shape.id) ? 3 : (shape.stroke_width || 2),
+            }"
+          />
+        </v-group>
+      </v-layer>
+
       <!-- Connections Layer -->
       <v-layer ref="connectionsLayer">
         <v-line
@@ -101,7 +141,7 @@ cd<template>
         />
       </v-layer>
 
-      <!-- Devices Layer -->
+      <!-- Devices Layer (renders above background) -->
       <v-layer ref="devicesLayer">
         <v-group
           v-for="device in deviceStore.devices"
@@ -185,16 +225,18 @@ cd<template>
         </v-group>
       </v-layer>
 
-      <!-- Shapes Layer -->
+      <!-- Device Shapes Layer (renders above devices) -->
       <v-layer ref="shapesLayer">
         <v-group
-          v-for="shape in shapesStore.shapes"
-          :key="`shape-${shape.id}`"
+          v-for="shape in deviceLayerShapes"
+          :key="`shape-dev-${shape.id}`"
           :config="{
             x: shape.position_x,
             y: shape.position_y,
             draggable: true,
           }"
+          @dragstart="onShapeDragStart(shape)"
+          @dragmove="onShapeDragMove(shape, $event)"
           @dragend="onShapeDragEnd(shape, $event)"
           @click="handleShapeClick(shape, $event)"
           @contextmenu="onShapeRightClick(shape, $event)"
@@ -814,7 +856,7 @@ const connectionStart = ref<{
 const selectedConnection = ref<number | null>(null)
 
 // Initialize shape operations composable
-const shapeOperationsComposable = useShapeOperations()
+const shapeOperationsComposable = useShapeOperations(selectedDevices, deviceStore)
 const {
   selectedShape,
   selectedShapes,
@@ -823,6 +865,8 @@ const {
   shapeColorToEdit,
   currentShapeColors,
   onShapeClick,
+  onShapeDragStart,
+  onShapeDragMove,
   onShapeDragEnd,
   onShapeRightClick: composableOnShapeRightClick,
   openShapeColorModal,
@@ -1007,6 +1051,15 @@ const renderConnections = computed(() => {
       }
     })
     .filter((connection): connection is NonNullable<typeof connection> => connection !== null)
+})
+
+// Separate shapes by layer
+const backgroundShapes = computed(() => {
+  return shapesStore.shapes.filter(shape => shape.layer === 'background')
+})
+
+const deviceLayerShapes = computed(() => {
+  return shapesStore.shapes.filter(shape => shape.layer !== 'background')
 })
 
 // Context menu items
@@ -1221,7 +1274,7 @@ const contextMenuItems = computed(() => {
               icon: '🌐',
               label: 'Layer3',
               submenu: [
-                { icon: '📌', label: 'Static', action: () => { hideContextMenu(); addStaticNeighbors(contextMenu.target!) } },
+                { icon: '📌', label: 'Static', action: () => handleNeighborDiscovery(contextMenu.target!, addStaticNeighbors) },
                 { icon: '🔀', label: 'OSPF', action: () => handleNeighborDiscovery(contextMenu.target!, addOspfNeighbors) },
                 { icon: '🌍', label: 'BGP', action: () => { hideContextMenu(); addBgpNeighbors(contextMenu.target!) } },
               ]
@@ -1239,16 +1292,21 @@ const contextMenuItems = computed(() => {
       ],
     },
     { icon: '🔍', label: 'Analyze', action: () => { hideContextMenu(); analyzeDevice(contextMenu.target!) } },
-    { icon: '─', label: '─────────', action: () => {}, separator: true },
     {
-      icon: '📐',
-      label: 'Alignment',
+      icon: '✏️',
+      label: 'Edit',
       submenu: [
-        { icon: '↔️', label: 'Horizontal', action: () => { alignDevicesHorizontally() } },
-        { icon: '↕️', label: 'Vertical', action: () => { alignDevicesVertically() } },
+        {
+          icon: '📐',
+          label: 'Alignment',
+          submenu: [
+            { icon: '↔️', label: 'Horizontal', action: () => { alignDevicesHorizontally() } },
+            { icon: '↕️', label: 'Vertical', action: () => { alignDevicesVertically() } },
+          ],
+        },
+        { icon: '🗑️', label: 'Remove', action: () => { hideContextMenu(); deleteDevice(contextMenu.target!) } },
       ],
     },
-    { icon: '🗑️', label: 'Remove', action: () => { hideContextMenu(); deleteDevice(contextMenu.target!) } },
   ]
   return items
 })
@@ -1950,6 +2008,7 @@ const onDrop = async (event: DragEvent) => {
           fill_color: '#93c5fd',
           stroke_color: '#3b82f6',
           stroke_width: 2,
+          layer: symbol.layer || 'background', // Default to background layer
         })
       }
     }
@@ -2170,6 +2229,11 @@ const onDeviceClick = (device: Device, event: any) => {
     selectedConnection.value = null
   }
 
+  // Only clear shape selection if not holding Shift (for cross-selection)
+  if (!event.evt?.shiftKey) {
+    clearShapeSelection()
+  }
+
   // Handle device selection using the composable
   const isShiftClick = event.evt?.shiftKey || false
   composableSelectDevice(device, isShiftClick)
@@ -2271,6 +2335,7 @@ const onDeviceMouseDown = (device: Device, event: any) => {
 const dragState = ref<{
   draggedDevice: Device | null
   initialPositions: Map<number, { x: number; y: number }>
+  initialShapePositions?: Map<number, { x: number; y: number }>
 } | null>(null)
 
 // Track real-time positions of devices during drag for connection rendering
@@ -2280,18 +2345,31 @@ const onDeviceDragStart = (device: Device) => {
   // Initialize drag state
   dragState.value = {
     draggedDevice: device,
-    initialPositions: new Map()
+    initialPositions: new Map(),
+    initialShapePositions: new Map()
   }
-  
+
   // Store initial positions of all selected devices
   const selectedDevicesList = Array.from(selectedDevices.value)
     .map(id => deviceStore.devices.find(d => d.id === id))
     .filter((d): d is Device => d !== undefined)
-  
+
   selectedDevicesList.forEach(selectedDevice => {
     dragState.value!.initialPositions.set(selectedDevice.id, {
       x: selectedDevice.position_x,
       y: selectedDevice.position_y
+    })
+  })
+
+  // Store initial positions of all selected shapes
+  const selectedShapesList = Array.from(selectedShapes.value)
+    .map(id => shapesStore.shapes.find(s => s.id === id))
+    .filter((s): s is any => s !== undefined)
+
+  selectedShapesList.forEach(selectedShape => {
+    dragState.value!.initialShapePositions!.set(selectedShape.id, {
+      x: selectedShape.position_x,
+      y: selectedShape.position_y
     })
   })
 }
@@ -2303,8 +2381,8 @@ const onDeviceDragMove = (device: Device, event: any) => {
   // Update drag position for the dragged device for real-time connection rendering
   dragPositions.value.set(device.id, { x: currentX, y: currentY })
 
-  // Handle multi-device dragging
-  if (selectedDevices.value.size > 1 && selectedDevices.value.has(device.id) && dragState.value) {
+  // Handle multi-selection dragging (devices and shapes)
+  if (dragState.value) {
     // Calculate the delta from the device's initial position
     const initialPos = dragState.value.initialPositions.get(device.id)
     if (!initialPos) return
@@ -2313,27 +2391,49 @@ const onDeviceDragMove = (device: Device, event: any) => {
     const deltaY = currentY - initialPos.y
 
     // Update positions of other selected devices in real-time in the store
-    const otherSelectedDevices = Array.from(selectedDevices.value)
-      .map(id => deviceStore.devices.find(d => d.id === id))
-      .filter((d): d is Device => d !== undefined && d.id !== device.id)
+    if (selectedDevices.value.size > 1 && selectedDevices.value.has(device.id)) {
+      const otherSelectedDevices = Array.from(selectedDevices.value)
+        .map(id => deviceStore.devices.find(d => d.id === id))
+        .filter((d): d is Device => d !== undefined && d.id !== device.id)
 
-    otherSelectedDevices.forEach(selectedDevice => {
-      const initialDevicePos = dragState.value!.initialPositions.get(selectedDevice.id)
-      if (!initialDevicePos) return
+      otherSelectedDevices.forEach(selectedDevice => {
+        const initialDevicePos = dragState.value!.initialPositions.get(selectedDevice.id)
+        if (!initialDevicePos) return
 
-      const newX = initialDevicePos.x + deltaX
-      const newY = initialDevicePos.y + deltaY
+        const newX = initialDevicePos.x + deltaX
+        const newY = initialDevicePos.y + deltaY
 
-      // Update drag position for other selected devices for real-time connection rendering
-      dragPositions.value.set(selectedDevice.id, { x: newX, y: newY })
+        // Update drag position for other selected devices for real-time connection rendering
+        dragPositions.value.set(selectedDevice.id, { x: newX, y: newY })
 
-      // Update the device position in the store in real-time
-      // This will cause Vue's reactivity to update the visual position automatically
-      deviceStore.updateDevice(selectedDevice.id, {
-        position_x: newX,
-        position_y: newY,
+        // Update the device position in the store in real-time
+        deviceStore.updateDevice(selectedDevice.id, {
+          position_x: newX,
+          position_y: newY,
+        })
       })
-    })
+    }
+
+    // Update positions of selected shapes in real-time
+    if (selectedShapes.value.size > 0 && dragState.value.initialShapePositions) {
+      const selectedShapesList = Array.from(selectedShapes.value)
+        .map(id => shapesStore.shapes.find(s => s.id === id))
+        .filter((s): s is any => s !== undefined)
+
+      selectedShapesList.forEach(selectedShape => {
+        const initialShapePos = dragState.value!.initialShapePositions!.get(selectedShape.id)
+        if (!initialShapePos) return
+
+        const newX = initialShapePos.x + deltaX
+        const newY = initialShapePos.y + deltaY
+
+        // Update the shape position in the store in real-time
+        shapesStore.updateShape(selectedShape.id, {
+          position_x: newX,
+          position_y: newY,
+        })
+      })
+    }
   }
 }
 
@@ -2399,7 +2499,11 @@ const onConnectionMouseLeave = () => {
 // Shape handlers
 // Wrapper for shape click that also clears device/connection selection
 const handleShapeClick = (shape: any, event: any) => {
-  selectedDevice.value = null
+  // Only clear device selection if not holding Shift (for cross-selection)
+  if (!event.evt?.shiftKey) {
+    selectedDevice.value = null
+    selectedDevices.value.clear()
+  }
   selectedConnection.value = null
   onShapeClick(shape, event)
 }

@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from ..core.database import get_db
 from ..models.canvas import Canvas
@@ -20,6 +20,7 @@ class CanvasDeviceData(BaseModel):
     position_x: float
     position_y: float
     properties: Optional[str] = None
+    layer: Optional[str] = "devices"  # 'background' or 'devices'
 
 
 class CanvasConnectionData(BaseModel):
@@ -40,6 +41,7 @@ class CanvasShapeData(BaseModel):
     fill_color: Optional[str] = None
     stroke_color: Optional[str] = None
     stroke_width: Optional[float] = None
+    layer: Optional[str] = "devices"  # 'background' or 'devices'
 
 
 class CanvasData(BaseModel):
@@ -230,7 +232,7 @@ async def update_canvas(
     for field, value in update_data.items():
         setattr(canvas, field, value)
 
-    canvas.updated_at = datetime.utcnow()
+    canvas.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(canvas)
 

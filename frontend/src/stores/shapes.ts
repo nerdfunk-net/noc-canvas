@@ -12,6 +12,7 @@ export interface Shape {
   fill_color?: string
   stroke_color?: string
   stroke_width?: number
+  layer?: string // 'background' or 'devices'
 }
 
 export const useShapesStore = defineStore('shapes', () => {

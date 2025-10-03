@@ -64,6 +64,18 @@ class DeviceCommunicationService:
                         use_ttp=True if parser.upper() == "TTP" else False,
                     )
                     parsed_output = True
+                    
+                    # If TextFSM parsing was requested but returned a string (parsing failed or no data),
+                    # and the string appears to be raw output, return an empty list instead
+                    if isinstance(output, str) and output.strip():
+                        logger.warning(
+                            f"TextFSM parsing returned raw output for command '{command}' on {device_dict['name']}. "
+                            "This likely means no matching template was found or no data matched. Returning empty list."
+                        )
+                        output = []
+                    elif isinstance(output, str) and not output.strip():
+                        # Empty string means no output, return empty list
+                        output = []
                 else:
                     # Send command without parsing
                     output = connection.send_command(

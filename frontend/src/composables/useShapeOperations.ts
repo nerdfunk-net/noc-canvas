@@ -1,8 +1,10 @@
 import { ref, computed } from 'vue'
 import { useShapesStore } from '@/stores/shapes'
+import { useDevicesStore, type Device } from '@/stores/devices'
 
-export function useShapeOperations() {
+export function useShapeOperations(selectedDevices?: any, deviceStore?: any) {
   const shapesStore = useShapesStore()
+  const devicesStoreInstance = deviceStore || useDevicesStore()
 
   // Selected shape state
   const selectedShape = ref<number | null>(null)
@@ -23,6 +25,107 @@ export function useShapeOperations() {
       strokeWidth: shape?.stroke_width || 2,
     }
   })
+
+  // Track drag state for shapes
+  const shapeDragState = ref<{
+    draggedShape: any | null
+    initialPositions: Map<number, { x: number; y: number }>
+    initialDevicePositions?: Map<number, { x: number; y: number }>
+  } | null>(null)
+
+  // Shape drag start handler
+  const onShapeDragStart = (shape: any) => {
+    // Initialize drag state
+    shapeDragState.value = {
+      draggedShape: shape,
+      initialPositions: new Map(),
+      initialDevicePositions: new Map()
+    }
+
+    // Store initial positions of all selected shapes
+    const selectedShapesList = Array.from(selectedShapes.value)
+      .map(id => shapesStore.shapes.find(s => s.id === id))
+      .filter((s): s is any => s !== undefined)
+
+    selectedShapesList.forEach(selectedShape => {
+      shapeDragState.value!.initialPositions.set(selectedShape.id, {
+        x: selectedShape.position_x,
+        y: selectedShape.position_y
+      })
+    })
+
+    // Store initial positions of all selected devices (if any)
+    if (selectedDevices && selectedDevices.value) {
+      const selectedDevicesList = Array.from(selectedDevices.value)
+        .map((id: number) => devicesStoreInstance.devices.find((d: Device) => d.id === id))
+        .filter((d): d is Device => d !== undefined)
+
+      selectedDevicesList.forEach((selectedDevice: Device) => {
+        shapeDragState.value!.initialDevicePositions!.set(selectedDevice.id, {
+          x: selectedDevice.position_x,
+          y: selectedDevice.position_y
+        })
+      })
+    }
+  }
+
+  // Shape drag move handler
+  const onShapeDragMove = (shape: any, event: any) => {
+    const currentX = event.target.x()
+    const currentY = event.target.y()
+
+    // Handle multi-selection dragging (shapes and devices)
+    if (shapeDragState.value) {
+      // Calculate the delta from the shape's initial position
+      const initialPos = shapeDragState.value.initialPositions.get(shape.id)
+      if (!initialPos) return
+
+      const deltaX = currentX - initialPos.x
+      const deltaY = currentY - initialPos.y
+
+      // Update positions of other selected shapes in real-time
+      if (selectedShapes.value.size > 1 && selectedShapes.value.has(shape.id)) {
+        const otherSelectedShapes = Array.from(selectedShapes.value)
+          .map(id => shapesStore.shapes.find(s => s.id === id))
+          .filter((s): s is any => s !== undefined && s.id !== shape.id)
+
+        otherSelectedShapes.forEach(selectedShape => {
+          const initialShapePos = shapeDragState.value!.initialPositions.get(selectedShape.id)
+          if (!initialShapePos) return
+
+          const newX = initialShapePos.x + deltaX
+          const newY = initialShapePos.y + deltaY
+
+          // Update the shape position in the store in real-time
+          shapesStore.updateShape(selectedShape.id, {
+            position_x: newX,
+            position_y: newY,
+          })
+        })
+      }
+
+      // Update positions of selected devices in real-time
+      if (selectedDevices && selectedDevices.value && selectedDevices.value.size > 0 && shapeDragState.value.initialDevicePositions) {
+        const selectedDevicesList = Array.from(selectedDevices.value)
+          .map((id: number) => devicesStoreInstance.devices.find((d: Device) => d.id === id))
+          .filter((d): d is Device => d !== undefined)
+
+        selectedDevicesList.forEach((selectedDevice: Device) => {
+          const initialDevicePos = shapeDragState.value!.initialDevicePositions!.get(selectedDevice.id)
+          if (!initialDevicePos) return
+
+          const newX = initialDevicePos.x + deltaX
+          const newY = initialDevicePos.y + deltaY
+
+          // Update the device position in the store in real-time
+          devicesStoreInstance.updateDevice(selectedDevice.id, {
+            position_x: newX,
+            position_y: newY,
+          })
+        })
+      }
+    }
+  }
 
   // Shape click handler
   const onShapeClick = (shape: any, event: any) => {
@@ -70,6 +173,9 @@ export function useShapeOperations() {
       position_x: node.x(),
       position_y: node.y(),
     })
+
+    // Clean up drag state
+    shapeDragState.value = null
   }
 
   // Shape right-click handler
@@ -198,6 +304,8 @@ export function useShapeOperations() {
 
     // Methods
     onShapeClick,
+    onShapeDragStart,
+    onShapeDragMove,
     onShapeDragEnd,
     onShapeRightClick,
     openShapeColorModal,

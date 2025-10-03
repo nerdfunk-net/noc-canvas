@@ -1021,6 +1021,25 @@ const gridLines = computed(() => {
   return lines
 })
 
+// Calculate orthogonal (right-angle) path points for connections
+const calculateOrthogonalPath = (
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+): number[] => {
+  const midX = (x1 + x2) / 2
+
+  // Create a path with right-angle corners
+  // Route: start -> vertical to midpoint -> horizontal -> vertical to end
+  return [
+    x1, y1,      // Start point
+    x1, y1 + (y2 - y1) / 2,  // Vertical segment to middle height
+    x2, y1 + (y2 - y1) / 2,  // Horizontal segment to target x
+    x2, y2       // Vertical segment to end point
+  ]
+}
+
 // Render connections
 const renderConnections = computed(() => {
   return deviceStore.connections
@@ -1040,14 +1059,22 @@ const renderConnections = computed(() => {
         y: targetDevice.position_y
       }
 
+      // Calculate center points of devices
+      const x1 = sourcePos.x + DEVICE_HALF_SIZE
+      const y1 = sourcePos.y + DEVICE_HALF_SIZE
+      const x2 = targetPos.x + DEVICE_HALF_SIZE
+      const y2 = targetPos.y + DEVICE_HALF_SIZE
+
+      // Determine points based on routing style (default to straight)
+      const routingStyle = connection.routing_style || 'straight'
+      const points = routingStyle === 'orthogonal'
+        ? calculateOrthogonalPath(x1, y1, x2, y2)
+        : [x1, y1, x2, y2]
+
       return {
         id: connection.id,
-        points: [
-          sourcePos.x + DEVICE_HALF_SIZE,
-          sourcePos.y + DEVICE_HALF_SIZE,
-          targetPos.x + DEVICE_HALF_SIZE,
-          targetPos.y + DEVICE_HALF_SIZE,
-        ],
+        points,
+        routingStyle,
       }
     })
     .filter((connection): connection is NonNullable<typeof connection> => connection !== null)
@@ -1108,10 +1135,15 @@ const contextMenuItems = computed(() => {
 
   // Connection context menu
   if (contextMenu.targetType === 'connection') {
+    const connection = deviceStore.connections.find(c => c.id === contextMenu.target)
+    const currentStyle = connection?.routing_style || 'straight'
+    const styleLabel = currentStyle === 'straight' ? 'Orthogonal' : 'Straight'
+
     const items = [
       { icon: '👁️', label: 'Show', action: () => { hideContextMenu(); showConnectionInfo(contextMenu.target as any) } },
       { icon: '📊', label: 'Status', action: () => { hideContextMenu(); showConnectionStatus(contextMenu.target as any) } },
       { icon: '📈', label: 'Stats', action: () => { hideContextMenu(); showConnectionStats(contextMenu.target as any) } },
+      { icon: '↔️', label: `Route: ${styleLabel}`, action: () => { hideContextMenu(); toggleConnectionRoutingStyle(contextMenu.target as any) } },
       { icon: '─', label: '─────────', action: () => {}, separator: true },
       { icon: '🗑️', label: 'Delete', action: () => { hideContextMenu(); deleteConnection(contextMenu.target as any) } },
     ]
@@ -2609,6 +2641,17 @@ const showConnectionStats = (connectionId: number) => {
   console.log('📈 Show connection stats:', connectionId)
   // TODO: Implement connection stats display
   alert('Connection Stats feature coming soon!')
+}
+
+const toggleConnectionRoutingStyle = (connectionId: number) => {
+  const connection = deviceStore.connections.find(c => c.id === connectionId)
+  if (!connection) return
+
+  // Toggle between straight and orthogonal
+  const currentStyle = connection.routing_style || 'straight'
+  connection.routing_style = currentStyle === 'straight' ? 'orthogonal' : 'straight'
+
+  console.log('✅ Connection routing style changed to:', connection.routing_style)
 }
 
 const deleteConnection = (connectionId: number) => {

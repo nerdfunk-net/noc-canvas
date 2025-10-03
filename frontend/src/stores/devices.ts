@@ -18,6 +18,7 @@ export interface Connection {
   target_device_id: number
   connection_type: string
   properties?: string
+  routing_style?: 'straight' | 'orthogonal' // Line routing: straight or with right-angle corners
 }
 
 export const useDevicesStore = defineStore('devices', () => {

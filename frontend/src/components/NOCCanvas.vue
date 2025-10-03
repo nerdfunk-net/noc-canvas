@@ -317,25 +317,60 @@ cd<template>
                 </span>
               </button>
 
-              <!-- Nested Submenu -->
+              <!-- Nested Submenu (Level 3) -->
               <div
                 v-if="subItem.submenu"
                 class="submenu absolute left-full top-0 bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-36 z-10"
                 data-context-menu="true"
               >
-                <button
-                  v-for="nestedItem in subItem.submenu"
-                  :key="nestedItem.label"
-                  @click="nestedItem.disabled ? null : nestedItem.action()"
-                  :disabled="nestedItem.disabled"
-                  class="w-full text-left px-3 py-1.5 text-xs flex items-center space-x-2 transition-all duration-150 ease-out"
-                  :class="nestedItem.disabled
-                    ? 'text-gray-400 cursor-not-allowed opacity-50'
-                    : 'text-gray-700 hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/80 hover:text-blue-900'"
-                >
-                  <span class="text-xs opacity-70">{{ nestedItem.icon }}</span>
-                  <span class="font-medium">{{ nestedItem.label }}</span>
-                </button>
+                <div v-for="nestedItem in subItem.submenu" :key="nestedItem.label" class="relative context-menu-item">
+                  <button
+                    @click="nestedItem.submenu ? null : nestedItem.action()"
+                    :disabled="nestedItem.disabled"
+                    class="w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition-all duration-150 ease-out"
+                    :class="{
+                      'text-gray-400 cursor-not-allowed opacity-50': nestedItem.disabled,
+                      'text-gray-700 hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/80 hover:text-blue-900': !nestedItem.disabled && !nestedItem.submenu,
+                      'cursor-default': nestedItem.submenu
+                    }"
+                  >
+                    <div class="flex items-center space-x-2">
+                      <span class="text-xs opacity-70">{{ nestedItem.icon }}</span>
+                      <span class="font-medium">{{ nestedItem.label }}</span>
+                    </div>
+                    <span v-if="nestedItem.submenu" class="text-gray-400 transition-colors">
+                      <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M9 5l7 7-7 7"
+                        ></path>
+                      </svg>
+                    </span>
+                  </button>
+
+                  <!-- Fourth Level Submenu -->
+                  <div
+                    v-if="nestedItem.submenu"
+                    class="submenu absolute left-full top-0 bg-white/95 backdrop-blur-md border border-gray-200/60 rounded-lg shadow-2xl shadow-black/10 py-1 min-w-36 z-10"
+                    data-context-menu="true"
+                  >
+                    <button
+                      v-for="deepItem in nestedItem.submenu"
+                      :key="deepItem.label"
+                      @click="deepItem.disabled ? null : deepItem.action()"
+                      :disabled="deepItem.disabled"
+                      class="w-full text-left px-3 py-1.5 text-xs flex items-center space-x-2 transition-all duration-150 ease-out"
+                      :class="deepItem.disabled
+                        ? 'text-gray-400 cursor-not-allowed opacity-50'
+                        : 'text-gray-700 hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/80 hover:text-blue-900'"
+                    >
+                      <span class="text-xs opacity-70">{{ deepItem.icon }}</span>
+                      <span class="font-medium">{{ deepItem.label }}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1126,10 +1161,32 @@ const contextMenuItems = computed(() => {
       label: 'Neighbors',
       submenu: [
         { icon: '👁️', label: 'Show', action: () => { hideContextMenu(); showNeighbors(contextMenu.target!) } },
-        { icon: '➕', label: 'Add', action: () => { hideContextMenu(); addNeighborsToCanvas(contextMenu.target!) } },
+        {
+          icon: '➕',
+          label: 'Add',
+          submenu: [
+            {
+              icon: '🔗',
+              label: 'Layer2',
+              submenu: [
+                { icon: '📡', label: 'CDP', action: () => { hideContextMenu(); addNeighborsToCanvas(contextMenu.target!) } },
+                { icon: '🔗', label: 'MAC', action: () => { hideContextMenu(); console.log('MAC neighbors - not implemented yet') } },
+              ]
+            },
+            {
+              icon: '🌐',
+              label: 'Layer3',
+              submenu: [
+                { icon: '📌', label: 'Static', action: () => { hideContextMenu(); console.log('Static neighbors - not implemented yet') } },
+                { icon: '🔀', label: 'OSPF', action: () => { hideContextMenu(); console.log('OSPF neighbors - not implemented yet') } },
+                { icon: '🌍', label: 'BGP', action: () => { hideContextMenu(); console.log('BGP neighbors - not implemented yet') } },
+              ]
+            },
+          ]
+        },
         {
           icon: '🔗',
-          label: 'Connect to',
+          label: 'Connect',
           action: selectedDevices.value.size === 2
             ? () => { hideContextMenu(); connectTwoDevices() }
             : () => {},
@@ -2850,7 +2907,7 @@ onUnmounted(() => {
   position: relative;
 }
 
-.context-menu-item .submenu {
+.context-menu-item > .submenu {
   opacity: 0;
   visibility: hidden;
   transform: translateX(-10px);
@@ -2860,24 +2917,17 @@ onUnmounted(() => {
     transform 0.2s ease-out;
 }
 
-.context-menu-item:hover .submenu {
+.context-menu-item:hover > .submenu {
   opacity: 1;
   visibility: visible;
   transform: translateX(0);
 }
 
 /* Keep submenu visible when hovering over it */
-.context-menu-item:hover .submenu,
+.context-menu-item:hover > .submenu,
 .submenu:hover {
   opacity: 1;
   visibility: visible;
-}
-
-/* Handle nested submenus */
-.context-menu-item .context-menu-item:hover .submenu {
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(0);
 }
 
 /* Extend hover area slightly to prevent flickering */

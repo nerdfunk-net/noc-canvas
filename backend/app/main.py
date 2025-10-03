@@ -15,6 +15,12 @@ from .api import (
     credentials,
     shapes,
 )
+from .routers import (
+    nautobot_devices,
+    nautobot_metadata,
+    nautobot_jobs,
+    nautobot_network,
+)
 import logging
 import sys
 
@@ -101,7 +107,14 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(canvas.router, prefix="/api/canvas", tags=["canvas"])
-app.include_router(nautobot.router, prefix="/api/nautobot", tags=["nautobot"])
+
+# Nautobot routers - modular organization
+app.include_router(nautobot_devices.router, prefix="/api/nautobot", tags=["nautobot-devices"])
+app.include_router(nautobot_metadata.router, prefix="/api/nautobot", tags=["nautobot-metadata"])
+app.include_router(nautobot_jobs.router, prefix="/api/nautobot", tags=["nautobot-jobs"])
+app.include_router(nautobot_network.router, prefix="/api/nautobot", tags=["nautobot-network"])
+app.include_router(nautobot.router, prefix="/api/nautobot", tags=["nautobot-legacy"])  # Keep legacy endpoints
+
 app.include_router(devices.router, prefix="/api/devices", tags=["devices"])
 app.include_router(credentials.router, prefix="/api/credentials", tags=["credentials"])
 app.include_router(checkmk.router, prefix="/api/checkmk", tags=["checkmk"])
@@ -120,6 +133,10 @@ async def root():
             "auth": "/api/auth",
             "canvas": "/api/canvas",
             "nautobot": "/api/nautobot",
+            "nautobot_devices": "/api/nautobot/devices",
+            "nautobot_metadata": "/api/nautobot/locations (and other metadata)",
+            "nautobot_jobs": "/api/nautobot/devices/onboard (and sync)",
+            "nautobot_network": "/api/nautobot/test (and check-ip)",
             "devices": "/api/devices",
             "credentials": "/api/credentials",
             "checkmk": "/api/checkmk",

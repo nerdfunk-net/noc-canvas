@@ -751,6 +751,15 @@ async def test_nautobot_settings(
         )
 
 
+@router.post("/test-nautobot", response_model=SettingsTest)
+async def test_nautobot_settings_legacy(
+    test_request: NautobotTestRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Test Nautobot connection settings (legacy endpoint for backward compatibility)."""
+    return await test_nautobot_settings(test_request, current_user)
+
+
 # CheckMK Settings
 
 
@@ -887,6 +896,8 @@ async def save_unified_settings(
 ):
     """Save unified settings from frontend."""
     try:
+        logger.info(f"💾 Saving unified settings: {settings_data}")
+
         # Collect all settings to save
         settings_to_save = [
             ("nautobot_enabled", str(settings_data.nautobot.get("enabled", False))),
@@ -900,6 +911,7 @@ async def save_unified_settings(
 
         # Add Nautobot settings
         if hasattr(settings_data, "nautobot") and settings_data.nautobot:
+            logger.info(f"💾 Nautobot settings to save: {settings_data.nautobot}")
             nautobot_config = settings_data.nautobot
             settings_to_save.extend(
                 [
@@ -927,9 +939,13 @@ async def save_unified_settings(
             )
 
         # Save all settings using helper function
+        logger.info(f"💾 Total settings to save: {len(settings_to_save)}")
         for key, value in settings_to_save:
             if value != "***":  # Skip masked passwords
+                logger.info(f"💾 Saving setting: {key} = {value[:50] if len(str(value)) > 50 else value}")
                 upsert_setting(db, key, value)
+            else:
+                logger.info(f"💾 Skipping masked value for: {key}")
 
         # Save database configuration to YAML
         if hasattr(settings_data, "database") and settings_data.database:
@@ -952,9 +968,12 @@ async def save_unified_settings(
                 logger.warning(f"Could not save database config: {db_error}")
 
         db.commit()
+        logger.info("✅ Settings saved successfully and committed to database")
         return {"message": "Settings saved successfully"}
     except Exception as e:
-        logger.error(f"Error saving unified settings: {str(e)}")
+        logger.error(f"❌ Error saving unified settings: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to save settings: {str(e)}",

@@ -1189,12 +1189,16 @@ const contextMenuItems = computed(() => {
       { icon: '👁️', label: 'Show', action: () => { hideContextMenu(); showConnectionInfo(contextMenu.target as any) } },
       { icon: '📊', label: 'Status', action: () => { hideContextMenu(); showConnectionStatus(contextMenu.target as any) } },
       { icon: '📈', label: 'Stats', action: () => { hideContextMenu(); showConnectionStats(contextMenu.target as any) } },
-      { icon: '↔️', label: `Route: ${styleLabel}`, action: () => { hideContextMenu(); toggleConnectionRoutingStyle(contextMenu.target as any) } },
-      { icon: '─', label: '─────────', action: () => {}, separator: true },
-      { icon: '🎯', label: 'Add Waypoint (Alt+Click)', action: () => { hideContextMenu() }, disabled: true },
-      ...(hasWaypoints ? [{ icon: '🧹', label: 'Clear Waypoints', action: () => { hideContextMenu(); clearConnectionWaypoints(contextMenu.target as any) } }] : []),
-      { icon: '─', label: '─────────', action: () => {}, separator: true },
-      { icon: '🗑️', label: 'Delete', action: () => { hideContextMenu(); deleteConnection(contextMenu.target as any) } },
+      {
+        icon: '✏️',
+        label: 'Edit',
+        submenu: [
+          { icon: '↔️', label: `Route: ${styleLabel}`, action: () => { hideContextMenu(); toggleConnectionRoutingStyle(contextMenu.target as any) } },
+          { icon: '🎯', label: 'Add Waypoint (Alt+Click)', action: () => { hideContextMenu() }, disabled: true },
+          ...(hasWaypoints ? [{ icon: '🧹', label: 'Clear Waypoints', action: () => { hideContextMenu(); clearConnectionWaypoints(contextMenu.target as any) } }] : []),
+          { icon: '🗑️', label: 'Delete', action: () => { hideContextMenu(); deleteConnection(contextMenu.target as any) } },
+        ],
+      },
     ]
     return items
   }

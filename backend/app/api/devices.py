@@ -577,6 +577,61 @@ async def get_ip_arp(
         )
 
 
+@router.get("/{device_id}/mac-address-table", response_model=DeviceCommandResponse)
+async def get_mac_address_table(
+    device_id: str,
+    use_textfsm: bool = False,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get MAC address table from a network device.
+
+    Args:
+        device_id: The ID of the device to query
+        use_textfsm: If True, parse output using TextFSM. Default is False.
+        current_user: The authenticated user
+
+    Returns:
+        DeviceCommandResponse with parsed or raw output
+    """
+    try:
+        username = (
+            current_user.get("username")
+            if isinstance(current_user, dict)
+            else current_user.username
+        )
+
+        # Get device connection information
+        device_info = await get_device_connection_info(device_id, username)
+
+        # Execute command on device with optional TextFSM parsing
+        result = await device_communication_service.execute_command(
+            device_info=device_info,
+            command="show mac address-table",
+            username=username,
+            parser="TEXTFSM" if use_textfsm else None,
+        )
+
+        return DeviceCommandResponse(
+            success=result["success"],
+            output=result.get("output"),
+            error=result.get("error"),
+            device_info=device_info.model_dump(),
+            command="show mac address-table",
+            execution_time=result.get("execution_time"),
+            parsed=result.get("parsed", False),
+            parser_used=result.get("parser_used"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting MAC address table for device {device_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get MAC address table: {str(e)}",
+        )
+
+
 @router.get("/{device_id}/access-lists", response_model=DeviceCommandResponse)
 async def get_access_lists(
     device_id: str,

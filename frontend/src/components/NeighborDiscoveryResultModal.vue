@@ -141,14 +141,24 @@
               class="bg-yellow-50 border border-yellow-200 rounded-lg p-3"
             >
               <div class="flex items-center justify-between">
-                <div>
+                <div class="flex-1">
                   <div class="font-medium text-gray-900">{{ device.name }}</div>
                   <div v-if="device.ipAddress" class="text-sm text-gray-600 mt-1">
                     {{ device.ipAddress }}
                   </div>
                 </div>
-                <span class="ml-3 px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded">
-                  Exists
+                <button
+                  v-if="!device.hasConnection && device.deviceId"
+                  @click="addConnection(device.deviceId!)"
+                  class="ml-3 px-3 py-1 text-xs font-medium bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                >
+                  Add Connection
+                </button>
+                <span
+                  v-else
+                  class="ml-3 px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded"
+                >
+                  {{ device.hasConnection ? 'Connected' : 'Exists' }}
                 </span>
               </div>
             </div>
@@ -209,6 +219,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useDevicesStore } from '@/stores/devices'
 
 interface NeighborDevice {
   name: string
@@ -216,6 +227,8 @@ interface NeighborDevice {
   role?: string
   location?: string
   status?: string
+  deviceId?: number
+  hasConnection?: boolean
 }
 
 interface NeighborDiscoveryResult {
@@ -224,6 +237,7 @@ interface NeighborDiscoveryResult {
   addedDevices: NeighborDevice[]
   skippedDevices: NeighborDevice[]
   notFoundDevices: string[]
+  sourceDeviceId?: number
 }
 
 interface Props {
@@ -244,6 +258,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
+const deviceStore = useDevicesStore()
+
 // Computed properties to safely access result data
 const addedDevices = computed(() => props.result?.addedDevices || [])
 const skippedDevices = computed(() => props.result?.skippedDevices || [])
@@ -251,5 +267,29 @@ const notFoundDevices = computed(() => props.result?.notFoundDevices || [])
 
 const close = () => {
   emit('close')
+}
+
+const addConnection = (targetDeviceId: number) => {
+  if (!props.result?.sourceDeviceId) {
+    console.error('❌ No source device ID available')
+    return
+  }
+
+  try {
+    deviceStore.createConnection({
+      source_device_id: props.result.sourceDeviceId,
+      target_device_id: targetDeviceId,
+      connection_type: 'ethernet',
+    })
+    console.log(`🔗 Created connection between devices ${props.result.sourceDeviceId} and ${targetDeviceId}`)
+
+    // Update the hasConnection flag for this device in skipped list
+    const device = skippedDevices.value.find(d => d.deviceId === targetDeviceId)
+    if (device) {
+      device.hasConnection = true
+    }
+  } catch (error) {
+    console.error('❌ Failed to create connection:', error)
+  }
 }
 </script>

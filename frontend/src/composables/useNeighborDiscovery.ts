@@ -8,6 +8,8 @@ export interface NeighborDevice {
   role?: string
   location?: string
   status?: string
+  deviceId?: number // Canvas device ID for connection creation
+  hasConnection?: boolean // Whether a connection already exists
 }
 
 export interface NeighborDiscoveryResult {
@@ -16,6 +18,7 @@ export interface NeighborDiscoveryResult {
   addedDevices: NeighborDevice[]
   skippedDevices: NeighborDevice[]
   notFoundDevices: string[]
+  sourceDeviceId?: number // ID of the source device for connection creation
 }
 
 /**
@@ -121,6 +124,16 @@ export function useNeighborDiscovery() {
   }
 
   /**
+   * Helper: Check if a connection exists between two devices
+   */
+  const connectionExists = (device1Id: number, device2Id: number): boolean => {
+    return deviceStore.connections.some(conn =>
+      (conn.source_device_id === device1Id && conn.target_device_id === device2Id) ||
+      (conn.source_device_id === device2Id && conn.target_device_id === device1Id)
+    )
+  }
+
+  /**
    * Helper: Create a connection between two devices
    */
   const createConnection = (sourceDevice: Device, targetDevice: Device): void => {
@@ -147,7 +160,8 @@ export function useNeighborDiscovery() {
       success: false,
       addedDevices: [],
       skippedDevices: [],
-      notFoundDevices: []
+      notFoundDevices: [],
+      sourceDeviceId: device.id
     }
 
     try {
@@ -215,10 +229,21 @@ export function useNeighborDiscovery() {
           // Check if device already exists on canvas
           if (isDeviceOnCanvas(neighborDevice)) {
             console.log(`⚠️ Neighbor already on canvas: ${neighborDevice.name}`)
+
+            // Find the canvas device to check for connection
+            let canvasDevice = deviceStore.findDeviceByName(neighborDevice.name)
+            if (!canvasDevice) {
+              canvasDevice = deviceStore.findDeviceByNautobotId(neighborDevice.id)
+            }
+
+            const hasConnection = canvasDevice ? connectionExists(device.id, canvasDevice.id) : false
+
             result.skippedDevices.push({
               name: neighborDevice.name,
               ipAddress: neighborDevice.primary_ip4?.address || neighborDevice.primary_ip6?.address,
-              status: 'Already on canvas'
+              status: 'Already on canvas',
+              deviceId: canvasDevice?.id,
+              hasConnection
             })
             continue
           }
@@ -268,7 +293,8 @@ export function useNeighborDiscovery() {
       success: false,
       addedDevices: [],
       skippedDevices: [],
-      notFoundDevices: []
+      notFoundDevices: [],
+      sourceDeviceId: device.id
     }
 
     try {
@@ -359,10 +385,21 @@ export function useNeighborDiscovery() {
           // Check if device already exists on canvas
           if (isDeviceOnCanvas(neighborDevice)) {
             console.log(`⚠️ Neighbor already on canvas: ${neighborDevice.name}`)
+
+            // Find the canvas device to check for connection
+            let canvasDevice = deviceStore.findDeviceByName(neighborDevice.name)
+            if (!canvasDevice) {
+              canvasDevice = deviceStore.findDeviceByNautobotId(neighborDevice.id)
+            }
+
+            const hasConnection = canvasDevice ? connectionExists(device.id, canvasDevice.id) : false
+
             result.skippedDevices.push({
               name: neighborDevice.name,
               ipAddress: neighborDevice.primary_ip4?.address || neighborDevice.primary_ip6?.address,
-              status: 'Already on canvas'
+              status: 'Already on canvas',
+              deviceId: canvasDevice?.id,
+              hasConnection
             })
             continue
           }
@@ -421,7 +458,8 @@ export function useNeighborDiscovery() {
       success: false,
       addedDevices: [],
       skippedDevices: [],
-      notFoundDevices: []
+      notFoundDevices: [],
+      sourceDeviceId: device.id
     }
 
     try {
@@ -500,10 +538,21 @@ export function useNeighborDiscovery() {
           // Check if device already exists on canvas
           if (isDeviceOnCanvas(neighborDevice)) {
             console.log(`⚠️ Neighbor already on canvas: ${neighborDevice.name}`)
+
+            // Find the canvas device to check for connection
+            let canvasDevice = deviceStore.findDeviceByName(neighborDevice.name)
+            if (!canvasDevice) {
+              canvasDevice = deviceStore.findDeviceByNautobotId(neighborDevice.id)
+            }
+
+            const hasConnection = canvasDevice ? connectionExists(device.id, canvasDevice.id) : false
+
             result.skippedDevices.push({
               name: neighborDevice.name,
               ipAddress: neighborDevice.primary_ip4?.address,
-              status: 'Already on canvas'
+              status: 'Already on canvas',
+              deviceId: canvasDevice?.id,
+              hasConnection
             })
             continue
           }
@@ -617,7 +666,8 @@ export function useNeighborDiscovery() {
       success: false,
       addedDevices: [],
       skippedDevices: [],
-      notFoundDevices: []
+      notFoundDevices: [],
+      sourceDeviceId: device.id
     }
 
     try {
@@ -696,10 +746,21 @@ export function useNeighborDiscovery() {
           // Check if device already exists on canvas
           if (isDeviceOnCanvas(neighborDevice)) {
             console.log(`⚠️ Neighbor already on canvas: ${neighborDevice.name}`)
+
+            // Find the canvas device to check for connection
+            let canvasDevice = deviceStore.findDeviceByName(neighborDevice.name)
+            if (!canvasDevice) {
+              canvasDevice = deviceStore.findDeviceByNautobotId(neighborDevice.id)
+            }
+
+            const hasConnection = canvasDevice ? connectionExists(device.id, canvasDevice.id) : false
+
             result.skippedDevices.push({
               name: neighborDevice.name,
               ipAddress: neighborDevice.primary_ip4?.address,
-              status: 'Already on canvas'
+              status: 'Already on canvas',
+              deviceId: canvasDevice?.id,
+              hasConnection
             })
             continue
           }

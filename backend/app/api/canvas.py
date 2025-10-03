@@ -29,6 +29,8 @@ class CanvasConnectionData(BaseModel):
     target_device_id: int
     connection_type: str
     properties: Optional[str] = None
+    routing_style: Optional[str] = None
+    waypoints: Optional[List[dict]] = None
 
 
 class CanvasShapeData(BaseModel):

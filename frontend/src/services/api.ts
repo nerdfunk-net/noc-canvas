@@ -18,6 +18,8 @@ export interface CanvasConnectionData {
   target_device_id: number
   connection_type: string
   properties?: string
+  routing_style?: 'straight' | 'orthogonal'
+  waypoints?: { x: number; y: number }[]
 }
 
 export interface CanvasData {

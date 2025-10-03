@@ -258,6 +258,150 @@ export function useNeighborDiscovery() {
   }
 
   /**
+   * Add ARP table neighbors to the canvas
+   * Returns structured result data for display in modal
+   */
+  const addArpNeighbors = async (device: Device): Promise<NeighborDiscoveryResult | null> => {
+    console.log('➕ Adding ARP neighbors to canvas for device:', device.name)
+
+    const result: NeighborDiscoveryResult = {
+      success: false,
+      addedDevices: [],
+      skippedDevices: [],
+      notFoundDevices: []
+    }
+
+    try {
+      const nautobotId = getNautobotId(device)
+      if (!nautobotId) {
+        result.error = 'Device does not have a Nautobot ID'
+        return result
+      }
+
+      // Call the ARP table endpoint with TextFSM parsing
+      const response = await makeAuthenticatedRequest(
+        `/api/devices/${nautobotId}/ip-arp?use_textfsm=true`
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        result.error = errorData.detail || 'Failed to retrieve ARP table'
+        return result
+      }
+
+      const data = await response.json()
+
+      if (!data.success) {
+        result.error = data.error || 'Failed to retrieve ARP table'
+        return result
+      }
+
+      // Check if output is an array (parsed data)
+      if (!Array.isArray(data.output)) {
+        result.error = 'Expected parsed ARP data but received raw output'
+        return result
+      }
+
+      const arpEntries = data.output
+      console.log('📋 Found ARP entries:', arpEntries)
+
+      if (arpEntries.length === 0) {
+        result.success = true
+        return result
+      }
+
+      // Get all devices from Nautobot for matching
+      const nautobotDevices = await nautobotApi.getAllDevices()
+      console.log('📦 Inventory devices loaded:', nautobotDevices.devices.length)
+
+      let addedCount = 0
+
+      for (let i = 0; i < arpEntries.length; i++) {
+        const arpEntry = arpEntries[i]
+        const ipAddress = arpEntry.ip_address
+
+        if (!ipAddress) {
+          console.warn('⚠️ ARP entry has no IP address, skipping:', arpEntry)
+          continue
+        }
+
+        console.log(`🔍 Searching for device with IP: ${ipAddress}`)
+
+        // First, try to find the device in loaded inventory by IP
+        let neighborDevice = nautobotDevices.devices.find((d: any) => {
+          const primaryIp = d.primary_ip4?.address || d.primary_ip6?.address
+          if (!primaryIp) return false
+
+          // Extract IP without CIDR notation
+          const deviceIp = primaryIp.split('/')[0]
+          return deviceIp === ipAddress
+        })
+
+        // If not found in inventory, try to fetch from Nautobot by IP
+        if (!neighborDevice) {
+          console.log(`🔎 Device not in cached inventory, searching Nautobot for IP: ${ipAddress}`)
+
+          try {
+            const searchResponse = await nautobotApi.searchDevices(ipAddress, 'ip_address')
+
+            if (searchResponse.devices && searchResponse.devices.length > 0) {
+              neighborDevice = searchResponse.devices[0]
+              console.log(`✅ Found device in Nautobot: ${neighborDevice.name}`)
+            }
+          } catch (error) {
+            console.warn(`⚠️ Failed to search Nautobot for IP ${ipAddress}:`, error)
+          }
+        }
+
+        if (neighborDevice) {
+          console.log(`✅ Found neighbor in inventory: ${neighborDevice.name}`)
+
+          // Check if device already exists on canvas
+          if (isDeviceOnCanvas(neighborDevice)) {
+            console.log(`⚠️ Neighbor already on canvas: ${neighborDevice.name}`)
+            result.skippedDevices.push({
+              name: neighborDevice.name,
+              ipAddress: neighborDevice.primary_ip4?.address || neighborDevice.primary_ip6?.address,
+              status: 'Already on canvas'
+            })
+            continue
+          }
+
+          // Calculate position in grid around the source device
+          const position = calculateNeighborPosition(device, addedCount, arpEntries.length)
+
+          // Add neighbor to canvas
+          const newDevice = await addDeviceToCanvas(neighborDevice, position)
+
+          // Create connection between source device and neighbor
+          createConnection(device, newDevice)
+
+          addedCount++
+          console.log(`✅ Added neighbor to canvas: ${neighborDevice.name}`)
+
+          result.addedDevices.push({
+            name: neighborDevice.name,
+            ipAddress: neighborDevice.primary_ip4?.address || neighborDevice.primary_ip6?.address,
+            role: neighborDevice.device_role?.display || neighborDevice.device_role?.name,
+            location: neighborDevice.site?.display || neighborDevice.site?.name
+          })
+        } else {
+          console.log(`❌ Device with IP ${ipAddress} not found in inventory`)
+          result.notFoundDevices.push(ipAddress)
+        }
+      }
+
+      result.success = true
+      return result
+
+    } catch (error) {
+      console.error('❌ Error adding ARP neighbors to canvas:', error)
+      result.error = error instanceof Error ? error.message : 'Unknown error occurred'
+      return result
+    }
+  }
+
+  /**
    * Add MAC address table neighbors to the canvas
    * TODO: Implement when MAC table API endpoint is available
    */
@@ -669,6 +813,7 @@ export function useNeighborDiscovery() {
 
   return {
     addCdpNeighbors,
+    addArpNeighbors,
     addMacNeighbors,
     addStaticNeighbors,
     addOspfNeighbors,

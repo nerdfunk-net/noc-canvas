@@ -283,6 +283,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { nautobotApi, type NautobotDevice } from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
 import { useDevicesStore } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
@@ -473,6 +474,13 @@ const mapNautobotDeviceType = (
 }
 
 const loadDevices = async (disableCache: boolean = false) => {
+  // Wait for auth to be fully initialized before making API calls
+  const authStore = useAuthStore()
+  if (authStore.token && !authStore.user) {
+    console.log('⏳ Waiting for auth initialization...')
+    await authStore.initializeAuth()
+  }
+
   // Check if Nautobot is properly configured before attempting to load
   if (!isNautobotConfigured.value) {
     devices.value = []
@@ -841,6 +849,12 @@ watch(isNautobotConfigured, (newValue) => {
 
 // Mount
 onMounted(async () => {
+  // Wait for auth to be fully initialized before loading devices
+  const authStore = useAuthStore()
+  if (authStore.token && !authStore.user) {
+    await authStore.initializeAuth()
+  }
+
   // Wait for settings to load before attempting to load devices
   if (!settingsStore.settings.nautobot.url && !settingsStore.loading) {
     await settingsStore.loadSettings()

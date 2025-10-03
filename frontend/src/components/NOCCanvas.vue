@@ -953,6 +953,7 @@ const {
 const neighborDiscoveryComposable = useNeighborDiscovery()
 const {
   addCdpNeighbors,
+  addArpNeighbors,
   addMacNeighbors,
   addStaticNeighbors,
   addOspfNeighbors,
@@ -1254,19 +1255,20 @@ const contextMenuItems = computed(() => {
         ],
       },
       { icon: '🔍', label: 'Analyze All', action: () => { hideContextMenu(); analyzeMultiDevices() } },
-      { icon: '─', label: '─────────', action: () => {}, separator: true },
       {
-        icon: '📐',
-        label: 'Alignment',
+        icon: '✏️',
+        label: 'Edit',
         submenu: [
-          { icon: '↔️', label: 'Horizontal', action: () => { alignDevicesHorizontally() } },
-          { icon: '↕️', label: 'Vertical', action: () => { alignDevicesVertically() } },
+          {
+            icon: '📐',
+            label: 'Alignment',
+            submenu: [
+              { icon: '↔️', label: 'Horizontal', action: () => { hideContextMenu(); alignDevicesHorizontally() } },
+              { icon: '↕️', label: 'Vertical', action: () => { hideContextMenu(); alignDevicesVertically() } },
+            ],
+          },
+          { icon: '🗑️', label: `Remove ${selectedCount} devices`, action: () => { hideContextMenu(); deleteMultiDevices() } },
         ],
-      },
-      {
-        icon: '🗑️',
-        label: `Remove ${selectedCount} devices`,
-        action: () => { hideContextMenu(); deleteMultiDevices() }
       },
     ]
     return items
@@ -1354,6 +1356,7 @@ const contextMenuItems = computed(() => {
               icon: '🌐',
               label: 'Layer3',
               submenu: [
+                { icon: '🔍', label: 'IP ARP', action: () => handleNeighborDiscovery(contextMenu.target!, addArpNeighbors) },
                 { icon: '📌', label: 'Static', action: () => handleNeighborDiscovery(contextMenu.target!, addStaticNeighbors) },
                 { icon: '🔀', label: 'OSPF', action: () => handleNeighborDiscovery(contextMenu.target!, addOspfNeighbors) },
                 { icon: '🌍', label: 'BGP', action: () => { hideContextMenu(); addBgpNeighbors(contextMenu.target!) } },

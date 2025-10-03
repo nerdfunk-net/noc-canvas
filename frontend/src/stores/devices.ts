@@ -19,6 +19,7 @@ export interface Connection {
   connection_type: string
   properties?: string
   routing_style?: 'straight' | 'orthogonal' // Line routing: straight or with right-angle corners
+  waypoints?: { x: number; y: number }[] // Custom waypoints for manual route adjustment
 }
 
 export const useDevicesStore = defineStore('devices', () => {

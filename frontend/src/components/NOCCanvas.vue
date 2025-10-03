@@ -139,6 +139,29 @@ cd<template>
           @mouseenter="onConnectionMouseEnter"
           @mouseleave="onConnectionMouseLeave"
         />
+
+        <!-- Waypoints for selected connection -->
+        <template v-if="selectedConnection">
+          <v-circle
+            v-for="(waypoint, index) in getConnectionWaypoints(selectedConnection)"
+            :key="`waypoint-${selectedConnection}-${index}`"
+            :config="{
+              x: waypoint.x,
+              y: waypoint.y,
+              radius: 6,
+              fill: '#1d4ed8',
+              stroke: '#ffffff',
+              strokeWidth: 2,
+              draggable: true,
+            }"
+            @dragstart="onWaypointDragStart(selectedConnection, index)"
+            @dragmove="onWaypointDragMove(selectedConnection, index, $event)"
+            @dragend="onWaypointDragEnd"
+            @contextmenu="onWaypointRightClick(selectedConnection, index, $event)"
+            @mouseenter="(e: any) => e.target.getStage().container().style.cursor = 'move'"
+            @mouseleave="(e: any) => e.target.getStage().container().style.cursor = 'default'"
+          />
+        </template>
       </v-layer>
 
       <!-- Devices Layer (renders above background) -->
@@ -855,6 +878,12 @@ const connectionStart = ref<{
 // Selected connection state
 const selectedConnection = ref<number | null>(null)
 
+// Waypoint dragging state
+const draggingWaypoint = ref<{
+  connectionId: number
+  waypointIndex: number
+} | null>(null)
+
 // Initialize shape operations composable
 const shapeOperationsComposable = useShapeOperations(selectedDevices, deviceStore)
 const {
@@ -1026,8 +1055,20 @@ const calculateOrthogonalPath = (
   x1: number,
   y1: number,
   x2: number,
-  y2: number
+  y2: number,
+  waypoints?: { x: number; y: number }[]
 ): number[] => {
+  // If custom waypoints are provided, use them
+  if (waypoints && waypoints.length > 0) {
+    const points: number[] = [x1, y1]
+    waypoints.forEach(wp => {
+      points.push(wp.x, wp.y)
+    })
+    points.push(x2, y2)
+    return points
+  }
+
+  // Default orthogonal path (automatic routing)
   const midX = (x1 + x2) / 2
 
   // Create a path with right-angle corners
@@ -1068,13 +1109,16 @@ const renderConnections = computed(() => {
       // Determine points based on routing style (default to straight)
       const routingStyle = connection.routing_style || 'straight'
       const points = routingStyle === 'orthogonal'
-        ? calculateOrthogonalPath(x1, y1, x2, y2)
-        : [x1, y1, x2, y2]
+        ? calculateOrthogonalPath(x1, y1, x2, y2, connection.waypoints)
+        : connection.waypoints && connection.waypoints.length > 0
+          ? [x1, y1, ...connection.waypoints.flatMap(wp => [wp.x, wp.y]), x2, y2]
+          : [x1, y1, x2, y2]
 
       return {
         id: connection.id,
         points,
         routingStyle,
+        waypoints: connection.waypoints || [],
       }
     })
     .filter((connection): connection is NonNullable<typeof connection> => connection !== null)
@@ -1138,12 +1182,16 @@ const contextMenuItems = computed(() => {
     const connection = deviceStore.connections.find(c => c.id === contextMenu.target)
     const currentStyle = connection?.routing_style || 'straight'
     const styleLabel = currentStyle === 'straight' ? 'Orthogonal' : 'Straight'
+    const hasWaypoints = connection?.waypoints && connection.waypoints.length > 0
 
     const items = [
       { icon: '👁️', label: 'Show', action: () => { hideContextMenu(); showConnectionInfo(contextMenu.target as any) } },
       { icon: '📊', label: 'Status', action: () => { hideContextMenu(); showConnectionStatus(contextMenu.target as any) } },
       { icon: '📈', label: 'Stats', action: () => { hideContextMenu(); showConnectionStats(contextMenu.target as any) } },
       { icon: '↔️', label: `Route: ${styleLabel}`, action: () => { hideContextMenu(); toggleConnectionRoutingStyle(contextMenu.target as any) } },
+      { icon: '─', label: '─────────', action: () => {}, separator: true },
+      { icon: '🎯', label: 'Add Waypoint (Alt+Click)', action: () => { hideContextMenu() }, disabled: true },
+      ...(hasWaypoints ? [{ icon: '🧹', label: 'Clear Waypoints', action: () => { hideContextMenu(); clearConnectionWaypoints(contextMenu.target as any) } }] : []),
       { icon: '─', label: '─────────', action: () => {}, separator: true },
       { icon: '🗑️', label: 'Delete', action: () => { hideContextMenu(); deleteConnection(contextMenu.target as any) } },
     ]
@@ -2555,6 +2603,12 @@ const onConnectionClick = (connection: any, event: any) => {
     return
   }
 
+  // Check if Alt/Option key is pressed - add waypoint at click position
+  if (event.evt?.altKey && selectedConnection.value === connection.id) {
+    addWaypointAtPosition(connection.id, event)
+    return
+  }
+
   // Toggle selection: if already selected, deselect it
   if (selectedConnection.value === connection.id) {
     selectedConnection.value = null
@@ -2670,6 +2724,129 @@ const deleteConnection = (connectionId: number) => {
       console.log('✅ Connection deleted:', connectionId)
     }
   }
+}
+
+const clearConnectionWaypoints = (connectionId: number) => {
+  const connection = deviceStore.connections.find(c => c.id === connectionId)
+  if (!connection) return
+
+  connection.waypoints = []
+  console.log('✅ Waypoints cleared for connection:', connectionId)
+}
+
+// Waypoint management functions
+const getConnectionWaypoints = (connectionId: number) => {
+  const connection = deviceStore.connections.find(c => c.id === connectionId)
+  return connection?.waypoints || []
+}
+
+const onWaypointDragStart = (connectionId: number, waypointIndex: number) => {
+  draggingWaypoint.value = { connectionId, waypointIndex }
+  console.log('🎯 Waypoint drag start:', connectionId, waypointIndex)
+}
+
+const onWaypointDragMove = (connectionId: number, waypointIndex: number, event: any) => {
+  const connection = deviceStore.connections.find(c => c.id === connectionId)
+  if (!connection || !connection.waypoints) return
+
+  const stage = event.target.getStage()
+  const pointerPosition = stage.getPointerPosition()
+
+  if (!pointerPosition) return
+
+  // Update waypoint position
+  connection.waypoints[waypointIndex] = {
+    x: pointerPosition.x,
+    y: pointerPosition.y
+  }
+}
+
+const onWaypointDragEnd = () => {
+  draggingWaypoint.value = null
+  console.log('🎯 Waypoint drag end')
+}
+
+const onWaypointRightClick = (connectionId: number, waypointIndex: number, event: any) => {
+  event.evt.preventDefault()
+  event.evt.stopPropagation()
+  event.cancelBubble = true
+
+  // Show simple confirmation to delete waypoint
+  if (confirm('Delete this waypoint?')) {
+    deleteWaypoint(connectionId, waypointIndex)
+  }
+}
+
+const deleteWaypoint = (connectionId: number, waypointIndex: number) => {
+  const connection = deviceStore.connections.find(c => c.id === connectionId)
+  if (!connection || !connection.waypoints) return
+
+  connection.waypoints.splice(waypointIndex, 1)
+  console.log('✅ Waypoint deleted:', waypointIndex)
+}
+
+const addWaypointAtPosition = (connectionId: number, event: any) => {
+  const connection = deviceStore.connections.find(c => c.id === connectionId)
+  if (!connection) return
+
+  const stage = event.target.getStage()
+  const pointerPosition = stage.getPointerPosition()
+
+  if (!pointerPosition) return
+
+  // Initialize waypoints array if it doesn't exist
+  if (!connection.waypoints) {
+    connection.waypoints = []
+  }
+
+  // Find the closest segment to insert the waypoint
+  const points = renderConnections.value.find(c => c.id === connectionId)?.points || []
+  let closestSegmentIndex = 0
+  let minDistance = Infinity
+
+  // Find which segment the click is closest to
+  for (let i = 0; i < points.length - 2; i += 2) {
+    const x1 = points[i]
+    const y1 = points[i + 1]
+    const x2 = points[i + 2]
+    const y2 = points[i + 3]
+
+    // Calculate distance from point to line segment
+    const distance = distanceToSegment(pointerPosition.x, pointerPosition.y, x1, y1, x2, y2)
+    if (distance < minDistance) {
+      minDistance = distance
+      closestSegmentIndex = i / 2
+    }
+  }
+
+  // Insert waypoint at the appropriate position
+  connection.waypoints.splice(closestSegmentIndex, 0, {
+    x: pointerPosition.x,
+    y: pointerPosition.y
+  })
+
+  console.log('✅ Waypoint added at:', pointerPosition, 'segment:', closestSegmentIndex)
+}
+
+// Helper function to calculate distance from point to line segment
+const distanceToSegment = (px: number, py: number, x1: number, y1: number, x2: number, y2: number): number => {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const lengthSquared = dx * dx + dy * dy
+
+  if (lengthSquared === 0) {
+    // Line segment is a point
+    return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2)
+  }
+
+  // Calculate projection of point onto line
+  let t = ((px - x1) * dx + (py - y1) * dy) / lengthSquared
+  t = Math.max(0, Math.min(1, t))
+
+  const projX = x1 + t * dx
+  const projY = y1 + t * dy
+
+  return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2)
 }
 
 const onConnectionPointClick = (device: Device, point: { x: number; y: number }, event: any) => {

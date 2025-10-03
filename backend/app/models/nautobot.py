@@ -84,6 +84,7 @@ class DevicePlatform(BaseModel):
     """Device platform information."""
 
     id: Optional[str] = None
+    name: Optional[str] = None
     network_driver: Optional[str] = None
 
 

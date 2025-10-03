@@ -229,7 +229,7 @@
                   {{ device.name }}
                 </div>
                 <div class="text-xs text-gray-500 truncate">
-                  {{ device.primary_ip4?.address || 'No IP' }}
+                  {{ device.primary_ip4?.address?.split('/')[0] || 'No IP' }}
                 </div>
               </div>
 
@@ -491,6 +491,13 @@ const loadDevices = async (disableCache: boolean = false) => {
     devices.value = response.devices || []
     console.log('📊 Devices loaded:', devices.value.length)
     console.log('🔍 First device sample:', devices.value[0])
+    
+    // Debug: Check how many devices have IPs
+    const devicesWithIp = devices.value.filter(d => d.primary_ip4?.address).length
+    console.log(`📊 Devices with IP: ${devicesWithIp} / ${devices.value.length}`)
+    if (devices.value.length > 0 && !devices.value[0].primary_ip4?.address) {
+      console.warn('⚠️ First device has no primary_ip4.address:', devices.value[0])
+    }
 
     // Auto-expand first group only for large datasets
     setTimeout(() => {

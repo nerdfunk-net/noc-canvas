@@ -516,6 +516,13 @@ cd<template>
       @cancel="showDeleteConfirmDialog = false"
     />
 
+    <!-- Neighbor Discovery Result Modal -->
+    <NeighborDiscoveryResultModal
+      :show="showNeighborDiscoveryModal"
+      :result="neighborDiscoveryResult"
+      @close="closeNeighborDiscoveryModal"
+    />
+
     <!-- Device Configuration Modal -->
     <div v-if="showConfigModal" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
       <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -609,11 +616,13 @@ import { useDeviceOperations } from '@/composables/useDeviceOperations'
 import { useCanvasEvents } from '@/composables/useCanvasEvents'
 import { useCommands } from '@/composables/useCommands'
 import { useShapeOperations } from '@/composables/useShapeOperations'
+import { useNeighborDiscovery, type NeighborDiscoveryResult } from '@/composables/useNeighborDiscovery'
 import SaveCanvasModal from './SaveCanvasModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import LoadCanvasModal from './LoadCanvasModal.vue'
 import DuplicateDeviceModal from './DuplicateDeviceModal.vue'
 import ShapeColorModal from './ShapeColorModal.vue'
+import NeighborDiscoveryResultModal from './NeighborDiscoveryResultModal.vue'
 import CodeBlock from './CodeBlock.vue'
 
 // Constants
@@ -866,6 +875,41 @@ const {
   getDevicePlatform,
   reloadCommands,
 } = commandsComposable
+
+// Initialize neighbor discovery composable
+const neighborDiscoveryComposable = useNeighborDiscovery()
+const {
+  addCdpNeighbors,
+  addMacNeighbors,
+  addStaticNeighbors,
+  addOspfNeighbors,
+  addBgpNeighbors,
+} = neighborDiscoveryComposable
+
+// Neighbor Discovery Modal state
+const showNeighborDiscoveryModal = ref(false)
+const neighborDiscoveryResult = ref<NeighborDiscoveryResult | null>(null)
+
+const handleNeighborDiscovery = async (device: Device, discoveryFn: (device: Device) => Promise<NeighborDiscoveryResult | null>) => {
+  hideContextMenu()
+  
+  const result = await discoveryFn(device)
+  
+  if (result) {
+    if (result.error) {
+      alert(`Error: ${result.error}`)
+    } else {
+      neighborDiscoveryResult.value = result
+      showNeighborDiscoveryModal.value = true
+    }
+  }
+}
+
+const closeNeighborDiscoveryModal = () => {
+  showNeighborDiscoveryModal.value = false
+  neighborDiscoveryResult.value = null
+}
+
 
 // Execute a command on a device
 const executeCommand = async (device: Device, command: any) => {
@@ -1169,17 +1213,17 @@ const contextMenuItems = computed(() => {
               icon: '🔗',
               label: 'Layer2',
               submenu: [
-                { icon: '📡', label: 'CDP', action: () => { hideContextMenu(); addNeighborsToCanvas(contextMenu.target!) } },
-                { icon: '🔗', label: 'MAC', action: () => { hideContextMenu(); console.log('MAC neighbors - not implemented yet') } },
+                { icon: '📡', label: 'CDP', action: () => handleNeighborDiscovery(contextMenu.target!, addCdpNeighbors) },
+                { icon: '🔗', label: 'MAC', action: () => { hideContextMenu(); addMacNeighbors(contextMenu.target!) } },
               ]
             },
             {
               icon: '🌐',
               label: 'Layer3',
               submenu: [
-                { icon: '📌', label: 'Static', action: () => { hideContextMenu(); console.log('Static neighbors - not implemented yet') } },
-                { icon: '🔀', label: 'OSPF', action: () => { hideContextMenu(); console.log('OSPF neighbors - not implemented yet') } },
-                { icon: '🌍', label: 'BGP', action: () => { hideContextMenu(); console.log('BGP neighbors - not implemented yet') } },
+                { icon: '📌', label: 'Static', action: () => { hideContextMenu(); addStaticNeighbors(contextMenu.target!) } },
+                { icon: '🔀', label: 'OSPF', action: () => handleNeighborDiscovery(contextMenu.target!, addOspfNeighbors) },
+                { icon: '🌍', label: 'BGP', action: () => { hideContextMenu(); addBgpNeighbors(contextMenu.target!) } },
               ]
             },
           ]
@@ -1569,170 +1613,6 @@ const showNeighbors = async (device: Device) => {
     configModalContent.value = `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
   } finally {
     configModalLoading.value = false
-  }
-}
-
-// Add neighbors to canvas
-const addNeighborsToCanvas = async (device: Device) => {
-  console.log('➕ Adding neighbors to canvas for device:', device.name)
-
-  try {
-    // Get nautobot_id from device properties
-    const deviceProps = device.properties ? JSON.parse(device.properties) : {}
-    const nautobotId = deviceProps.nautobot_id
-
-    if (!nautobotId) {
-      alert('Error: Device does not have a Nautobot ID')
-      return
-    }
-
-    // Call the CDP neighbors endpoint with TextFSM parsing
-    const response = await makeAuthenticatedRequest(
-      `/api/devices/${nautobotId}/cdp-neighbors?use_textfsm=true`
-    )
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      alert(`Error: ${errorData.detail || 'Failed to retrieve neighbors'}`)
-      return
-    }
-
-    const data = await response.json()
-
-    if (!data.success) {
-      alert(`Error: ${data.error || 'Failed to retrieve neighbors'}`)
-      return
-    }
-
-    // Check if output is an array (parsed data)
-    if (!Array.isArray(data.output)) {
-      alert('Error: Expected parsed neighbor data but received raw output')
-      return
-    }
-
-    const neighbors = data.output
-    console.log('📋 Found neighbors:', neighbors)
-
-    if (neighbors.length === 0) {
-      alert('No CDP neighbors found for this device')
-      return
-    }
-
-    // Get all devices from Nautobot for matching
-    const nautobotDevices = await nautobotApi.getAllDevices()
-    console.log('📦 Inventory devices loaded:', nautobotDevices.devices.length)
-
-    let addedCount = 0
-    let notFoundCount = 0
-    const notFoundNeighbors: string[] = []
-
-    // Calculate grid position for placing neighbors
-    const spacing = 150
-    const neighborsPerRow = Math.ceil(Math.sqrt(neighbors.length))
-
-    for (let i = 0; i < neighbors.length; i++) {
-      const neighbor = neighbors[i]
-      const neighborName = neighbor.neighbor_name || neighbor.destination_host || neighbor.device_id
-
-      if (!neighborName) {
-        console.warn('⚠️ Neighbor has no name, skipping:', neighbor)
-        continue
-      }
-
-      console.log(`🔍 Searching for neighbor: ${neighborName}`)
-
-      // Try to find the neighbor in the inventory (case-insensitive match)
-      const neighborDevice = nautobotDevices.devices.find((d: any) =>
-        d.name.toLowerCase() === neighborName.toLowerCase() ||
-        d.name.toLowerCase().startsWith(neighborName.toLowerCase()) ||
-        neighborName.toLowerCase().startsWith(d.name.toLowerCase())
-      )
-
-      if (neighborDevice) {
-        console.log(`✅ Found neighbor in inventory: ${neighborDevice.name}`)
-
-        // Check if device already exists on canvas
-        let existingDevice = deviceStore.findDeviceByName(neighborDevice.name)
-        if (!existingDevice) {
-          existingDevice = deviceStore.findDeviceByNautobotId(neighborDevice.id)
-        }
-
-        if (existingDevice) {
-          console.log(`⚠️ Neighbor already on canvas: ${neighborDevice.name}`)
-          continue
-        }
-
-        // Calculate position in grid around the source device
-        const row = Math.floor(addedCount / neighborsPerRow)
-        const col = addedCount % neighborsPerRow
-        const offsetX = (col - (neighborsPerRow - 1) / 2) * spacing
-        const offsetY = (row + 1) * spacing // Place below the source device
-
-        const posX = device.position_x + offsetX
-        const posY = device.position_y + offsetY
-
-        // Map Nautobot device type to canvas device type
-        const mapNautobotDeviceType = (nautobotDevice: any): 'router' | 'switch' | 'firewall' | 'vpn_gateway' => {
-          const role = nautobotDevice.role?.name?.toLowerCase() || ''
-          const deviceType = nautobotDevice.device_type?.model?.toLowerCase() || ''
-
-          if (role.includes('router') || deviceType.includes('router')) return 'router'
-          if (role.includes('switch') || deviceType.includes('switch')) return 'switch'
-          if (role.includes('firewall') || deviceType.includes('firewall')) return 'firewall'
-          if (role.includes('vpn') || deviceType.includes('vpn')) return 'vpn_gateway'
-          return 'router'
-        }
-
-        // Add neighbor to canvas
-        const newDevice = await deviceStore.createDevice({
-          name: neighborDevice.name,
-          device_type: mapNautobotDeviceType(neighborDevice),
-          ip_address: neighborDevice.primary_ip4?.address?.split('/')[0],
-          position_x: posX,
-          position_y: posY,
-          properties: JSON.stringify({
-            nautobot_id: neighborDevice.id,
-            location: neighborDevice.location?.name,
-            role: neighborDevice.role?.name,
-            status: neighborDevice.status?.name,
-            device_model: neighborDevice.device_type?.model,
-            platform: neighborDevice.platform?.network_driver,
-            platform_id: neighborDevice.platform?.id,
-            device_type_model: neighborDevice.device_type?.model,
-          }),
-        })
-
-        // Create connection between source device and neighbor
-        try {
-          deviceStore.createConnection({
-            source_device_id: device.id,
-            target_device_id: newDevice.id,
-            connection_type: 'ethernet',
-          })
-          console.log(`🔗 Created connection: ${device.name} <-> ${neighborDevice.name}`)
-        } catch (error) {
-          console.error(`❌ Failed to create connection to ${neighborDevice.name}:`, error)
-        }
-
-        addedCount++
-        console.log(`✅ Added neighbor to canvas: ${neighborDevice.name}`)
-      } else {
-        console.log(`❌ Neighbor not found in inventory: ${neighborName}`)
-        notFoundCount++
-        notFoundNeighbors.push(neighborName)
-      }
-    }
-
-    // Show summary
-    let message = `Added ${addedCount} neighbor(s) to canvas`
-    if (notFoundCount > 0) {
-      message += `\n\nNot found in inventory (${notFoundCount}):\n${notFoundNeighbors.join('\n')}`
-    }
-    alert(message)
-
-  } catch (error) {
-    console.error('❌ Error adding neighbors to canvas:', error)
-    alert(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`)
   }
 }
 

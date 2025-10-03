@@ -228,12 +228,13 @@ class NautobotService:
         Args:
             limit: Maximum number of devices to return
             offset: Number of devices to skip
-            filter_type: Type of filter ('name', 'location', 'prefix')
+            filter_type: Type of filter ('name', 'location', 'ip_address', 'prefix')
             filter_value: Value to filter by
             username: Username for authentication
             disable_cache: If True, bypass cache and fetch fresh data
         """
 
+        logger.info("🚀🚀🚀 get_devices() CALLED - USING GRAPHQL VERSION 🚀🚀🚀")
         logging.debug(
             f"Fetching devices with filter_type={filter_type}, filter_value={filter_value}, limit={limit}, offset={offset} disable_cache={disable_cache}"
         )
@@ -304,6 +305,7 @@ class NautobotService:
                     }
                     platform {
                       id
+                      name
                       network_driver
                     }
                     cf_last_backup
@@ -337,6 +339,7 @@ class NautobotService:
                       }
                       platform {
                         id
+                        name
                         network_driver
                       }
                       cf_last_backup
@@ -345,6 +348,82 @@ class NautobotService:
                 }
                 """
                 variables = {"location_filter": [filter_value]}
+
+            elif filter_type == "ip_address":
+                query = """
+                query IPaddresses($address_filter: [String]) {
+                  ip_addresses(address: $address_filter) {
+                    id 
+                    address 
+                    description 
+                    dns_name 
+                    type
+                    interfaces {
+                      id
+                      name
+                      device {
+                        id
+                        name
+                      }
+                      description
+                      enabled
+                      mac_address
+                      type
+                      mode
+                      ip_addresses {
+                        address
+                        role {
+                          id 
+                          name
+                        }
+                      }
+                    }
+                    primary_ip4_for {
+                      id 
+                      name 
+                      role {
+                        id
+                        name
+                      }
+                      device_type {
+                        id
+                        model
+                      }
+                      platform {
+                        id 
+                        name
+                        network_driver
+                        manufacturer {
+                          id
+                          name
+                        }
+                      }
+                      serial
+                      status {
+                        id 
+                        name
+                      }
+                      primary_ip4 {
+                        id
+                        description
+                        ip_version 
+                        address 
+                        host 
+                        mask_length 
+                        dns_name
+                        status {
+                          id 
+                          name
+                        }
+                      }
+                      location {
+                        name
+                      }
+                    }
+                  }
+                }
+                """
+                variables = {"address_filter": [filter_value]}
 
             else:  # prefix filter
                 query = """
@@ -372,6 +451,7 @@ class NautobotService:
                         }
                         platform {
                           id
+                          name
                           network_driver
                         }
                         cf_last_backup
@@ -406,6 +486,7 @@ class NautobotService:
                 }
                 platform {
                   id
+                  name
                   network_driver
                 }
                 cf_last_backup
@@ -420,9 +501,32 @@ class NautobotService:
             variables["offset"] = offset
 
         result = await self.graphql_query(query, variables, username)
-
+        logger.info("result: %s", result)
         if "errors" in result:
             raise Exception(f"GraphQL errors: {result['errors']}")
+
+        # Debug: Log raw GraphQL response to check primary_ip4 structure
+        logger.info("=" * 80)
+        logger.info("DEBUG: RAW GRAPHQL RESPONSE")
+        logger.info(f"Result keys: {result.get('data', {}).keys()}")
+        
+        if result.get('data', {}).get('devices'):
+            devices_list = result['data']['devices']
+            logger.info(f"Number of devices in GraphQL response: {len(devices_list)}")
+            
+            if devices_list:
+                sample_device = devices_list[0]
+                logger.info(f"Sample device FULL structure: {sample_device}")
+                logger.info(f"Sample device name: {sample_device.get('name')}")
+                logger.info(f"Sample device primary_ip4 RAW: {sample_device.get('primary_ip4')}")
+                logger.info(f"Sample device primary_ip4 TYPE: {type(sample_device.get('primary_ip4'))}")
+                
+                # Check if primary_ip4 has address field
+                if sample_device.get('primary_ip4'):
+                    logger.info(f"primary_ip4 has 'address' key: {'address' in sample_device.get('primary_ip4')}")
+                    if isinstance(sample_device.get('primary_ip4'), dict):
+                        logger.info(f"primary_ip4 keys: {sample_device.get('primary_ip4').keys()}")
+        logger.info("=" * 80)
 
         # Process results based on filter type
         devices = []
@@ -434,6 +538,50 @@ class NautobotService:
                     device["location"] = {"name": location["name"]}
                     devices.append(device)
             total_count = len(devices)
+        elif filter_type == "ip_address":
+            # Extract devices from IP address query results
+            devices_dict = {}
+            device_ids_to_fetch = []
+            
+            logger.info(f"Processing IP address filter results...")
+            
+            for ip_addr in result["data"]["ip_addresses"]:
+                logger.info(f"IP Address: {ip_addr.get('address')}")
+                
+                # Get devices from primary_ip4_for (these have full device data)
+                if ip_addr.get("primary_ip4_for"):
+                    logger.info(f"  Found {len(ip_addr['primary_ip4_for'])} devices in primary_ip4_for")
+                    for device in ip_addr["primary_ip4_for"]:
+                        devices_dict[device["id"]] = device
+                        
+                # Get devices from interfaces (these only have id and name)
+                if ip_addr.get("interfaces"):
+                    logger.info(f"  Found {len(ip_addr['interfaces'])} interfaces")
+                    for interface in ip_addr["interfaces"]:
+                        if interface.get("device"):
+                            device_basic = interface["device"]
+                            logger.info(f"    Interface {interface['name']} on device: {device_basic['name']} (id: {device_basic['id']})")
+                            
+                            # If we don't have full device data yet, mark it for fetching
+                            if device_basic["id"] not in devices_dict:
+                                device_ids_to_fetch.append(device_basic["id"])
+            
+            # Fetch full device details for devices found via interfaces
+            if device_ids_to_fetch:
+                logger.info(f"Fetching full details for {len(device_ids_to_fetch)} devices found via interfaces...")
+                for device_id in device_ids_to_fetch:
+                    try:
+                        # Fetch full device data using the existing get_device method
+                        full_device = await self.get_device(device_id, username)
+                        if full_device:
+                            devices_dict[device_id] = full_device
+                            logger.info(f"  Fetched full data for device: {full_device.get('name')}")
+                    except Exception as e:
+                        logger.error(f"  Failed to fetch device {device_id}: {e}")
+            
+            devices = list(devices_dict.values())
+            total_count = len(devices)
+            logger.info(f"Total devices after processing ip_address filter: {total_count}")
         elif filter_type == "prefix":
             devices_dict = {}
             for prefix in result["data"]["prefixes"]:
@@ -464,6 +612,29 @@ class NautobotService:
 
         # Calculate pagination info
         has_more = (offset or 0) + len(devices) < total_count if limit else False
+
+        # Debug: Log final devices data before returning
+        logger.info("=" * 80)
+        logger.info("DEBUG: FINAL DEVICES DATA BEFORE RETURN")
+        logger.info(f"Total devices being returned: {len(devices)}")
+        
+        # Count devices with/without primary_ip4
+        devices_with_ip = sum(1 for d in devices if d.get('primary_ip4'))
+        devices_without_ip = len(devices) - devices_with_ip
+        logger.info(f"Devices WITH primary_ip4: {devices_with_ip}")
+        logger.info(f"Devices WITHOUT primary_ip4: {devices_without_ip}")
+        
+        if devices:
+            sample_final = devices[0]
+            logger.info(f"Sample final device name: {sample_final.get('name')}")
+            logger.info(f"Sample final device FULL: {sample_final}")
+            logger.info(f"Sample final device primary_ip4: {sample_final.get('primary_ip4')}")
+            
+            if sample_final.get('primary_ip4'):
+                logger.info(f"Sample final primary_ip4 TYPE: {type(sample_final.get('primary_ip4'))}")
+                if isinstance(sample_final.get('primary_ip4'), dict):
+                    logger.info(f"Sample final primary_ip4 keys: {sample_final.get('primary_ip4').keys()}")
+        logger.info("=" * 80)
 
         response_data = {
             "devices": devices,
@@ -500,22 +671,27 @@ class NautobotService:
           device(id: $deviceId) {
             id
             name
-            primary_ip4 {
-              address
+            role {
+              name
             }
             location {
               name
             }
-            role {
-              name
-            }
-            platform {
-              id
-              network_driver
+            primary_ip4 {
+              address
             }
             status {
               name
             }
+            device_type {
+              model
+            }
+            platform {
+              id
+              name
+              network_driver
+            }
+            cf_last_backup
           }
         }
         """

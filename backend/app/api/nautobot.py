@@ -467,6 +467,7 @@ async def get_devices(
         current_user: Current authenticated user
     """
     try:
+        logger.info("Fetching devices from Nautobot")
         username = get_username(current_user)
         logger.info(
             f"Fetching devices for user: {username}, disable_cache: {disable_cache}"

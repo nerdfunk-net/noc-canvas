@@ -5,7 +5,7 @@ Uses netmiko to connect and execute commands on devices.
 
 import logging
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..core.security import get_current_user
@@ -250,9 +250,19 @@ async def get_cdp_neighbors(
 @router.get("/{device_id}/ospf-neighbors", response_model=DeviceCommandResponse)
 async def get_ospf_neighbors(
     device_id: str,
+    use_textfsm: bool = False,
     current_user: dict = Depends(get_current_user),
 ):
-    """Get OSPF neighbors from a network device."""
+    """Get OSPF neighbors from a network device.
+
+    Args:
+        device_id: The ID of the device to query
+        use_textfsm: If True, parse output using TextFSM. Default is False.
+        current_user: The authenticated user
+
+    Returns:
+        DeviceCommandResponse with parsed or raw output
+    """
     try:
         username = (
             current_user.get("username")
@@ -263,9 +273,12 @@ async def get_ospf_neighbors(
         # Get device connection information
         device_info = await get_device_connection_info(device_id, username)
 
-        # Execute command on device
+        # Execute command on device with optional TextFSM parsing
         result = await device_communication_service.execute_command(
-            device_info=device_info, command="show ip ospf neighbor", username=username
+            device_info=device_info,
+            command="show ip ospf neighbor",
+            username=username,
+            parser="TEXTFSM" if use_textfsm else None,
         )
 
         return DeviceCommandResponse(
@@ -289,12 +302,22 @@ async def get_ospf_neighbors(
         )
 
 
-@router.get("/{device_id}/ip-routes", response_model=DeviceCommandResponse)
+@router.get("/{device_id}/ip-route", response_model=DeviceCommandResponse)
 async def get_ip_routes(
     device_id: str,
+    use_textfsm: bool = False,
     current_user: dict = Depends(get_current_user),
 ):
-    """Get IP routing table from a network device."""
+    """Get IP routing table from a network device.
+
+    Args:
+        device_id: The ID of the device to query
+        use_textfsm: If True, parse output using TextFSM. Default is False.
+        current_user: The authenticated user
+
+    Returns:
+        DeviceCommandResponse with parsed or raw output
+    """
     try:
         username = (
             current_user.get("username")
@@ -305,9 +328,12 @@ async def get_ip_routes(
         # Get device connection information
         device_info = await get_device_connection_info(device_id, username)
 
-        # Execute command on device
+        # Execute command on device with optional TextFSM parsing
         result = await device_communication_service.execute_command(
-            device_info=device_info, command="show ip route", username=username
+            device_info=device_info,
+            command="show ip route",
+            username=username,
+            parser="TEXTFSM" if use_textfsm else None,
         )
 
         return DeviceCommandResponse(
@@ -328,6 +354,171 @@ async def get_ip_routes(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get IP routes: {str(e)}",
+        )
+
+
+@router.get("/{device_id}/ip-route/static", response_model=DeviceCommandResponse)
+async def get_static_routes(
+    device_id: str,
+    use_textfsm: bool = False,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get static IP routes from a network device.
+
+    Args:
+        device_id: The ID of the device to query
+        use_textfsm: If True, parse output using TextFSM. Default is False.
+        current_user: The authenticated user
+
+    Returns:
+        DeviceCommandResponse with parsed or raw output
+    """
+    try:
+        username = (
+            current_user.get("username")
+            if isinstance(current_user, dict)
+            else current_user.username
+        )
+
+        # Get device connection information
+        device_info = await get_device_connection_info(device_id, username)
+
+        # Execute command on device with optional TextFSM parsing
+        result = await device_communication_service.execute_command(
+            device_info=device_info,
+            command="show ip route static",
+            username=username,
+            parser="TEXTFSM" if use_textfsm else None,
+        )
+
+        return DeviceCommandResponse(
+            success=result["success"],
+            output=result.get("output"),
+            error=result.get("error"),
+            device_info=device_info.model_dump(),
+            command="show ip route static",
+            execution_time=result.get("execution_time"),
+            parsed=result.get("parsed", False),
+            parser_used=result.get("parser_used"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting static routes for device {device_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get static routes: {str(e)}",
+        )
+
+
+@router.get("/{device_id}/ip-route/ospf", response_model=DeviceCommandResponse)
+async def get_ospf_routes(
+    device_id: str,
+    use_textfsm: bool = False,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get OSPF IP routes from a network device.
+
+    Args:
+        device_id: The ID of the device to query
+        use_textfsm: If True, parse output using TextFSM. Default is False.
+        current_user: The authenticated user
+
+    Returns:
+        DeviceCommandResponse with parsed or raw output
+    """
+    try:
+        username = (
+            current_user.get("username")
+            if isinstance(current_user, dict)
+            else current_user.username
+        )
+
+        # Get device connection information
+        device_info = await get_device_connection_info(device_id, username)
+
+        # Execute command on device with optional TextFSM parsing
+        result = await device_communication_service.execute_command(
+            device_info=device_info,
+            command="show ip route ospf",
+            username=username,
+            parser="TEXTFSM" if use_textfsm else None,
+        )
+
+        return DeviceCommandResponse(
+            success=result["success"],
+            output=result.get("output"),
+            error=result.get("error"),
+            device_info=device_info.model_dump(),
+            command="show ip route ospf",
+            execution_time=result.get("execution_time"),
+            parsed=result.get("parsed", False),
+            parser_used=result.get("parser_used"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting OSPF routes for device {device_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get OSPF routes: {str(e)}",
+        )
+
+
+@router.get("/{device_id}/ip-route/bgp", response_model=DeviceCommandResponse)
+async def get_bgp_routes(
+    device_id: str,
+    use_textfsm: bool = False,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get BGP IP routes from a network device.
+
+    Args:
+        device_id: The ID of the device to query
+        use_textfsm: If True, parse output using TextFSM. Default is False.
+        current_user: The authenticated user
+
+    Returns:
+        DeviceCommandResponse with parsed or raw output
+    """
+    try:
+        username = (
+            current_user.get("username")
+            if isinstance(current_user, dict)
+            else current_user.username
+        )
+
+        # Get device connection information
+        device_info = await get_device_connection_info(device_id, username)
+
+        # Execute command on device with optional TextFSM parsing
+        result = await device_communication_service.execute_command(
+            device_info=device_info,
+            command="show ip route bgp",
+            username=username,
+            parser="TEXTFSM" if use_textfsm else None,
+        )
+
+        return DeviceCommandResponse(
+            success=result["success"],
+            output=result.get("output"),
+            error=result.get("error"),
+            device_info=device_info.model_dump(),
+            command="show ip route bgp",
+            execution_time=result.get("execution_time"),
+            parsed=result.get("parsed", False),
+            parser_used=result.get("parser_used"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting BGP routes for device {device_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get BGP routes: {str(e)}",
         )
 
 

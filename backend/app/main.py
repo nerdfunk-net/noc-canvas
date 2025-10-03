@@ -15,12 +15,13 @@ from .api import (
     credentials,
     shapes,
 )
-from .routers import (
-    nautobot_devices,
-    nautobot_metadata,
-    nautobot_jobs,
-    nautobot_network,
-)
+# Removed old routers that were causing duplicate endpoints:
+# from .routers import (
+#     nautobot_devices,
+#     nautobot_metadata,
+#     nautobot_jobs,
+#     nautobot_network,
+# )
 import logging
 import sys
 
@@ -108,12 +109,13 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(canvas.router, prefix="/api/canvas", tags=["canvas"])
 
-# Nautobot routers - modular organization
-app.include_router(nautobot_devices.router, prefix="/api/nautobot", tags=["nautobot-devices"])
-app.include_router(nautobot_metadata.router, prefix="/api/nautobot", tags=["nautobot-metadata"])
-app.include_router(nautobot_jobs.router, prefix="/api/nautobot", tags=["nautobot-jobs"])
-app.include_router(nautobot_network.router, prefix="/api/nautobot", tags=["nautobot-network"])
-app.include_router(nautobot.router, prefix="/api/nautobot", tags=["nautobot-legacy"])  # Keep legacy endpoints
+# Nautobot routers - using GraphQL-based implementation
+# Note: nautobot.router contains all device endpoints using GraphQL
+app.include_router(nautobot.router, prefix="/api/nautobot", tags=["nautobot"])
+# Removed old REST-based routers to avoid duplicates:
+# - nautobot_devices.router (replaced by nautobot.router with GraphQL)
+# - nautobot_metadata.router, nautobot_jobs.router, nautobot_network.router
+# All functionality now consolidated in nautobot.router
 
 app.include_router(devices.router, prefix="/api/devices", tags=["devices"])
 app.include_router(credentials.router, prefix="/api/credentials", tags=["credentials"])

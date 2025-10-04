@@ -993,6 +993,273 @@
             </div>
           </div>
 
+          <!-- Cache Tab -->
+          <div v-if="activeTab === 'cache'" class="space-y-6">
+            <!-- Cache Settings -->
+            <div class="card p-6">
+              <h2 class="text-lg font-semibold text-gray-900 mb-4">Cache Settings</h2>
+              <div class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                      Default TTL (minutes)
+                    </label>
+                    <input
+                      v-model.number="settings.cache.defaultTtlMinutes"
+                      type="number"
+                      min="1"
+                      max="1440"
+                      class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                    />
+                    <p class="text-xs text-gray-500 mt-1">How long cache entries remain valid</p>
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                      Auto-refresh Interval (minutes)
+                    </label>
+                    <input
+                      v-model.number="settings.cache.autoRefreshIntervalMinutes"
+                      type="number"
+                      min="5"
+                      max="1440"
+                      :disabled="!settings.cache.autoRefreshEnabled"
+                      class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                    />
+                    <p class="text-xs text-gray-500 mt-1">Automatic cache refresh frequency</p>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="flex items-center">
+                    <input
+                      v-model="settings.cache.autoRefreshEnabled"
+                      type="checkbox"
+                      class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span class="ml-2 text-sm text-gray-700">Enable Auto-refresh</span>
+                  </label>
+
+                  <label class="flex items-center">
+                    <input
+                      v-model="settings.cache.cleanExpiredOnStartup"
+                      type="checkbox"
+                      class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span class="ml-2 text-sm text-gray-700">Clean Expired Cache on Startup</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cache Statistics -->
+            <div class="card p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Cache Statistics</h2>
+                <button
+                  @click="loadCacheStatistics"
+                  class="btn-secondary text-sm"
+                  :disabled="loadingCacheStats"
+                >
+                  <i class="fas fa-sync-alt mr-2" :class="{ 'fa-spin': loadingCacheStats }"></i>
+                  {{ loadingCacheStats ? 'Loading...' : 'Refresh' }}
+                </button>
+              </div>
+
+              <div v-if="cacheError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                {{ cacheError }}
+              </div>
+
+              <div v-if="cacheStatistics" class="space-y-6">
+                <!-- Total Counts -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <div class="text-2xl font-bold text-blue-700">{{ cacheStatistics.total.devices }}</div>
+                    <div class="text-sm text-blue-600">Devices</div>
+                  </div>
+                  <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div class="text-2xl font-bold text-green-700">{{ cacheStatistics.total.interfaces }}</div>
+                    <div class="text-sm text-green-600">Interfaces</div>
+                  </div>
+                  <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                    <div class="text-2xl font-bold text-purple-700">{{ cacheStatistics.total.ip_addresses }}</div>
+                    <div class="text-sm text-purple-600">IP Addresses</div>
+                  </div>
+                  <div class="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                    <div class="text-2xl font-bold text-orange-700">{{ cacheStatistics.total.arp_entries }}</div>
+                    <div class="text-sm text-orange-600">ARP Entries</div>
+                  </div>
+                </div>
+
+                <!-- Cache Status -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="border border-gray-200 rounded-lg p-4">
+                    <h3 class="text-sm font-semibold text-gray-700 mb-2">Cache Validity</h3>
+                    <div class="flex items-center justify-between">
+                      <span class="text-green-600">Valid: {{ cacheStatistics.cache_status.valid }}</span>
+                      <span class="text-red-600">Expired: {{ cacheStatistics.cache_status.expired }}</span>
+                    </div>
+                    <div class="mt-2 bg-gray-200 rounded-full h-2">
+                      <div
+                        class="bg-green-600 h-2 rounded-full"
+                        :style="{ width: cacheStatistics.cache_status.valid_percentage + '%' }"
+                      ></div>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1 text-center">
+                      {{ cacheStatistics.cache_status.valid_percentage }}% valid
+                    </div>
+                  </div>
+
+                  <div class="border border-gray-200 rounded-lg p-4">
+                    <h3 class="text-sm font-semibold text-gray-700 mb-2">Polling Status</h3>
+                    <div class="flex items-center justify-between">
+                      <span class="text-blue-600">Enabled: {{ cacheStatistics.polling.enabled }}</span>
+                      <span class="text-gray-600">Disabled: {{ cacheStatistics.polling.disabled }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Recent Updates -->
+                <div v-if="cacheStatistics.recent_updates.length > 0" class="border border-gray-200 rounded-lg p-4">
+                  <h3 class="text-sm font-semibold text-gray-700 mb-2">Recently Updated Devices</h3>
+                  <div class="space-y-2">
+                    <div
+                      v-for="device in cacheStatistics.recent_updates"
+                      :key="device.device_id"
+                      class="flex items-center justify-between text-sm"
+                    >
+                      <span class="font-medium text-gray-900">{{ device.device_name }}</span>
+                      <span class="text-gray-500">{{ formatTimestamp(device.last_updated) }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Top Devices -->
+                <div v-if="cacheStatistics.top_devices.length > 0" class="border border-gray-200 rounded-lg p-4">
+                  <h3 class="text-sm font-semibold text-gray-700 mb-2">Devices by Interface Count</h3>
+                  <div class="space-y-2">
+                    <div
+                      v-for="device in cacheStatistics.top_devices"
+                      :key="device.device_name"
+                      class="flex items-center justify-between text-sm"
+                    >
+                      <span class="font-medium text-gray-900">{{ device.device_name }}</span>
+                      <span class="text-gray-500">{{ device.interface_count }} interfaces</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else-if="!loadingCacheStats" class="text-center py-8 text-gray-500">
+                <i class="fas fa-database text-4xl mb-2"></i>
+                <p>Click Refresh to load cache statistics</p>
+              </div>
+            </div>
+
+            <!-- Cache Browser -->
+            <div class="card p-6">
+              <h2 class="text-lg font-semibold text-gray-900 mb-4">Cache Browser</h2>
+
+              <!-- View Selector -->
+              <div class="flex space-x-2 mb-4">
+                <button
+                  @click="selectedCacheView = 'overview'"
+                  :class="[
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    selectedCacheView === 'overview'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ]"
+                >
+                  Overview
+                </button>
+                <button
+                  @click="selectedCacheView = 'devices'; loadCachedDevices()"
+                  :class="[
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    selectedCacheView === 'devices'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ]"
+                >
+                  Devices
+                </button>
+              </div>
+
+              <!-- Devices View -->
+              <div v-if="selectedCacheView === 'devices'">
+                <div v-if="loadingCachedDevices" class="text-center py-8 text-gray-500">
+                  <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                  <p>Loading cached devices...</p>
+                </div>
+
+                <div v-else-if="cachedDevices.length > 0" class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Device Name</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Primary IP</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Platform</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Updated</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valid Until</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Polling</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      <tr v-for="device in cachedDevices" :key="device.device_id" class="hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ device.device_name }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ device.primary_ip || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ device.platform || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ formatTimestamp(device.last_updated) }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">
+                          <span :class="isValidCache(device.cache_valid_until) ? 'text-green-600' : 'text-red-600'">
+                            {{ formatTimestamp(device.cache_valid_until) }}
+                          </span>
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                          <span
+                            :class="device.polling_enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
+                            class="px-2 py-1 rounded-full text-xs"
+                          >
+                            {{ device.polling_enabled ? 'Enabled' : 'Disabled' }}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div v-else class="text-center py-8 text-gray-500">
+                  <i class="fas fa-inbox text-4xl mb-2"></i>
+                  <p>No cached devices found</p>
+                </div>
+              </div>
+
+              <!-- Overview (placeholder) -->
+              <div v-if="selectedCacheView === 'overview'" class="text-center py-8 text-gray-500">
+                <p>Select a view to browse cache data</p>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-end space-x-3">
+              <button
+                @click="cleanExpiredCache"
+                class="btn-secondary"
+              >
+                <i class="fas fa-trash mr-2"></i>
+                Clean Expired Cache
+              </button>
+              <button
+                @click="saveCacheSettings"
+                class="btn-primary"
+              >
+                <i class="fas fa-save mr-2"></i>
+                Save Settings
+              </button>
+            </div>
+          </div>
+
           <!-- Profile Tab -->
           <div v-if="activeTab === 'profile'" class="space-y-6">
             <!-- Personal Credentials -->
@@ -1815,6 +2082,7 @@ const tabs = [
   { id: 'templates', name: 'Templates', icon: 'fas fa-shapes' },
   { id: 'commands', name: 'Commands', icon: 'fas fa-terminal' },
   { id: 'jobs', name: 'Jobs', icon: 'fas fa-tasks' },
+  { id: 'cache', name: 'Cache', icon: 'fas fa-database' },
   { id: 'profile', name: 'Profile', icon: 'fas fa-user' },
 ]
 
@@ -1837,6 +2105,12 @@ const settings = reactive({
   canvas: {
     autoSaveInterval: 60,
     gridEnabled: true,
+  },
+  cache: {
+    defaultTtlMinutes: 60,
+    autoRefreshEnabled: false,
+    autoRefreshIntervalMinutes: 30,
+    cleanExpiredOnStartup: true,
   },
   database: {
     host: '',
@@ -1941,6 +2215,14 @@ const parsers = [
   { value: 'TTP', label: 'TTP' },
   { value: 'Scrapli', label: 'Scrapli' }
 ]
+
+// Cache management state
+const cacheStatistics = ref<any>(null)
+const loadingCacheStats = ref(false)
+const cachedDevices = ref<any[]>([])
+const loadingCachedDevices = ref(false)
+const selectedCacheView = ref<'overview' | 'devices' | 'interfaces' | 'arp'>('overview')
+const cacheError = ref<string | null>(null)
 
 const isPasswordChangeValid = computed(() => {
   return (
@@ -2243,6 +2525,20 @@ onMounted(() => {
       fetchTemplates(),
       fetchPlatforms()
     ])
+  }
+
+  // Load cache settings from localStorage
+  const savedCacheSettings = localStorage.getItem('cacheSettings')
+  if (savedCacheSettings) {
+    try {
+      const parsed = JSON.parse(savedCacheSettings)
+      settings.cache.defaultTtlMinutes = parsed.defaultTtlMinutes ?? 60
+      settings.cache.autoRefreshEnabled = parsed.autoRefreshEnabled ?? false
+      settings.cache.autoRefreshIntervalMinutes = parsed.autoRefreshIntervalMinutes ?? 30
+      settings.cache.cleanExpiredOnStartup = parsed.cleanExpiredOnStartup ?? true
+    } catch (error) {
+      console.error('Failed to load cache settings:', error)
+    }
   }
 })
 
@@ -2912,6 +3208,108 @@ const saveProfile = async () => {
   } finally {
     savingProfile.value = false
   }
+}
+
+// Cache Management Functions
+const loadCacheStatistics = async () => {
+  loadingCacheStats.value = true
+  cacheError.value = null
+  try {
+    const response = await makeAuthenticatedRequest('/api/cache/statistics')
+    if (response.ok) {
+      cacheStatistics.value = await response.json()
+    } else {
+      throw new Error('Failed to load cache statistics')
+    }
+  } catch (error) {
+    console.error('Failed to load cache statistics:', error)
+    cacheError.value = 'Failed to load cache statistics'
+  } finally {
+    loadingCacheStats.value = false
+  }
+}
+
+const loadCachedDevices = async () => {
+  loadingCachedDevices.value = true
+  cacheError.value = null
+  try {
+    const response = await makeAuthenticatedRequest('/api/cache/devices?limit=1000')
+    if (response.ok) {
+      cachedDevices.value = await response.json()
+    } else {
+      throw new Error('Failed to load cached devices')
+    }
+  } catch (error) {
+    console.error('Failed to load cached devices:', error)
+    cacheError.value = 'Failed to load cached devices'
+  } finally {
+    loadingCachedDevices.value = false
+  }
+}
+
+const cleanExpiredCache = async () => {
+  try {
+    const response = await makeAuthenticatedRequest('/api/cache/expired', {
+      method: 'DELETE'
+    })
+    if (response.ok) {
+      const result = await response.json()
+      notificationStore.addNotification({
+        title: 'Cache Cleaned',
+        message: result.message || 'Expired cache entries have been cleaned',
+        type: 'success',
+      })
+      // Reload statistics
+      await loadCacheStatistics()
+    } else {
+      throw new Error('Failed to clean cache')
+    }
+  } catch (error) {
+    console.error('Failed to clean cache:', error)
+    notificationStore.addNotification({
+      title: 'Clean Failed',
+      message: 'Failed to clean expired cache entries',
+      type: 'error',
+    })
+  }
+}
+
+const saveCacheSettings = async () => {
+  try {
+    // Save cache settings to localStorage for now
+    // TODO: Implement backend endpoint to persist cache configuration
+    const cacheSettings = {
+      defaultTtlMinutes: settings.cache.defaultTtlMinutes,
+      autoRefreshEnabled: settings.cache.autoRefreshEnabled,
+      autoRefreshIntervalMinutes: settings.cache.autoRefreshIntervalMinutes,
+      cleanExpiredOnStartup: settings.cache.cleanExpiredOnStartup,
+    }
+    localStorage.setItem('cacheSettings', JSON.stringify(cacheSettings))
+
+    notificationStore.addNotification({
+      title: 'Settings Saved',
+      message: 'Cache settings have been saved successfully',
+      type: 'success',
+    })
+  } catch (error) {
+    console.error('Failed to save cache settings:', error)
+    notificationStore.addNotification({
+      title: 'Save Failed',
+      message: 'Failed to save cache settings',
+      type: 'error',
+    })
+  }
+}
+
+const formatTimestamp = (timestamp: string | null) => {
+  if (!timestamp) return '-'
+  const date = new Date(timestamp)
+  return date.toLocaleString()
+}
+
+const isValidCache = (validUntil: string | null) => {
+  if (!validUntil) return false
+  return new Date(validUntil) > new Date()
 }
 
 const changePassword = async () => {

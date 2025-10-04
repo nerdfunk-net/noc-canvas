@@ -301,6 +301,7 @@ function debounce<T extends (...args: any[]) => any>(
   }
 }
 
+const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
@@ -475,10 +476,20 @@ const mapNautobotDeviceType = (
 
 const loadDevices = async (disableCache: boolean = false) => {
   // Wait for auth to be fully initialized before making API calls
-  const authStore = useAuthStore()
+
+  // Always wait if we have a token but no user (auth still initializing)
   if (authStore.token && !authStore.user) {
     console.log('⏳ Waiting for auth initialization...')
     await authStore.initializeAuth()
+  }
+
+  // If still not authenticated after initialization, don't proceed
+  if (!authStore.isAuthenticated) {
+    console.log('⚠️ Not authenticated, skipping device load')
+    devices.value = []
+    error.value = null
+    loading.value = false
+    return
   }
 
   // Check if Nautobot is properly configured before attempting to load
@@ -835,10 +846,18 @@ watch(groupBy, () => {
   }, 0)
 })
 
+// Watch for authentication state changes
+watch(() => authStore.isAuthenticated, (isAuth) => {
+  if (isAuth && isNautobotConfigured.value && devices.value.length === 0) {
+    console.log('🔐 Auth state changed to authenticated, loading devices...')
+    loadDevices()
+  }
+})
+
 // Watch for Nautobot configuration changes
 watch(isNautobotConfigured, (newValue) => {
-  if (newValue) {
-    // Configuration became valid, load devices
+  if (newValue && authStore.isAuthenticated) {
+    // Configuration became valid and we're authenticated, load devices
     loadDevices()
   } else {
     // Configuration became invalid, clear devices
@@ -850,7 +869,6 @@ watch(isNautobotConfigured, (newValue) => {
 // Mount
 onMounted(async () => {
   // Wait for auth to be fully initialized before loading devices
-  const authStore = useAuthStore()
   if (authStore.token && !authStore.user) {
     await authStore.initializeAuth()
   }

@@ -31,9 +31,10 @@ export function useDeviceSelection() {
     console.log('🔍 Selecting devices in box:', { minX, minY, maxX, maxY })
 
     // Start with current selection (additive selection with Shift+drag)
-    const newSelection = new Set(selectedDevices.value)
+    const newDeviceSelection = new Set(selectedDevices.value)
     const deviceSize = 80 // Device width/height
 
+    // Select devices
     deviceStore.devices.forEach((device) => {
       // Check if device overlaps with selection box
       const deviceLeft = device.position_x
@@ -46,12 +47,12 @@ export function useDeviceSelection() {
       const overlapsY = deviceTop < maxY && deviceBottom > minY
 
       if (overlapsX && overlapsY) {
-        newSelection.add(device.id)
+        newDeviceSelection.add(device.id)
         console.log('✅ Selected device:', device.name, 'at', device.position_x, device.position_y)
       }
     })
 
-    selectedDevices.value = newSelection
+    selectedDevices.value = newDeviceSelection
 
     // Update single selection based on multi-selection
     if (selectedDevices.value.size === 1) {

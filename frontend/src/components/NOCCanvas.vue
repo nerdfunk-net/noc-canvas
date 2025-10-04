@@ -824,7 +824,7 @@ const {
   hideContextMenu,
 } = contextMenuComposable
 
-// Initialize device selection composable
+// Initialize device selection composable first
 const deviceSelectionComposable = useDeviceSelection()
 const {
   selectedDevices: composableSelectedDevices,
@@ -836,6 +836,61 @@ const {
 
 // Use the composable versions as the primary references
 const selectedDevices = composableSelectedDevices
+
+// Now initialize shape operations with selectedDevices
+const shapeOperationsComposable = useShapeOperations(selectedDevices, deviceStore)
+const {
+  selectedShape,
+  selectedShapes,
+  transformer,
+  showShapeColorModal,
+  shapeColorToEdit,
+  currentShapeColors,
+  onShapeClick,
+  onShapeDragStart,
+  onShapeDragMove,
+  onShapeDragEnd,
+  onShapeRightClick: composableOnShapeRightClick,
+  openShapeColorModal,
+  handleShapeColorSave,
+  deleteShape,
+  deleteMultiShapes,
+  alignShapesHorizontally,
+  alignShapesVertically,
+  clearShapeSelection,
+} = shapeOperationsComposable
+
+// Create a wrapper for selectDevicesInBox that also selects shapes
+const selectDevicesInBox = (box: { startX: number; startY: number; endX: number; endY: number }) => {
+  composableSelectDevicesInBox(box)
+
+  // Also select shapes in the box
+  const minX = Math.min(box.startX, box.endX)
+  const maxX = Math.max(box.startX, box.endX)
+  const minY = Math.min(box.startY, box.endY)
+  const maxY = Math.max(box.startY, box.endY)
+
+  const shapesStore = useShapesStore()
+  const newShapeSelection = new Set(selectedShapes.value)
+
+  shapesStore.shapes.forEach((shape) => {
+    const shapeLeft = shape.position_x
+    const shapeRight = shape.position_x + shape.width
+    const shapeTop = shape.position_y
+    const shapeBottom = shape.position_y + shape.height
+
+    const overlapsX = shapeLeft < maxX && shapeRight > minX
+    const overlapsY = shapeTop < maxY && shapeBottom > minY
+
+    if (overlapsX && overlapsY) {
+      newShapeSelection.add(shape.id)
+      console.log('✅ Selected shape:', shape.shape_type, 'at', shape.position_x, shape.position_y)
+    }
+  })
+
+  selectedShapes.value = newShapeSelection
+  console.log(`🎯 Total shapes selected: ${selectedShapes.value.size}`)
+}
 
 // Initialize device operations composable
 const deviceOperationsComposable = useDeviceOperations()
@@ -900,9 +955,6 @@ const selectionBox = ref<{
 
 // Selected devices - now handled by useDeviceSelection composable
 
-// Function to select devices within a selection box - now handled by composable
-const selectDevicesInBox = composableSelectDevicesInBox
-
 // Context menu state - now handled by useContextMenu composable
 
 // Flag to track device right-clicks to prevent canvas menu override
@@ -933,29 +985,6 @@ const layerVisibility = ref({
   layer3: true,
   background: true,
 })
-
-// Initialize shape operations composable
-const shapeOperationsComposable = useShapeOperations(selectedDevices, deviceStore)
-const {
-  selectedShape,
-  selectedShapes,
-  transformer,
-  showShapeColorModal,
-  shapeColorToEdit,
-  currentShapeColors,
-  onShapeClick,
-  onShapeDragStart,
-  onShapeDragMove,
-  onShapeDragEnd,
-  onShapeRightClick: composableOnShapeRightClick,
-  openShapeColorModal,
-  handleShapeColorSave,
-  deleteShape,
-  deleteMultiShapes,
-  alignShapesHorizontally,
-  alignShapesVertically,
-  clearShapeSelection,
-} = shapeOperationsComposable
 
 // Watch for transformer changes to update shape size
 watch(transformer, () => {

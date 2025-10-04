@@ -35,6 +35,8 @@ export function useShapeOperations(selectedDevices?: any, deviceStore?: any) {
 
   // Shape drag start handler
   const onShapeDragStart = (shape: any) => {
+    console.log('🎨 Shape drag start:', shape.id, 'Selected shapes:', selectedShapes.value.size, 'Selected devices:', selectedDevices?.value?.size || 0)
+
     // Initialize drag state
     shapeDragState.value = {
       draggedShape: shape,
@@ -53,6 +55,7 @@ export function useShapeOperations(selectedDevices?: any, deviceStore?: any) {
         y: selectedShape.position_y
       })
     })
+    console.log('📦 Stored', selectedShapesList.length, 'shape positions')
 
     // Store initial positions of all selected devices (if any)
     if (selectedDevices && selectedDevices.value) {
@@ -66,6 +69,9 @@ export function useShapeOperations(selectedDevices?: any, deviceStore?: any) {
           y: selectedDevice.position_y
         })
       })
+      console.log('📦 Stored', selectedDevicesList.length, 'device positions')
+    } else {
+      console.log('⚠️ No selectedDevices ref available or no devices selected')
     }
   }
 
@@ -149,9 +155,13 @@ export function useShapeOperations(selectedDevices?: any, deviceStore?: any) {
         selectedShape.value = shape.id
       }
     } else {
-      selectedShapes.value.clear()
-      selectedShapes.value.add(shape.id)
-      selectedShape.value = shape.id
+      // Only clear shape selection if this shape is not already selected
+      // This preserves multi-selection when clicking on an already-selected shape to drag
+      if (!selectedShapes.value.has(shape.id)) {
+        selectedShapes.value.clear()
+        selectedShapes.value.add(shape.id)
+        selectedShape.value = shape.id
+      }
     }
 
     // Attach transformer to the clicked shape (only for single selection)

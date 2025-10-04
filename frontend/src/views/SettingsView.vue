@@ -1517,6 +1517,13 @@
                 Clean Expired Cache
               </button>
               <button
+                @click="clearAllCache"
+                class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center"
+              >
+                <i class="fas fa-trash-alt mr-2"></i>
+                Clear All Cache
+              </button>
+              <button
                 @click="saveCacheSettings"
                 class="btn-primary"
               >
@@ -1665,7 +1672,7 @@
           </div>
 
           <!-- Save Button (for General and Plugins tabs) -->
-          <div v-if="activeTab !== 'profile' && activeTab !== 'canvas' && activeTab !== 'commands'" class="flex justify-end">
+          <div v-if="activeTab !== 'profile' && activeTab !== 'canvas' && activeTab !== 'commands' && activeTab !== 'cache'" class="flex justify-end">
             <button @click="saveSettings" class="btn-primary" :disabled="saving">
               <i class="fas fa-save mr-2"></i>
               {{ saving ? 'Saving...' : 'Save Settings' }}
@@ -3861,11 +3868,15 @@ const getDeviceName = (deviceId: string) => {
 
 const cleanExpiredCache = async () => {
   try {
+    console.log('🧹 Cleaning expired cache...')
     const response = await makeAuthenticatedRequest('/api/cache/expired', {
       method: 'DELETE'
     })
+    console.log('📡 Clean cache response status:', response.status)
+
     if (response.ok) {
       const result = await response.json()
+      console.log('✅ Clean cache result:', result)
       notificationStore.addNotification({
         title: 'Cache Cleaned',
         message: result.message || 'Expired cache entries have been cleaned',
@@ -3874,13 +3885,63 @@ const cleanExpiredCache = async () => {
       // Reload statistics
       await loadCacheStatistics()
     } else {
-      throw new Error('Failed to clean cache')
+      const errorText = await response.text()
+      console.error('❌ Clean cache failed:', response.status, errorText)
+      throw new Error(`Failed to clean cache: ${response.status} - ${errorText}`)
     }
   } catch (error) {
-    console.error('Failed to clean cache:', error)
+    console.error('❌ Failed to clean cache:', error)
     notificationStore.addNotification({
       title: 'Clean Failed',
-      message: 'Failed to clean expired cache entries',
+      message: error instanceof Error ? error.message : 'Failed to clean expired cache entries',
+      type: 'error',
+    })
+  }
+}
+
+const clearAllCache = async () => {
+  // Confirm before clearing all cache
+  if (!confirm('⚠️ This will delete ALL cached data including devices, interfaces, IP addresses, ARP entries, routes, MAC table, and CDP neighbors. Are you sure?')) {
+    return
+  }
+
+  try {
+    console.log('🗑️  Clearing all cache...')
+    const response = await makeAuthenticatedRequest('/api/cache/all', {
+      method: 'DELETE'
+    })
+    console.log('📡 Clear all cache response status:', response.status)
+
+    if (response.ok) {
+      const result = await response.json()
+      console.log('✅ Clear all cache result:', result)
+      notificationStore.addNotification({
+        title: 'All Cache Cleared',
+        message: `Cleared ${result.total_cleared} total entries`,
+        type: 'success',
+      })
+      // Reload statistics
+      await loadCacheStatistics()
+      // Clear browser displays
+      cachedDevices.value = []
+      cachedInterfaces.value = []
+      cachedIPs.value = []
+      cachedARPs.value = []
+      cachedStaticRoutes.value = []
+      cachedOSPFRoutes.value = []
+      cachedBGPRoutes.value = []
+      cachedMACTable.value = []
+      cachedCDPNeighbors.value = []
+    } else {
+      const errorText = await response.text()
+      console.error('❌ Clear all cache failed:', response.status, errorText)
+      throw new Error(`Failed to clear cache: ${response.status} - ${errorText}`)
+    }
+  } catch (error) {
+    console.error('❌ Failed to clear all cache:', error)
+    notificationStore.addNotification({
+      title: 'Clear Failed',
+      message: error instanceof Error ? error.message : 'Failed to clear all cache',
       type: 'error',
     })
   }

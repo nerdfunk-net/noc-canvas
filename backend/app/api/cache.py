@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.schemas.device_cache import (
     DeviceCacheResponse,
     InterfaceCacheResponse,
@@ -30,10 +31,47 @@ from app.models.device_cache import (
 router = APIRouter(prefix="/cache", tags=["cache"])
 
 
+@router.post("/fix-null-expirations")
+def fix_null_cache_expirations(
+    ttl_minutes: int = 60,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Fix devices with NULL cache_valid_until by setting default TTL."""
+    from datetime import timedelta
+    import logging
+    logger = logging.getLogger(__name__)
+
+    now = datetime.utcnow()
+    null_devices = db.query(DeviceCache).filter(
+        DeviceCache.cache_valid_until.is_(None)
+    ).all()
+
+    logger.info(f"🔧 Fixing {len(null_devices)} devices with NULL expiration")
+    print(f"\n🔧 Fixing {len(null_devices)} devices with NULL expiration")
+
+    for device in null_devices:
+        device.cache_valid_until = now + timedelta(minutes=ttl_minutes)
+        logger.info(f"  ✅ Fixed: {device.device_name} - expires: {device.cache_valid_until}")
+        print(f"  ✅ Fixed: {device.device_name} - expires: {device.cache_valid_until}")
+
+    db.commit()
+
+    return {
+        "message": f"Fixed {len(null_devices)} devices with NULL cache_valid_until",
+        "devices_fixed": [d.device_name for d in null_devices],
+        "new_expiration": (now + timedelta(minutes=ttl_minutes)).isoformat()
+    }
+
+
 @router.get("/statistics")
 def get_cache_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get cache statistics and overview."""
     now = datetime.utcnow()
+
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"📊 Getting cache statistics. Current UTC time: {now}")
 
     # Total counts
     total_devices = db.query(func.count(DeviceCache.device_id)).scalar()
@@ -46,11 +84,29 @@ def get_cache_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
     total_mac_table = db.query(func.count(MACAddressTableCache.id)).scalar()
     total_cdp_neighbors = db.query(func.count(CDPNeighborCache.id)).scalar()
 
-    # Valid vs expired cache entries
+    # Valid vs expired cache entries (handle NULL values)
     valid_devices = db.query(func.count(DeviceCache.device_id)).filter(
+        DeviceCache.cache_valid_until.isnot(None),
         DeviceCache.cache_valid_until > now
     ).scalar()
-    expired_devices = total_devices - valid_devices
+    expired_devices = db.query(func.count(DeviceCache.device_id)).filter(
+        DeviceCache.cache_valid_until.isnot(None),
+        DeviceCache.cache_valid_until <= now
+    ).scalar()
+
+    # Debug: Show all devices and their expiration times
+    try:
+        all_devices = db.query(DeviceCache).all()
+        logger.info(f"📋 Total devices in cache: {total_devices}")
+        for device in all_devices:
+            if device.cache_valid_until:
+                status = "✅ VALID" if device.cache_valid_until > now else "❌ EXPIRED"
+                logger.info(f"  {status} {device.device_name}: valid until {device.cache_valid_until}")
+            else:
+                logger.info(f"  ⚠️  {device.device_name}: NO EXPIRATION SET")
+        logger.info(f"📊 Statistics: {valid_devices} valid, {expired_devices} expired")
+    except Exception as e:
+        logger.error(f"❌ Error in debug logging: {e}")
 
     # Polling status
     polling_enabled = db.query(func.count(DeviceCache.device_id)).filter(
@@ -299,11 +355,82 @@ def invalidate_device_cache(
     return {"message": f"Cache for device {device_id} invalidated"}
 
 
+@router.delete("/all")
+def clear_all_cache(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Clear ALL cache entries (devices and all related data)."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Count before deletion
+    device_count = db.query(func.count(DeviceCache.device_id)).scalar()
+    interface_count = db.query(func.count(InterfaceCache.id)).scalar()
+    ip_count = db.query(func.count(IPAddressCache.id)).scalar()
+    arp_count = db.query(func.count(ARPCache.id)).scalar()
+    static_route_count = db.query(func.count(StaticRouteCache.id)).scalar()
+    ospf_route_count = db.query(func.count(OSPFRouteCache.id)).scalar()
+    bgp_route_count = db.query(func.count(BGPRouteCache.id)).scalar()
+    mac_count = db.query(func.count(MACAddressTableCache.id)).scalar()
+    cdp_count = db.query(func.count(CDPNeighborCache.id)).scalar()
+
+    total = device_count + interface_count + ip_count + arp_count + static_route_count + ospf_route_count + bgp_route_count + mac_count + cdp_count
+
+    logger.info(f"🗑️  Clearing ALL cache: {total} total entries")
+    print(f"\n🗑️  Clearing ALL cache: {total} total entries")
+
+    # Delete all cache data (cascade will handle related records)
+    db.query(DeviceCache).delete()
+    db.commit()
+
+    logger.info(f"✅ All cache cleared successfully")
+    print(f"✅ All cache cleared successfully")
+
+    return {
+        "message": f"Cleared all cache entries",
+        "total_cleared": total,
+        "breakdown": {
+            "devices": device_count,
+            "interfaces": interface_count,
+            "ip_addresses": ip_count,
+            "arp_entries": arp_count,
+            "static_routes": static_route_count,
+            "ospf_routes": ospf_route_count,
+            "bgp_routes": bgp_route_count,
+            "mac_table": mac_count,
+            "cdp_neighbors": cdp_count,
+        }
+    }
+
+
 @router.delete("/expired")
 def clean_all_expired_cache(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """Clean all expired cache entries."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Debug: Check what's in the database before cleaning
+    now = datetime.utcnow()
+    all_devices = db.query(DeviceCache).all()
+    print(f"\n🧹 Clean endpoint called. Current UTC: {now}")
+    print(f"📋 All devices in cache ({len(all_devices)} total):")
+    logger.info(f"🧹 Clean endpoint called. Current UTC: {now}")
+    logger.info(f"📋 All devices in cache:")
+    for d in all_devices:
+        if d.cache_valid_until:
+            is_expired = d.cache_valid_until <= now
+            msg = f"  {'❌ EXPIRED' if is_expired else '✅ VALID'}: {d.device_name} - valid_until: {d.cache_valid_until}"
+            print(msg)
+            logger.info(msg)
+        else:
+            msg = f"  ⚠️  NULL: {d.device_name} - valid_until: None"
+            print(msg)
+            logger.info(msg)
+
     count = DeviceCacheService.clean_expired_cache(db, None)
     return {"message": f"Cleaned {count} expired cache entries"}
 
@@ -312,6 +439,7 @@ def clean_all_expired_cache(
 def clean_device_expired_cache(
     device_id: str,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """Clean expired cache entries for a specific device."""
     count = DeviceCacheService.clean_expired_cache(db, device_id)

@@ -83,37 +83,58 @@ class DeviceCacheService:
     @staticmethod
     def clean_expired_cache(db: Session, device_id: Optional[str] = None) -> int:
         """Clean expired cache entries."""
+        now = datetime.utcnow()
+        logger.info(f"🧹 Cleaning expired cache. Current UTC time: {now}")
+
+        # Only clean entries that have an expiration date AND are expired
         query = db.query(DeviceCache).filter(
-            DeviceCache.cache_valid_until < datetime.utcnow()
+            DeviceCache.cache_valid_until.isnot(None),
+            DeviceCache.cache_valid_until <= now
         )
         if device_id:
             query = query.filter(DeviceCache.device_id == device_id)
 
-        count = query.count()
-        query.delete(synchronize_session=False)
-        db.commit()
+        # Log expired entries before deletion
+        expired_entries = query.all()
+        for entry in expired_entries:
+            logger.info(f"  📅 Expired: {entry.device_name} (valid until: {entry.cache_valid_until})")
+
+        count = len(expired_entries)
+        if count > 0:
+            query.delete(synchronize_session=False)
+            db.commit()
+            logger.info(f"✅ Cleaned {count} expired cache entries")
+        else:
+            logger.info(f"✅ No expired cache entries to clean")
         return count
 
     @staticmethod
     def get_or_create_device_cache(
-        db: Session, device_data: DeviceCacheCreate
+        db: Session, device_data: DeviceCacheCreate, ttl_minutes: int = 60
     ) -> DeviceCache:
-        """Get existing device cache or create new one."""
+        """Get existing device cache or create new one with default TTL."""
         device = DeviceCacheService.get_device_cache(db, device_data.device_id)
+        now = datetime.utcnow()
 
         if device:
             # Update existing device
             for key, value in device_data.model_dump().items():
                 if value is not None:
                     setattr(device, key, value)
-            device.last_updated = datetime.utcnow()
+            device.last_updated = now
+            # Update cache expiration if not set or if being refreshed
+            if not device.cache_valid_until or device.cache_valid_until < now:
+                device.cache_valid_until = now + timedelta(minutes=ttl_minutes)
         else:
-            # Create new device
-            device = DeviceCache(**device_data.model_dump())
+            # Create new device with expiration
+            device_dict = device_data.model_dump()
+            device_dict['cache_valid_until'] = now + timedelta(minutes=ttl_minutes)
+            device = DeviceCache(**device_dict)
 
         db.add(device)
         db.commit()
         db.refresh(device)
+        logger.info(f"Device cache {'updated' if device.last_updated != now else 'created'}: {device.device_name}, expires: {device.cache_valid_until}")
         return device
 
     @staticmethod

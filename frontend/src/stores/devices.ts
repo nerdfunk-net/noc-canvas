@@ -20,6 +20,7 @@ export interface Connection {
   properties?: string
   routing_style?: 'straight' | 'orthogonal' // Line routing: straight or with right-angle corners
   waypoints?: { x: number; y: number }[] // Custom waypoints for manual route adjustment
+  layer?: 'layer2' | 'layer3' // Network layer: layer2 (CDP/MAC) or layer3 (IP/Routing)
 }
 
 export const useDevicesStore = defineStore('devices', () => {

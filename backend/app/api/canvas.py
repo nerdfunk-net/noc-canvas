@@ -31,6 +31,7 @@ class CanvasConnectionData(BaseModel):
     properties: Optional[str] = None
     routing_style: Optional[str] = None
     waypoints: Optional[List[dict]] = None
+    layer: Optional[str] = None
 
 
 class CanvasShapeData(BaseModel):

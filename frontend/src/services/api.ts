@@ -20,6 +20,7 @@ export interface CanvasConnectionData {
   properties?: string
   routing_style?: 'straight' | 'orthogonal'
   waypoints?: { x: number; y: number }[]
+  layer?: 'layer2' | 'layer3'
 }
 
 export interface CanvasData {

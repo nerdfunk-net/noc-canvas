@@ -144,6 +144,7 @@ export function useCanvasState() {
         properties: connection.properties,
         routing_style: connection.routing_style,
         waypoints: connection.waypoints,
+        layer: connection.layer,
       })),
       shapes: shapesStore.shapes.map((shape) => ({
         id: shape.id,

@@ -83,7 +83,7 @@ cd<template>
       </v-layer>
 
       <!-- Background Shapes Layer (renders behind devices) -->
-      <v-layer ref="backgroundLayer">
+      <v-layer ref="backgroundLayer" :config="{ visible: layerVisibility.background }">
         <v-group
           v-for="shape in backgroundShapes"
           :key="`shape-bg-${shape.id}`"
@@ -122,14 +122,14 @@ cd<template>
         </v-group>
       </v-layer>
 
-      <!-- Connections Layer -->
-      <v-layer ref="connectionsLayer">
+      <!-- Layer2 Connections (CDP, MAC) - renders below devices -->
+      <v-layer ref="layer2ConnectionsLayer" :config="{ visible: layerVisibility.layer2 }">
         <v-line
-          v-for="connection in renderConnections"
+          v-for="connection in layer2Connections"
           :key="`connection-${connection.id}`"
           :config="{
             points: connection.points,
-            stroke: selectedConnection === connection.id ? '#1d4ed8' : '#3b82f6',
+            stroke: selectedConnection === connection.id ? '#10b981' : '#34d399',
             strokeWidth: selectedConnection === connection.id ? 4 : 2,
             opacity: selectedConnection === connection.id ? 1 : 0.8,
             hitStrokeWidth: 10,
@@ -140,8 +140,8 @@ cd<template>
           @mouseleave="onConnectionMouseLeave"
         />
 
-        <!-- Waypoints for selected connection -->
-        <template v-if="selectedConnection">
+        <!-- Waypoints for selected Layer2 connection -->
+        <template v-if="selectedConnection && isLayer2Connection(selectedConnection)">
           <v-circle
             v-for="(waypoint, index) in getConnectionWaypoints(selectedConnection)"
             :key="`waypoint-${selectedConnection}-${index}`"
@@ -149,7 +149,7 @@ cd<template>
               x: waypoint.x,
               y: waypoint.y,
               radius: 6,
-              fill: '#1d4ed8',
+              fill: '#10b981',
               stroke: '#ffffff',
               strokeWidth: 2,
               draggable: true,
@@ -165,7 +165,7 @@ cd<template>
       </v-layer>
 
       <!-- Devices Layer (renders above background) -->
-      <v-layer ref="devicesLayer">
+      <v-layer ref="devicesLayer" :config="{ visible: layerVisibility.devices }">
         <v-group
           v-for="device in deviceStore.devices"
           :key="`device-${device.id}`"
@@ -287,6 +287,48 @@ cd<template>
           />
         </v-group>
         <v-transformer ref="transformer" />
+      </v-layer>
+
+      <!-- Layer3 Connections (IP ARP, Static, OSPF, BGP) - renders above devices -->
+      <v-layer ref="layer3ConnectionsLayer" :config="{ visible: layerVisibility.layer3 }">
+        <v-line
+          v-for="connection in layer3Connections"
+          :key="`connection-${connection.id}`"
+          :config="{
+            points: connection.points,
+            stroke: selectedConnection === connection.id ? '#1d4ed8' : '#3b82f6',
+            strokeWidth: selectedConnection === connection.id ? 4 : 2,
+            opacity: selectedConnection === connection.id ? 1 : 0.8,
+            hitStrokeWidth: 10,
+          }"
+          @click="onConnectionClick(connection, $event)"
+          @contextmenu="onConnectionRightClick(connection, $event)"
+          @mouseenter="onConnectionMouseEnter"
+          @mouseleave="onConnectionMouseLeave"
+        />
+
+        <!-- Waypoints for selected Layer3 connection -->
+        <template v-if="selectedConnection && isLayer3Connection(selectedConnection)">
+          <v-circle
+            v-for="(waypoint, index) in getConnectionWaypoints(selectedConnection)"
+            :key="`waypoint-${selectedConnection}-${index}`"
+            :config="{
+              x: waypoint.x,
+              y: waypoint.y,
+              radius: 6,
+              fill: '#1d4ed8',
+              stroke: '#ffffff',
+              strokeWidth: 2,
+              draggable: true,
+            }"
+            @dragstart="onWaypointDragStart(selectedConnection, index)"
+            @dragmove="onWaypointDragMove(selectedConnection, index, $event)"
+            @dragend="onWaypointDragEnd"
+            @contextmenu="onWaypointRightClick(selectedConnection, index, $event)"
+            @mouseenter="(e: any) => e.target.getStage().container().style.cursor = 'move'"
+            @mouseleave="(e: any) => e.target.getStage().container().style.cursor = 'default'"
+          />
+        </template>
       </v-layer>
 
       <!-- Selection Layer -->
@@ -884,6 +926,14 @@ const draggingWaypoint = ref<{
   waypointIndex: number
 } | null>(null)
 
+// Layer visibility state
+const layerVisibility = ref({
+  devices: true,
+  layer2: true,
+  layer3: true,
+  background: true,
+})
+
 // Initialize shape operations composable
 const shapeOperationsComposable = useShapeOperations(selectedDevices, deviceStore)
 const {
@@ -1134,6 +1184,32 @@ const deviceLayerShapes = computed(() => {
   return shapesStore.shapes.filter(shape => shape.layer !== 'background')
 })
 
+// Separate connections by layer
+const layer2Connections = computed(() => {
+  return renderConnections.value.filter(conn => {
+    const connection = deviceStore.connections.find(c => c.id === conn.id)
+    return connection?.layer === 'layer2'
+  })
+})
+
+const layer3Connections = computed(() => {
+  return renderConnections.value.filter(conn => {
+    const connection = deviceStore.connections.find(c => c.id === conn.id)
+    return connection?.layer === 'layer3' || !connection?.layer // Default to layer3 if not specified
+  })
+})
+
+// Helper functions to check connection layers
+const isLayer2Connection = (connectionId: number): boolean => {
+  const connection = deviceStore.connections.find(c => c.id === connectionId)
+  return connection?.layer === 'layer2'
+}
+
+const isLayer3Connection = (connectionId: number): boolean => {
+  const connection = deviceStore.connections.find(c => c.id === connectionId)
+  return connection?.layer === 'layer3' || !connection?.layer // Default to layer3
+}
+
 // Context menu items
 const contextMenuItems = computed(() => {
   console.log('🔵 DEBUG: contextMenuItems computed, targetType:', contextMenu.targetType, 'target:', contextMenu.target)
@@ -1206,8 +1282,52 @@ const contextMenuItems = computed(() => {
   if (!contextMenu.target) {
     if (contextMenu.targetType === 'canvas') {
       const items = [
-        { icon: '🖼️', label: 'Fit to Screen', action: () => { hideContextMenu(); fitToScreen(canvasContainer.value || null) } },
-        { icon: '🏠', label: 'Reset View', action: () => { hideContextMenu(); resetView() } },
+        {
+          icon: '👁️',
+          label: 'View',
+          submenu: [
+            {
+              icon: '📊',
+              label: 'Layers',
+              submenu: [
+                {
+                  icon: layerVisibility.value.devices ? '✅' : '☐',
+                  label: 'Devices',
+                  action: () => {
+                    layerVisibility.value.devices = !layerVisibility.value.devices
+                    hideContextMenu()
+                  }
+                },
+                {
+                  icon: layerVisibility.value.layer2 ? '✅' : '☐',
+                  label: 'Layer2',
+                  action: () => {
+                    layerVisibility.value.layer2 = !layerVisibility.value.layer2
+                    hideContextMenu()
+                  }
+                },
+                {
+                  icon: layerVisibility.value.layer3 ? '✅' : '☐',
+                  label: 'Layer3',
+                  action: () => {
+                    layerVisibility.value.layer3 = !layerVisibility.value.layer3
+                    hideContextMenu()
+                  }
+                },
+                {
+                  icon: layerVisibility.value.background ? '✅' : '☐',
+                  label: 'Background',
+                  action: () => {
+                    layerVisibility.value.background = !layerVisibility.value.background
+                    hideContextMenu()
+                  }
+                },
+              ],
+            },
+            { icon: '🖼️', label: 'Fit to Screen', action: () => { hideContextMenu(); fitToScreen(canvasContainer.value || null) } },
+            { icon: '🏠', label: 'Reset View', action: () => { hideContextMenu(); resetView() } },
+          ],
+        },
         {
           icon: '🎨',
           label: 'Canvas',

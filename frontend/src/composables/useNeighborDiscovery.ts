@@ -136,14 +136,15 @@ export function useNeighborDiscovery() {
   /**
    * Helper: Create a connection between two devices
    */
-  const createConnection = (sourceDevice: Device, targetDevice: Device): void => {
+  const createConnection = (sourceDevice: Device, targetDevice: Device, layer?: 'layer2' | 'layer3'): void => {
     try {
       deviceStore.createConnection({
         source_device_id: sourceDevice.id,
         target_device_id: targetDevice.id,
         connection_type: 'ethernet',
+        layer: layer || 'layer3', // Default to layer3 if not specified
       })
-      console.log(`🔗 Created connection: ${sourceDevice.name} <-> ${targetDevice.name}`)
+      console.log(`🔗 Created ${layer || 'layer3'} connection: ${sourceDevice.name} <-> ${targetDevice.name}`)
     } catch (error) {
       console.error(`❌ Failed to create connection to ${targetDevice.name}:`, error)
     }
@@ -158,6 +159,7 @@ export function useNeighborDiscovery() {
     extractIdentifier: (entry: any) => string | null  // Extract device identifier from parsed data
     searchByIp?: boolean  // If true, search Nautobot by IP when not in cache
     preprocessEntries?: (entries: any[]) => string[]  // Custom processing to extract unique identifiers from entries
+    layer?: 'layer2' | 'layer3'  // Network layer for the connection (layer2: CDP/MAC, layer3: IP/Routing)
   }
 
   /**
@@ -300,7 +302,7 @@ export function useNeighborDiscovery() {
           const newDevice = await addDeviceToCanvas(neighborDevice, position)
 
           // Create connection between source device and neighbor
-          createConnection(device, newDevice)
+          createConnection(device, newDevice, config.layer)
 
           addedCount++
           console.log(`✅ Added neighbor to canvas: ${neighborDevice.name}`)
@@ -336,7 +338,8 @@ export function useNeighborDiscovery() {
       endpoint: 'cdp-neighbors',
       displayName: 'CDP',
       extractIdentifier: (entry) => entry.neighbor_name || entry.destination_host || entry.device_id,
-      searchByIp: false
+      searchByIp: false,
+      layer: 'layer2'
     })
   }
 
@@ -349,7 +352,8 @@ export function useNeighborDiscovery() {
       endpoint: 'ip-arp',
       displayName: 'ARP',
       extractIdentifier: (entry) => entry.ip_address,
-      searchByIp: true
+      searchByIp: true,
+      layer: 'layer3'
     })
   }
 
@@ -372,6 +376,7 @@ export function useNeighborDiscovery() {
       displayName: 'Static Route',
       extractIdentifier: (entry) => entry.nexthop_ip,
       searchByIp: true,
+      layer: 'layer3',
       preprocessEntries: (entries) => {
         // Extract unique next-hop IPs, filtering out 0.0.0.0
         const nextHopIps = new Set<string>()
@@ -396,6 +401,7 @@ export function useNeighborDiscovery() {
       displayName: 'OSPF',
       extractIdentifier: (entry) => entry.nexthop_ip,
       searchByIp: true,
+      layer: 'layer3',
       preprocessEntries: (entries) => {
         // Extract unique next-hop IPs, filtering out 0.0.0.0
         const nextHopIps = new Set<string>()

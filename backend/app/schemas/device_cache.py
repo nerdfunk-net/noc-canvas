@@ -126,12 +126,132 @@ class ARPCacheResponse(ARPCacheBase):
         from_attributes = True
 
 
+# Static Route Cache Schemas
+class StaticRouteCacheBase(BaseModel):
+    device_id: str
+    network: str
+    nexthop_ip: Optional[str] = None
+    metric: Optional[int] = None
+    distance: Optional[int] = None
+    interface_name: Optional[str] = None
+
+
+class StaticRouteCacheCreate(StaticRouteCacheBase):
+    pass
+
+
+class StaticRouteCacheResponse(StaticRouteCacheBase):
+    id: int
+    last_updated: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# OSPF Route Cache Schemas
+class OSPFRouteCacheBase(BaseModel):
+    device_id: str
+    network: str
+    nexthop_ip: Optional[str] = None
+    metric: Optional[int] = None
+    distance: Optional[int] = None
+    interface_name: Optional[str] = None
+    area: Optional[str] = None
+    route_type: Optional[str] = None
+
+
+class OSPFRouteCacheCreate(OSPFRouteCacheBase):
+    pass
+
+
+class OSPFRouteCacheResponse(OSPFRouteCacheBase):
+    id: int
+    last_updated: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# BGP Route Cache Schemas
+class BGPRouteCacheBase(BaseModel):
+    device_id: str
+    network: str
+    nexthop_ip: Optional[str] = None
+    metric: Optional[int] = None
+    local_pref: Optional[int] = None
+    weight: Optional[int] = None
+    as_path: Optional[str] = None
+    origin: Optional[str] = None
+    status: Optional[str] = None
+
+
+class BGPRouteCacheCreate(BGPRouteCacheBase):
+    pass
+
+
+class BGPRouteCacheResponse(BGPRouteCacheBase):
+    id: int
+    last_updated: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# MAC Address Table Cache Schemas
+class MACAddressTableCacheBase(BaseModel):
+    device_id: str
+    mac_address: str
+    vlan_id: Optional[int] = None
+    interface_name: Optional[str] = None
+    entry_type: Optional[str] = None
+
+
+class MACAddressTableCacheCreate(MACAddressTableCacheBase):
+    pass
+
+
+class MACAddressTableCacheResponse(MACAddressTableCacheBase):
+    id: int
+    last_updated: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# CDP Neighbor Cache Schemas
+class CDPNeighborCacheBase(BaseModel):
+    device_id: str
+    neighbor_name: str
+    neighbor_ip: Optional[str] = None
+    local_interface: str
+    neighbor_interface: Optional[str] = None
+    platform: Optional[str] = None
+    capabilities: Optional[str] = None
+
+
+class CDPNeighborCacheCreate(CDPNeighborCacheBase):
+    pass
+
+
+class CDPNeighborCacheResponse(CDPNeighborCacheBase):
+    id: int
+    last_updated: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # Composite schemas for bulk operations
 class DeviceCacheWithDetails(DeviceCacheResponse):
     """Device cache with all related data."""
     interfaces: List[InterfaceCacheResponse] = []
     ip_addresses: List[IPAddressCacheResponse] = []
     arp_entries: List[ARPCacheResponse] = []
+    static_routes: List[StaticRouteCacheResponse] = []
+    ospf_routes: List[OSPFRouteCacheResponse] = []
+    bgp_routes: List[BGPRouteCacheResponse] = []
+    mac_table_entries: List[MACAddressTableCacheResponse] = []
+    cdp_neighbors: List[CDPNeighborCacheResponse] = []
 
 
 class InterfaceWithIPs(InterfaceCacheResponse):

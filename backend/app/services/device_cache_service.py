@@ -9,12 +9,20 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
-from ..models.device_cache import DeviceCache, InterfaceCache, IPAddressCache, ARPCache
+from ..models.device_cache import (
+    DeviceCache, InterfaceCache, IPAddressCache, ARPCache,
+    StaticRouteCache, OSPFRouteCache, BGPRouteCache, MACAddressTableCache, CDPNeighborCache
+)
 from ..schemas.device_cache import (
     DeviceCacheCreate,
     InterfaceCacheCreate,
     IPAddressCacheCreate,
     ARPCacheCreate,
+    StaticRouteCacheCreate,
+    OSPFRouteCacheCreate,
+    BGPRouteCacheCreate,
+    MACAddressTableCacheCreate,
+    CDPNeighborCacheCreate,
     BulkCacheUpdate,
 )
 
@@ -338,6 +346,86 @@ class DeviceCacheService:
         )
 
         return device
+
+    # Static Route Cache Operations
+    @staticmethod
+    def bulk_replace_static_routes(
+        db: Session, device_id: str, routes: List[StaticRouteCacheCreate]
+    ) -> None:
+        """Replace all static routes for a device."""
+        # Delete all existing static routes for this device
+        db.query(StaticRouteCache).filter(StaticRouteCache.device_id == device_id).delete()
+
+        # Insert new routes
+        for route_data in routes:
+            route = StaticRouteCache(**route_data.model_dump())
+            db.add(route)
+
+        db.commit()
+
+    # OSPF Route Cache Operations
+    @staticmethod
+    def bulk_replace_ospf_routes(
+        db: Session, device_id: str, routes: List[OSPFRouteCacheCreate]
+    ) -> None:
+        """Replace all OSPF routes for a device."""
+        # Delete all existing OSPF routes for this device
+        db.query(OSPFRouteCache).filter(OSPFRouteCache.device_id == device_id).delete()
+
+        # Insert new routes
+        for route_data in routes:
+            route = OSPFRouteCache(**route_data.model_dump())
+            db.add(route)
+
+        db.commit()
+
+    # BGP Route Cache Operations
+    @staticmethod
+    def bulk_replace_bgp_routes(
+        db: Session, device_id: str, routes: List[BGPRouteCacheCreate]
+    ) -> None:
+        """Replace all BGP routes for a device."""
+        # Delete all existing BGP routes for this device
+        db.query(BGPRouteCache).filter(BGPRouteCache.device_id == device_id).delete()
+
+        # Insert new routes
+        for route_data in routes:
+            route = BGPRouteCache(**route_data.model_dump())
+            db.add(route)
+
+        db.commit()
+
+    # MAC Address Table Cache Operations
+    @staticmethod
+    def bulk_replace_mac_table(
+        db: Session, device_id: str, entries: List[MACAddressTableCacheCreate]
+    ) -> None:
+        """Replace all MAC address table entries for a device."""
+        # Delete all existing MAC table entries for this device
+        db.query(MACAddressTableCache).filter(MACAddressTableCache.device_id == device_id).delete()
+
+        # Insert new entries
+        for entry_data in entries:
+            entry = MACAddressTableCache(**entry_data.model_dump())
+            db.add(entry)
+
+        db.commit()
+
+    # CDP Neighbor Cache Operations
+    @staticmethod
+    def bulk_replace_cdp_neighbors(
+        db: Session, device_id: str, neighbors: List[CDPNeighborCacheCreate]
+    ) -> None:
+        """Replace all CDP neighbor entries for a device."""
+        # Delete all existing CDP neighbors for this device
+        db.query(CDPNeighborCache).filter(CDPNeighborCache.device_id == device_id).delete()
+
+        # Insert new neighbors
+        for neighbor_data in neighbors:
+            neighbor = CDPNeighborCache(**neighbor_data.model_dump())
+            db.add(neighbor)
+
+        db.commit()
 
 
 # Singleton instance

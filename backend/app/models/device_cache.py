@@ -28,6 +28,11 @@ class DeviceCache(Base):
     interfaces = relationship("InterfaceCache", back_populates="device", cascade="all, delete-orphan")
     ip_addresses = relationship("IPAddressCache", back_populates="device", cascade="all, delete-orphan")
     arp_entries = relationship("ARPCache", back_populates="device", cascade="all, delete-orphan")
+    static_routes = relationship("StaticRouteCache", back_populates="device", cascade="all, delete-orphan")
+    ospf_routes = relationship("OSPFRouteCache", back_populates="device", cascade="all, delete-orphan")
+    bgp_routes = relationship("BGPRouteCache", back_populates="device", cascade="all, delete-orphan")
+    mac_table_entries = relationship("MACAddressTableCache", back_populates="device", cascade="all, delete-orphan")
+    cdp_neighbors = relationship("CDPNeighborCache", back_populates="device", cascade="all, delete-orphan")
 
 
 class InterfaceCache(Base):
@@ -107,4 +112,136 @@ class ARPCache(Base):
     # Indexes for common queries
     __table_args__ = (
         Index('ix_arp_device_ip', 'device_id', 'ip_address'),
+    )
+
+
+class StaticRouteCache(Base):
+    """
+    Static route cache table.
+    Stores static routes from devices.
+    """
+    __tablename__ = "static_route_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    device_id = Column(String, ForeignKey("device_cache.device_id", ondelete="CASCADE"), nullable=False)
+    network = Column(String, nullable=False, index=True)  # Destination network (e.g., "10.0.0.0/24")
+    nexthop_ip = Column(String, index=True)  # Next hop IP address
+    metric = Column(Integer)
+    distance = Column(Integer)  # Administrative distance
+    interface_name = Column(String)
+    last_updated = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    device = relationship("DeviceCache", back_populates="static_routes")
+
+    # Indexes for common queries
+    __table_args__ = (
+        Index('ix_static_route_device_network', 'device_id', 'network'),
+    )
+
+
+class OSPFRouteCache(Base):
+    """
+    OSPF route cache table.
+    Stores OSPF routes from devices.
+    """
+    __tablename__ = "ospf_route_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    device_id = Column(String, ForeignKey("device_cache.device_id", ondelete="CASCADE"), nullable=False)
+    network = Column(String, nullable=False, index=True)  # Destination network
+    nexthop_ip = Column(String, index=True)  # Next hop IP address
+    metric = Column(Integer)
+    distance = Column(Integer)  # Administrative distance
+    interface_name = Column(String)
+    area = Column(String)  # OSPF area
+    route_type = Column(String)  # O, O IA, O E1, O E2, etc.
+    last_updated = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    device = relationship("DeviceCache", back_populates="ospf_routes")
+
+    # Indexes for common queries
+    __table_args__ = (
+        Index('ix_ospf_route_device_network', 'device_id', 'network'),
+    )
+
+
+class BGPRouteCache(Base):
+    """
+    BGP route cache table.
+    Stores BGP routes from devices.
+    """
+    __tablename__ = "bgp_route_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    device_id = Column(String, ForeignKey("device_cache.device_id", ondelete="CASCADE"), nullable=False)
+    network = Column(String, nullable=False, index=True)  # Destination network
+    nexthop_ip = Column(String, index=True)  # Next hop IP address
+    metric = Column(Integer)
+    local_pref = Column(Integer)  # Local preference
+    weight = Column(Integer)
+    as_path = Column(String)  # AS path
+    origin = Column(String)  # IGP, EGP, incomplete
+    status = Column(String)  # Valid, best, etc.
+    last_updated = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    device = relationship("DeviceCache", back_populates="bgp_routes")
+
+    # Indexes for common queries
+    __table_args__ = (
+        Index('ix_bgp_route_device_network', 'device_id', 'network'),
+    )
+
+
+class MACAddressTableCache(Base):
+    """
+    MAC address table cache.
+    Stores MAC address table entries from switches.
+    """
+    __tablename__ = "mac_address_table_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    device_id = Column(String, ForeignKey("device_cache.device_id", ondelete="CASCADE"), nullable=False)
+    mac_address = Column(String, nullable=False, index=True)  # MAC address
+    vlan_id = Column(Integer, index=True)  # VLAN ID
+    interface_name = Column(String, index=True)  # Interface/port
+    entry_type = Column(String)  # Dynamic, Static, etc.
+    last_updated = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    device = relationship("DeviceCache", back_populates="mac_table_entries")
+
+    # Indexes for common queries
+    __table_args__ = (
+        Index('ix_mac_table_device_mac', 'device_id', 'mac_address'),
+        Index('ix_mac_table_device_vlan', 'device_id', 'vlan_id'),
+    )
+
+
+class CDPNeighborCache(Base):
+    """
+    CDP neighbor cache table.
+    Stores CDP/LLDP neighbor information from devices.
+    """
+    __tablename__ = "cdp_neighbor_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    device_id = Column(String, ForeignKey("device_cache.device_id", ondelete="CASCADE"), nullable=False)
+    neighbor_name = Column(String, nullable=False, index=True)  # Neighbor device name
+    neighbor_ip = Column(String, index=True)  # Neighbor IP address
+    local_interface = Column(String, nullable=False, index=True)  # Local interface
+    neighbor_interface = Column(String)  # Neighbor's interface
+    platform = Column(String)  # Neighbor platform
+    capabilities = Column(String)  # Neighbor capabilities
+    last_updated = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    device = relationship("DeviceCache", back_populates="cdp_neighbors")
+
+    # Indexes for common queries
+    __table_args__ = (
+        Index('ix_cdp_device_neighbor', 'device_id', 'neighbor_name'),
+        Index('ix_cdp_device_interface', 'device_id', 'local_interface'),
     )

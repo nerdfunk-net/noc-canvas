@@ -14,7 +14,11 @@ from ..services.nautobot import nautobot_service
 from ..services.device_communication import device_communication_service
 from ..services.device_cache_service import device_cache_service
 from ..models.settings import DeviceCommand
-from ..schemas.device_cache import InterfaceCacheCreate, DeviceCacheCreate, IPAddressCacheCreate, ARPCacheCreate
+from ..schemas.device_cache import (
+    InterfaceCacheCreate, DeviceCacheCreate, IPAddressCacheCreate, ARPCacheCreate,
+    StaticRouteCacheCreate, OSPFRouteCacheCreate, BGPRouteCacheCreate, MACAddressTableCacheCreate,
+    CDPNeighborCacheCreate
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -199,13 +203,15 @@ async def get_cdp_neighbors(
     device_id: str,
     use_textfsm: bool = False,
     current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Get CDP neighbors from a network device.
 
     Args:
         device_id: The ID of the device to query
-        use_textfsm: If True, parse output using TextFSM. Default is False.
+        use_textfsm: If True, parse output using TextFSM and cache the results. Default is False.
         current_user: The authenticated user
+        db: Database session
 
     Returns:
         DeviceCommandResponse with parsed or raw output
@@ -227,6 +233,100 @@ async def get_cdp_neighbors(
             username=username,
             parser="TEXTFSM" if use_textfsm else None,
         )
+
+        # If TextFSM was used and parsing succeeded, cache the CDP neighbor data
+        if use_textfsm and result.get("parsed") and result.get("success"):
+            output = result.get("output")
+            if isinstance(output, list):
+                logger.info(f"Caching {len(output)} CDP neighbors for device {device_id}")
+
+                # Ensure device exists in cache
+                device_cache_data = DeviceCacheCreate(
+                    device_id=device_id,
+                    device_name=device_info.name,
+                    primary_ip=device_info.primary_ip,
+                    platform=device_info.platform,
+                )
+                device_cache_service.get_or_create_device_cache(db, device_cache_data)
+
+                neighbors_to_cache = []
+
+                for cdp_data in output:
+                    # Try both uppercase and lowercase field names
+                    neighbor_name_raw = (cdp_data.get("NEIGHBOR") or cdp_data.get("neighbor") or
+                                       cdp_data.get("NEIGHBOR_NAME") or cdp_data.get("neighbor_name") or
+                                       cdp_data.get("DESTINATION_HOST") or cdp_data.get("destination_host") or "")
+                    local_interface_raw = (cdp_data.get("LOCAL_INTERFACE") or cdp_data.get("local_interface") or
+                                         cdp_data.get("LOCAL_PORT") or cdp_data.get("local_port") or "")
+
+                    # Handle if fields are lists
+                    if isinstance(neighbor_name_raw, list):
+                        neighbor_name = neighbor_name_raw[0] if neighbor_name_raw else ""
+                    else:
+                        neighbor_name = neighbor_name_raw
+                    neighbor_name = neighbor_name.strip() if neighbor_name else ""
+
+                    if isinstance(local_interface_raw, list):
+                        local_interface = local_interface_raw[0] if local_interface_raw else ""
+                    else:
+                        local_interface = local_interface_raw
+                    local_interface = local_interface.strip() if local_interface else ""
+
+                    # Skip entries without neighbor name or local interface
+                    if not neighbor_name or not local_interface:
+                        logger.warning(f"Skipping CDP neighbor with missing name or interface: {cdp_data}")
+                        continue
+
+                    # Extract other fields
+                    neighbor_ip_raw = (cdp_data.get("MANAGEMENT_IP") or cdp_data.get("management_ip") or
+                                     cdp_data.get("NEIGHBOR_IP") or cdp_data.get("neighbor_ip") or "")
+                    neighbor_interface_raw = (cdp_data.get("NEIGHBOR_INTERFACE") or cdp_data.get("neighbor_interface") or
+                                            cdp_data.get("NEIGHBOR_PORT") or cdp_data.get("neighbor_port") or "")
+                    platform_raw = (cdp_data.get("PLATFORM") or cdp_data.get("platform") or "")
+                    capabilities_raw = (cdp_data.get("CAPABILITIES") or cdp_data.get("capabilities") or "")
+
+                    # Handle lists
+                    if isinstance(neighbor_ip_raw, list):
+                        neighbor_ip = neighbor_ip_raw[0] if neighbor_ip_raw else ""
+                    else:
+                        neighbor_ip = neighbor_ip_raw
+                    neighbor_ip = neighbor_ip.strip() if neighbor_ip else ""
+
+                    if isinstance(neighbor_interface_raw, list):
+                        neighbor_interface = neighbor_interface_raw[0] if neighbor_interface_raw else ""
+                    else:
+                        neighbor_interface = neighbor_interface_raw
+                    neighbor_interface = neighbor_interface.strip() if neighbor_interface else ""
+
+                    if isinstance(platform_raw, list):
+                        platform = platform_raw[0] if platform_raw else ""
+                    else:
+                        platform = platform_raw
+                    platform = platform.strip() if platform else ""
+
+                    if isinstance(capabilities_raw, list):
+                        capabilities = ", ".join(capabilities_raw) if capabilities_raw else ""
+                    else:
+                        capabilities = capabilities_raw
+                    capabilities = capabilities.strip() if capabilities else ""
+
+                    cdp_neighbor = CDPNeighborCacheCreate(
+                        device_id=device_id,
+                        neighbor_name=neighbor_name,
+                        neighbor_ip=neighbor_ip if neighbor_ip else None,
+                        local_interface=local_interface,
+                        neighbor_interface=neighbor_interface if neighbor_interface else None,
+                        platform=platform if platform else None,
+                        capabilities=capabilities if capabilities else None,
+                    )
+                    neighbors_to_cache.append(cdp_neighbor)
+
+                # Bulk replace CDP neighbors
+                if neighbors_to_cache:
+                    device_cache_service.bulk_replace_cdp_neighbors(
+                        db, device_id, neighbors_to_cache
+                    )
+                    logger.info(f"Successfully cached {len(neighbors_to_cache)} CDP neighbors")
 
         return DeviceCommandResponse(
             success=result["success"],
@@ -364,13 +464,15 @@ async def get_static_routes(
     device_id: str,
     use_textfsm: bool = False,
     current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Get static IP routes from a network device.
 
     Args:
         device_id: The ID of the device to query
-        use_textfsm: If True, parse output using TextFSM. Default is False.
+        use_textfsm: If True, parse output using TextFSM and cache the results. Default is False.
         current_user: The authenticated user
+        db: Database session
 
     Returns:
         DeviceCommandResponse with parsed or raw output
@@ -392,6 +494,70 @@ async def get_static_routes(
             username=username,
             parser="TEXTFSM" if use_textfsm else None,
         )
+
+        # If TextFSM was used and parsing succeeded, cache the static route data
+        if use_textfsm and result.get("parsed") and result.get("success"):
+            output = result.get("output")
+            if isinstance(output, list):
+                logger.info(f"Caching {len(output)} static routes for device {device_id}")
+
+                # Ensure device exists in cache
+                device_cache_data = DeviceCacheCreate(
+                    device_id=device_id,
+                    device_name=device_info.name,
+                    primary_ip=device_info.primary_ip,
+                    platform=device_info.platform,
+                )
+                device_cache_service.get_or_create_device_cache(db, device_cache_data)
+
+                routes_to_cache = []
+
+                for route_data in output:
+                    # Try both uppercase and lowercase field names
+                    network = (route_data.get("NETWORK") or route_data.get("network") or "").strip()
+                    nexthop_ip = (route_data.get("NEXTHOP_IP") or route_data.get("nexthop_ip") or "").strip()
+
+                    # Skip routes without network
+                    if not network:
+                        logger.warning(f"Skipping route with missing network: {route_data}")
+                        continue
+
+                    # Extract other fields
+                    metric = route_data.get("METRIC") or route_data.get("metric")
+                    distance = route_data.get("DISTANCE") or route_data.get("distance")
+                    interface_name = (route_data.get("INTERFACE") or route_data.get("interface") or "").strip()
+
+                    # Convert metric and distance to integers if possible
+                    metric_int = None
+                    if metric:
+                        try:
+                            metric_int = int(metric)
+                        except (ValueError, TypeError):
+                            pass
+
+                    distance_int = None
+                    if distance:
+                        try:
+                            distance_int = int(distance)
+                        except (ValueError, TypeError):
+                            pass
+
+                    route_cache = StaticRouteCacheCreate(
+                        device_id=device_id,
+                        network=network,
+                        nexthop_ip=nexthop_ip if nexthop_ip else None,
+                        metric=metric_int,
+                        distance=distance_int,
+                        interface_name=interface_name if interface_name else None,
+                    )
+                    routes_to_cache.append(route_cache)
+
+                # Bulk replace static routes
+                if routes_to_cache:
+                    device_cache_service.bulk_replace_static_routes(
+                        db, device_id, routes_to_cache
+                    )
+                    logger.info(f"Successfully cached {len(routes_to_cache)} static routes")
 
         return DeviceCommandResponse(
             success=result["success"],
@@ -419,13 +585,15 @@ async def get_ospf_routes(
     device_id: str,
     use_textfsm: bool = False,
     current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Get OSPF IP routes from a network device.
 
     Args:
         device_id: The ID of the device to query
-        use_textfsm: If True, parse output using TextFSM. Default is False.
+        use_textfsm: If True, parse output using TextFSM and cache the results. Default is False.
         current_user: The authenticated user
+        db: Database session
 
     Returns:
         DeviceCommandResponse with parsed or raw output
@@ -447,6 +615,75 @@ async def get_ospf_routes(
             username=username,
             parser="TEXTFSM" if use_textfsm else None,
         )
+
+        # If TextFSM was used and parsing succeeded, cache the OSPF route data
+        if use_textfsm and result.get("parsed") and result.get("success"):
+            output = result.get("output")
+            if isinstance(output, list):
+                logger.info(f"Caching {len(output)} OSPF routes for device {device_id}")
+
+                # Ensure device exists in cache
+                device_cache_data = DeviceCacheCreate(
+                    device_id=device_id,
+                    device_name=device_info.name,
+                    primary_ip=device_info.primary_ip,
+                    platform=device_info.platform,
+                )
+                device_cache_service.get_or_create_device_cache(db, device_cache_data)
+
+                routes_to_cache = []
+
+                for route_data in output:
+                    # Try both uppercase and lowercase field names
+                    network = (route_data.get("NETWORK") or route_data.get("network") or "").strip()
+                    nexthop_ip = (route_data.get("NEXTHOP_IP") or route_data.get("nexthop_ip") or "").strip()
+
+                    # Skip routes without network
+                    if not network:
+                        logger.warning(f"Skipping OSPF route with missing network: {route_data}")
+                        continue
+
+                    # Extract other fields
+                    metric = route_data.get("METRIC") or route_data.get("metric")
+                    distance = route_data.get("DISTANCE") or route_data.get("distance")
+                    interface_name = (route_data.get("INTERFACE") or route_data.get("interface") or "").strip()
+                    area = (route_data.get("AREA") or route_data.get("area") or "").strip()
+                    route_type = (route_data.get("TYPE") or route_data.get("type") or
+                                route_data.get("ROUTE_TYPE") or route_data.get("route_type") or "").strip()
+
+                    # Convert metric and distance to integers if possible
+                    metric_int = None
+                    if metric:
+                        try:
+                            metric_int = int(metric)
+                        except (ValueError, TypeError):
+                            pass
+
+                    distance_int = None
+                    if distance:
+                        try:
+                            distance_int = int(distance)
+                        except (ValueError, TypeError):
+                            pass
+
+                    route_cache = OSPFRouteCacheCreate(
+                        device_id=device_id,
+                        network=network,
+                        nexthop_ip=nexthop_ip if nexthop_ip else None,
+                        metric=metric_int,
+                        distance=distance_int,
+                        interface_name=interface_name if interface_name else None,
+                        area=area if area else None,
+                        route_type=route_type if route_type else None,
+                    )
+                    routes_to_cache.append(route_cache)
+
+                # Bulk replace OSPF routes
+                if routes_to_cache:
+                    device_cache_service.bulk_replace_ospf_routes(
+                        db, device_id, routes_to_cache
+                    )
+                    logger.info(f"Successfully cached {len(routes_to_cache)} OSPF routes")
 
         return DeviceCommandResponse(
             success=result["success"],
@@ -645,13 +882,15 @@ async def get_mac_address_table(
     device_id: str,
     use_textfsm: bool = False,
     current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Get MAC address table from a network device.
 
     Args:
         device_id: The ID of the device to query
-        use_textfsm: If True, parse output using TextFSM. Default is False.
+        use_textfsm: If True, parse output using TextFSM and cache the results. Default is False.
         current_user: The authenticated user
+        db: Database session
 
     Returns:
         DeviceCommandResponse with parsed or raw output
@@ -673,6 +912,86 @@ async def get_mac_address_table(
             username=username,
             parser="TEXTFSM" if use_textfsm else None,
         )
+
+        # If TextFSM was used and parsing succeeded, cache the MAC address table data
+        if use_textfsm and result.get("parsed") and result.get("success"):
+            output = result.get("output")
+            if isinstance(output, list):
+                logger.info(f"Caching {len(output)} MAC address table entries for device {device_id}")
+
+                # Ensure device exists in cache
+                device_cache_data = DeviceCacheCreate(
+                    device_id=device_id,
+                    device_name=device_info.name,
+                    primary_ip=device_info.primary_ip,
+                    platform=device_info.platform,
+                )
+                device_cache_service.get_or_create_device_cache(db, device_cache_data)
+
+                entries_to_cache = []
+
+                for mac_data in output:
+                    # Try both uppercase and lowercase field names
+                    mac_address_raw = (mac_data.get("DESTINATION_ADDRESS") or mac_data.get("destination_address") or
+                                      mac_data.get("MAC_ADDRESS") or mac_data.get("mac_address") or "")
+
+                    # Handle if mac_address is a list (some TextFSM templates return lists)
+                    if isinstance(mac_address_raw, list):
+                        mac_address = mac_address_raw[0] if mac_address_raw else ""
+                    else:
+                        mac_address = mac_address_raw
+
+                    mac_address = mac_address.strip() if mac_address else ""
+
+                    # Skip entries without MAC address
+                    if not mac_address:
+                        logger.warning(f"Skipping MAC entry with missing MAC address: {mac_data}")
+                        continue
+
+                    # Extract other fields
+                    vlan = mac_data.get("VLAN") or mac_data.get("vlan")
+
+                    # Handle interface name (might be a list)
+                    interface_raw = (mac_data.get("DESTINATION_PORT") or mac_data.get("destination_port") or
+                                   mac_data.get("INTERFACE") or mac_data.get("interface") or "")
+                    if isinstance(interface_raw, list):
+                        interface_name = ", ".join(interface_raw) if interface_raw else ""
+                    else:
+                        interface_name = interface_raw
+                    interface_name = interface_name.strip() if interface_name else ""
+
+                    # Handle entry type (might be a list)
+                    type_raw = (mac_data.get("TYPE") or mac_data.get("type") or
+                              mac_data.get("ENTRY_TYPE") or mac_data.get("entry_type") or "")
+                    if isinstance(type_raw, list):
+                        entry_type = type_raw[0] if type_raw else ""
+                    else:
+                        entry_type = type_raw
+                    entry_type = entry_type.strip() if entry_type else ""
+
+                    # Convert VLAN to integer if possible
+                    vlan_id = None
+                    if vlan:
+                        try:
+                            vlan_id = int(vlan)
+                        except (ValueError, TypeError):
+                            pass
+
+                    mac_entry = MACAddressTableCacheCreate(
+                        device_id=device_id,
+                        mac_address=mac_address,
+                        vlan_id=vlan_id,
+                        interface_name=interface_name if interface_name else None,
+                        entry_type=entry_type if entry_type else None,
+                    )
+                    entries_to_cache.append(mac_entry)
+
+                # Bulk replace MAC table entries
+                if entries_to_cache:
+                    device_cache_service.bulk_replace_mac_table(
+                        db, device_id, entries_to_cache
+                    )
+                    logger.info(f"Successfully cached {len(entries_to_cache)} MAC address table entries")
 
         return DeviceCommandResponse(
             success=result["success"],

@@ -515,15 +515,212 @@ for arp in arp_entries:
 3. Enable auto-refresh for critical devices
 4. Schedule regular cache cleanup
 
+## Phase 2: Advanced Caching (✅ IMPLEMENTED)
+
+Phase 2 extends the cache system with routing and neighbor discovery data.
+
+### Additional Cache Tables
+
+```
+DeviceCache (root)
+├── InterfaceCache (1:N)
+├── IPAddressCache (1:N)
+├── ARPCache (1:N)
+├── StaticRouteCache (1:N)    ← Phase 2
+├── OSPFRouteCache (1:N)       ← Phase 2
+├── BGPRouteCache (1:N)        ← Phase 2
+├── MACAddressTableCache (1:N) ← Phase 2
+└── CDPNeighborCache (1:N)     ← Phase 2
+```
+
+### StaticRouteCache
+Stores static routes from devices.
+
+**Fields:**
+- `id` (Primary Key, Auto-increment)
+- `device_id` (Foreign Key → DeviceCache)
+- `network` - Destination network (indexed, e.g., "10.0.0.0/24")
+- `nexthop_ip` - Next hop IP address (indexed)
+- `metric` - Route metric
+- `distance` - Administrative distance
+- `interface_name` - Exit interface
+- `last_updated` - Timestamp of last update
+
+**Endpoint to Build Cache:**
+```
+GET /api/devices/{device_id}/ip-route/static?use_textfsm=true
+```
+Executes `show ip route static` command and caches parsed routes.
+
+**Endpoint to Browse Cache:**
+```
+GET /api/cache/routes/static?limit=100
+```
+
+### OSPFRouteCache
+Stores OSPF routes from devices.
+
+**Fields:**
+- `id` (Primary Key, Auto-increment)
+- `device_id` (Foreign Key → DeviceCache)
+- `network` - Destination network (indexed)
+- `nexthop_ip` - Next hop IP address (indexed)
+- `metric` - OSPF cost
+- `distance` - Administrative distance
+- `interface_name` - Exit interface
+- `area` - OSPF area
+- `route_type` - Route type (O, O IA, O E1, O E2, etc.)
+- `last_updated` - Timestamp of last update
+
+**Endpoint to Build Cache:**
+```
+GET /api/devices/{device_id}/ip-route/ospf?use_textfsm=true
+```
+Executes `show ip route ospf` command and caches parsed routes.
+
+**Endpoint to Browse Cache:**
+```
+GET /api/cache/routes/ospf?limit=100
+```
+
+### BGPRouteCache
+Stores BGP routes from devices.
+
+**Fields:**
+- `id` (Primary Key, Auto-increment)
+- `device_id` (Foreign Key → DeviceCache)
+- `network` - Destination network (indexed)
+- `nexthop_ip` - Next hop IP address (indexed)
+- `metric` - MED metric
+- `local_pref` - Local preference
+- `weight` - Weight
+- `as_path` - AS path
+- `origin` - Origin (IGP, EGP, incomplete)
+- `status` - Route status (valid, best, etc.)
+- `last_updated` - Timestamp of last update
+
+**Endpoint to Build Cache:**
+```
+GET /api/devices/{device_id}/ip-route/bgp?use_textfsm=true
+```
+Executes `show ip route bgp` command and caches parsed routes.
+
+**Endpoint to Browse Cache:**
+```
+GET /api/cache/routes/bgp?limit=100
+```
+
+### MACAddressTableCache
+Stores MAC address table entries from switches.
+
+**Fields:**
+- `id` (Primary Key, Auto-increment)
+- `device_id` (Foreign Key → DeviceCache)
+- `mac_address` - MAC address (indexed)
+- `vlan_id` - VLAN ID (indexed)
+- `interface_name` - Interface/port (indexed)
+- `entry_type` - Entry type (Dynamic, Static, etc.)
+- `last_updated` - Timestamp of last update
+
+**Endpoint to Build Cache:**
+```
+GET /api/devices/{device_id}/mac-address-table?use_textfsm=true
+```
+Executes `show mac address-table` command and caches parsed entries.
+
+**Endpoint to Browse Cache:**
+```
+GET /api/cache/mac-table?limit=100
+```
+
+### CDPNeighborCache
+Stores CDP/LLDP neighbor information.
+
+**Fields:**
+- `id` (Primary Key, Auto-increment)
+- `device_id` (Foreign Key → DeviceCache)
+- `neighbor_name` - Neighbor hostname (indexed)
+- `neighbor_ip` - Neighbor IP address (indexed)
+- `local_interface` - Local interface (indexed)
+- `neighbor_interface` - Neighbor's interface
+- `platform` - Neighbor platform
+- `capabilities` - Capabilities (Router, Switch, etc.)
+- `last_updated` - Timestamp of last update
+
+**Endpoint to Build Cache:**
+```
+GET /api/devices/{device_id}/cdp-neighbors?use_textfsm=true
+```
+Executes `show cdp neighbors` command and caches parsed neighbor information.
+
+**Endpoint to Browse Cache:**
+```
+GET /api/cache/cdp-neighbors?limit=100
+```
+
+### Phase 2 Cache Browser
+
+All Phase 2 caches are accessible through Settings → Cache → Cache Browser:
+
+**Browse Endpoints:**
+- `GET /api/cache/routes/static?limit=100` - Browse static routes
+- `GET /api/cache/routes/ospf?limit=100` - Browse OSPF routes
+- `GET /api/cache/routes/bgp?limit=100` - Browse BGP routes
+- `GET /api/cache/mac-table?limit=100` - Browse MAC table entries
+- `GET /api/cache/cdp-neighbors?limit=100` - Browse CDP neighbors
+
+**Statistics:**
+The statistics endpoint includes Phase 2 counts:
+```json
+{
+  "total": {
+    "devices": 150,
+    "interfaces": 2340,
+    "ip_addresses": 3120,
+    "arp_entries": 5678,
+    "static_routes": 234,
+    "ospf_routes": 456,
+    "bgp_routes": 89,
+    "mac_table_entries": 1234,
+    "cdp_neighbors": 567
+  }
+}
+```
+
+### Using Phase 2 Cache (Backend)
+
+```python
+from app.services.device_cache_service import device_cache_service
+from app.schemas.device_cache import StaticRouteCacheCreate
+
+# Cache static routes
+routes = [
+    StaticRouteCacheCreate(
+        device_id="uuid-here",
+        network="10.0.0.0/24",
+        nexthop_ip="192.168.1.1",
+        metric=1,
+        distance=1
+    )
+]
+device_cache_service.bulk_replace_static_routes(db, device_id, routes)
+
+# Similar methods for OSPF, BGP, MAC table, and CDP
+device_cache_service.bulk_replace_ospf_routes(db, device_id, ospf_routes)
+device_cache_service.bulk_replace_bgp_routes(db, device_id, bgp_routes)
+device_cache_service.bulk_replace_mac_table(db, device_id, mac_entries)
+device_cache_service.bulk_replace_cdp_neighbors(db, device_id, neighbors)
+```
+
 ## Future Enhancements
 
 Potential improvements to consider:
 
-1. **Routing Cache** - Cache routing tables (Phase 2)
-2. **MAC Table Cache** - Cache MAC address tables (Phase 2)
-3. **LLDP/CDP Cache** - Cache neighbor discovery data (Phase 2)
-4. **Cache Events** - Emit events on cache updates for real-time UI updates
-5. **Selective Refresh** - Refresh only changed data instead of full updates
-6. **Cache Metrics** - Track hit/miss rates, query performance
-7. **Background Refresh** - Automatic background polling for enabled devices
-8. **Cache Versioning** - Track cache versions for change detection
+1. **Cache Events** - Emit events on cache updates for real-time UI updates
+2. **Selective Refresh** - Refresh only changed data instead of full updates
+3. **Cache Metrics** - Track hit/miss rates, query performance
+4. **Background Refresh** - Automatic background polling for enabled devices
+5. **Cache Versioning** - Track cache versions for change detection
+6. **Network Topology Graph** - Build topology from cached CDP/LLDP and routing data
+7. **Change Detection** - Alert on changes to cached data (new neighbors, route changes, etc.)
+8. **Historical Data** - Track changes over time for trending and analysis

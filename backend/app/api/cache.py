@@ -15,9 +15,17 @@ from app.schemas.device_cache import (
     ARPCacheResponse,
     BulkCacheUpdate,
     DeviceCacheWithDetails,
+    StaticRouteCacheResponse,
+    OSPFRouteCacheResponse,
+    BGPRouteCacheResponse,
+    MACAddressTableCacheResponse,
+    CDPNeighborCacheResponse,
 )
 from app.services.device_cache_service import DeviceCacheService
-from app.models.device_cache import DeviceCache, InterfaceCache, IPAddressCache, ARPCache
+from app.models.device_cache import (
+    DeviceCache, InterfaceCache, IPAddressCache, ARPCache,
+    StaticRouteCache, OSPFRouteCache, BGPRouteCache, MACAddressTableCache, CDPNeighborCache
+)
 
 router = APIRouter(prefix="/cache", tags=["cache"])
 
@@ -32,6 +40,11 @@ def get_cache_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
     total_interfaces = db.query(func.count(InterfaceCache.id)).scalar()
     total_ips = db.query(func.count(IPAddressCache.id)).scalar()
     total_arp = db.query(func.count(ARPCache.id)).scalar()
+    total_static_routes = db.query(func.count(StaticRouteCache.id)).scalar()
+    total_ospf_routes = db.query(func.count(OSPFRouteCache.id)).scalar()
+    total_bgp_routes = db.query(func.count(BGPRouteCache.id)).scalar()
+    total_mac_table = db.query(func.count(MACAddressTableCache.id)).scalar()
+    total_cdp_neighbors = db.query(func.count(CDPNeighborCache.id)).scalar()
 
     # Valid vs expired cache entries
     valid_devices = db.query(func.count(DeviceCache.device_id)).filter(
@@ -66,6 +79,11 @@ def get_cache_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
             "interfaces": total_interfaces,
             "ip_addresses": total_ips,
             "arp_entries": total_arp,
+            "static_routes": total_static_routes,
+            "ospf_routes": total_ospf_routes,
+            "bgp_routes": total_bgp_routes,
+            "mac_table_entries": total_mac_table,
+            "cdp_neighbors": total_cdp_neighbors,
         },
         "cache_status": {
             "valid": valid_devices,
@@ -298,3 +316,115 @@ def clean_device_expired_cache(
     """Clean expired cache entries for a specific device."""
     count = DeviceCacheService.clean_expired_cache(db, device_id)
     return {"message": f"Cleaned {count} expired cache entries for device {device_id}"}
+
+
+# Routing Cache Endpoints
+@router.get("/routes/static", response_model=Dict[str, Any])
+def get_static_routes(
+    limit: int = 100,
+    offset: int = 0,
+    device_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Get static routes from cache."""
+    query = db.query(StaticRouteCache)
+
+    if device_id:
+        query = query.filter(StaticRouteCache.device_id == device_id)
+
+    total = query.count()
+    routes = query.order_by(StaticRouteCache.last_updated.desc()).offset(offset).limit(limit).all()
+
+    return {
+        "count": total,
+        "results": [StaticRouteCacheResponse.model_validate(r) for r in routes]
+    }
+
+
+@router.get("/routes/ospf", response_model=Dict[str, Any])
+def get_ospf_routes(
+    limit: int = 100,
+    offset: int = 0,
+    device_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Get OSPF routes from cache."""
+    query = db.query(OSPFRouteCache)
+
+    if device_id:
+        query = query.filter(OSPFRouteCache.device_id == device_id)
+
+    total = query.count()
+    routes = query.order_by(OSPFRouteCache.last_updated.desc()).offset(offset).limit(limit).all()
+
+    return {
+        "count": total,
+        "results": [OSPFRouteCacheResponse.model_validate(r) for r in routes]
+    }
+
+
+@router.get("/routes/bgp", response_model=Dict[str, Any])
+def get_bgp_routes(
+    limit: int = 100,
+    offset: int = 0,
+    device_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Get BGP routes from cache."""
+    query = db.query(BGPRouteCache)
+
+    if device_id:
+        query = query.filter(BGPRouteCache.device_id == device_id)
+
+    total = query.count()
+    routes = query.order_by(BGPRouteCache.last_updated.desc()).offset(offset).limit(limit).all()
+
+    return {
+        "count": total,
+        "results": [BGPRouteCacheResponse.model_validate(r) for r in routes]
+    }
+
+
+@router.get("/mac-table", response_model=Dict[str, Any])
+def get_mac_address_table_cache(
+    limit: int = 100,
+    offset: int = 0,
+    device_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Get MAC address table entries from cache."""
+    query = db.query(MACAddressTableCache)
+
+    if device_id:
+        query = query.filter(MACAddressTableCache.device_id == device_id)
+
+    total = query.count()
+    entries = query.order_by(MACAddressTableCache.last_updated.desc()).offset(offset).limit(limit).all()
+
+    return {
+        "count": total,
+        "results": [MACAddressTableCacheResponse.model_validate(e) for e in entries]
+    }
+
+
+@router.get("/cdp-neighbors", response_model=Dict[str, Any])
+def get_cdp_neighbors_cache(
+    limit: int = 100,
+    offset: int = 0,
+    device_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Get CDP neighbor entries from cache."""
+    query = db.query(CDPNeighborCache)
+
+    if device_id:
+        query = query.filter(CDPNeighborCache.device_id == device_id)
+
+    total = query.count()
+    neighbors = query.order_by(CDPNeighborCache.last_updated.desc()).offset(offset).limit(limit).all()
+
+    return {
+        "count": total,
+        "results": [CDPNeighborCacheResponse.model_validate(n) for n in neighbors]
+    }
+

@@ -1089,6 +1089,26 @@
                     <div class="text-2xl font-bold text-orange-700">{{ cacheStatistics.total.arp_entries }}</div>
                     <div class="text-sm text-orange-600">ARP Entries</div>
                   </div>
+                  <div class="bg-cyan-50 p-4 rounded-lg border border-cyan-200">
+                    <div class="text-2xl font-bold text-cyan-700">{{ cacheStatistics.total.static_routes }}</div>
+                    <div class="text-sm text-cyan-600">Static Routes</div>
+                  </div>
+                  <div class="bg-teal-50 p-4 rounded-lg border border-teal-200">
+                    <div class="text-2xl font-bold text-teal-700">{{ cacheStatistics.total.ospf_routes }}</div>
+                    <div class="text-sm text-teal-600">OSPF Routes</div>
+                  </div>
+                  <div class="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
+                    <div class="text-2xl font-bold text-emerald-700">{{ cacheStatistics.total.bgp_routes }}</div>
+                    <div class="text-sm text-emerald-600">BGP Routes</div>
+                  </div>
+                  <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+                    <div class="text-2xl font-bold text-indigo-700">{{ cacheStatistics.total.mac_table_entries }}</div>
+                    <div class="text-sm text-indigo-600">MAC Table Entries</div>
+                  </div>
+                  <div class="bg-pink-50 p-4 rounded-lg border border-pink-200">
+                    <div class="text-2xl font-bold text-pink-700">{{ cacheStatistics.total.cdp_neighbors }}</div>
+                    <div class="text-sm text-pink-600">CDP Neighbors</div>
+                  </div>
                 </div>
 
                 <!-- Cache Status -->
@@ -1161,7 +1181,7 @@
               <h2 class="text-lg font-semibold text-gray-900 mb-4">Cache Browser</h2>
 
               <!-- View Selector -->
-              <div class="flex space-x-2 mb-4">
+              <div class="flex flex-wrap gap-2 mb-4">
                 <button
                   @click="selectedCacheView = 'overview'"
                   :class="[
@@ -1183,6 +1203,61 @@
                   ]"
                 >
                   Devices
+                </button>
+                <button
+                  @click="selectedCacheView = 'static_routes'; loadStaticRoutes()"
+                  :class="[
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    selectedCacheView === 'static_routes'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ]"
+                >
+                  Static Routes
+                </button>
+                <button
+                  @click="selectedCacheView = 'ospf_routes'; loadOSPFRoutes()"
+                  :class="[
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    selectedCacheView === 'ospf_routes'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ]"
+                >
+                  OSPF Routes
+                </button>
+                <button
+                  @click="selectedCacheView = 'bgp_routes'; loadBGPRoutes()"
+                  :class="[
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    selectedCacheView === 'bgp_routes'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ]"
+                >
+                  BGP Routes
+                </button>
+                <button
+                  @click="selectedCacheView = 'mac_table'; loadMACTable()"
+                  :class="[
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    selectedCacheView === 'mac_table'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ]"
+                >
+                  MAC Table
+                </button>
+                <button
+                  @click="selectedCacheView = 'cdp_neighbors'; loadCDPNeighbors()"
+                  :class="[
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    selectedCacheView === 'cdp_neighbors'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ]"
+                >
+                  CDP Neighbors
                 </button>
               </div>
 
@@ -1239,6 +1314,190 @@
                 <div v-else class="text-center py-8 text-gray-500">
                   <i class="fas fa-inbox text-4xl mb-2"></i>
                   <p>No cached devices found</p>
+                </div>
+              </div>
+
+              <!-- Static Routes View -->
+              <div v-if="selectedCacheView === 'static_routes'">
+                <div v-if="loadingStaticRoutes" class="text-center py-8 text-gray-500">
+                  <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                  <p>Loading static routes...</p>
+                </div>
+                <div v-else-if="staticRoutes.length > 0" class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Device</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Network</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Hop</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Interface</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Distance</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      <tr v-for="route in staticRoutes" :key="route.id" class="hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm text-gray-900">{{ getDeviceName(route.device_id) }}</td>
+                        <td class="px-4 py-3 text-sm font-mono text-gray-900">{{ route.network }}</td>
+                        <td class="px-4 py-3 text-sm font-mono text-gray-500">{{ route.nexthop_ip || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ route.interface_name || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ route.metric || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ route.distance || '-' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-else class="text-center py-8 text-gray-500">
+                  <i class="fas fa-inbox text-4xl mb-2"></i>
+                  <p>No static routes cached</p>
+                </div>
+              </div>
+
+              <!-- OSPF Routes View -->
+              <div v-if="selectedCacheView === 'ospf_routes'">
+                <div v-if="loadingOSPFRoutes" class="text-center py-8 text-gray-500">
+                  <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                  <p>Loading OSPF routes...</p>
+                </div>
+                <div v-else-if="ospfRoutes.length > 0" class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Device</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Network</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Hop</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Interface</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Area</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      <tr v-for="route in ospfRoutes" :key="route.id" class="hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm text-gray-900">{{ getDeviceName(route.device_id) }}</td>
+                        <td class="px-4 py-3 text-sm font-mono text-gray-900">{{ route.network }}</td>
+                        <td class="px-4 py-3 text-sm font-mono text-gray-500">{{ route.nexthop_ip || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ route.interface_name || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ route.metric || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ route.area || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ route.route_type || '-' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-else class="text-center py-8 text-gray-500">
+                  <i class="fas fa-inbox text-4xl mb-2"></i>
+                  <p>No OSPF routes cached</p>
+                </div>
+              </div>
+
+              <!-- BGP Routes View -->
+              <div v-if="selectedCacheView === 'bgp_routes'">
+                <div v-if="loadingBGPRoutes" class="text-center py-8 text-gray-500">
+                  <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                  <p>Loading BGP routes...</p>
+                </div>
+                <div v-else-if="bgpRoutes.length > 0" class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Device</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Network</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Hop</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">AS Path</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Local Pref</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      <tr v-for="route in bgpRoutes" :key="route.id" class="hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm text-gray-900">{{ getDeviceName(route.device_id) }}</td>
+                        <td class="px-4 py-3 text-sm font-mono text-gray-900">{{ route.network }}</td>
+                        <td class="px-4 py-3 text-sm font-mono text-gray-500">{{ route.nexthop_ip || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ route.as_path || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ route.metric || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ route.local_pref || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ route.status || '-' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-else class="text-center py-8 text-gray-500">
+                  <i class="fas fa-inbox text-4xl mb-2"></i>
+                  <p>No BGP routes cached</p>
+                </div>
+              </div>
+
+              <!-- MAC Address Table View -->
+              <div v-if="selectedCacheView === 'mac_table'">
+                <div v-if="loadingMACTable" class="text-center py-8 text-gray-500">
+                  <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                  <p>Loading MAC address table...</p>
+                </div>
+                <div v-else-if="macTableEntries.length > 0" class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Device</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">MAC Address</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">VLAN</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Interface/Port</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      <tr v-for="entry in macTableEntries" :key="entry.id" class="hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm text-gray-900">{{ getDeviceName(entry.device_id) }}</td>
+                        <td class="px-4 py-3 text-sm font-mono text-gray-900">{{ entry.mac_address }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ entry.vlan_id || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ entry.interface_name || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ entry.entry_type || '-' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-else class="text-center py-8 text-gray-500">
+                  <i class="fas fa-inbox text-4xl mb-2"></i>
+                  <p>No MAC address table entries cached</p>
+                </div>
+              </div>
+
+              <!-- CDP Neighbors View -->
+              <div v-if="selectedCacheView === 'cdp_neighbors'">
+                <div v-if="loadingCDPNeighbors" class="text-center py-8 text-gray-500">
+                  <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                  <p>Loading CDP neighbors...</p>
+                </div>
+                <div v-else-if="cdpNeighbors.length > 0" class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Device</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Neighbor</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Neighbor IP</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Local Interface</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Neighbor Interface</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Platform</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Capabilities</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      <tr v-for="neighbor in cdpNeighbors" :key="neighbor.id" class="hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm text-gray-900">{{ getDeviceName(neighbor.device_id) }}</td>
+                        <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ neighbor.neighbor_name }}</td>
+                        <td class="px-4 py-3 text-sm font-mono text-gray-500">{{ neighbor.neighbor_ip || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ neighbor.local_interface }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ neighbor.neighbor_interface || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ neighbor.platform || '-' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ neighbor.capabilities || '-' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-else class="text-center py-8 text-gray-500">
+                  <i class="fas fa-inbox text-4xl mb-2"></i>
+                  <p>No CDP neighbors cached</p>
                 </div>
               </div>
 
@@ -2421,11 +2680,27 @@ const cacheStatistics = ref<any>(null)
 const loadingCacheStats = ref(false)
 const cachedDevices = ref<any[]>([])
 const loadingCachedDevices = ref(false)
-const selectedCacheView = ref<'overview' | 'devices' | 'interfaces' | 'arp'>('overview')
+const selectedCacheView = ref<'overview' | 'devices' | 'static_routes' | 'ospf_routes' | 'bgp_routes' | 'mac_table' | 'cdp_neighbors'>('overview')
 const cacheError = ref<string | null>(null)
 const showDeviceDetailsModal = ref(false)
 const selectedDeviceDetails = ref<any>(null)
 const loadingDeviceDetails = ref(false)
+
+// Routing cache state
+const staticRoutes = ref<any[]>([])
+const loadingStaticRoutes = ref(false)
+const ospfRoutes = ref<any[]>([])
+const loadingOSPFRoutes = ref(false)
+const bgpRoutes = ref<any[]>([])
+const loadingBGPRoutes = ref(false)
+
+// MAC address table cache state
+const macTableEntries = ref<any[]>([])
+const loadingMACTable = ref(false)
+
+// CDP neighbors cache state
+const cdpNeighbors = ref<any[]>([])
+const loadingCDPNeighbors = ref(false)
 
 const isPasswordChangeValid = computed(() => {
   return (
@@ -3477,6 +3752,111 @@ const openDeviceDetailsModal = async (deviceId: string) => {
 const closeDeviceDetailsModal = () => {
   showDeviceDetailsModal.value = false
   selectedDeviceDetails.value = null
+}
+
+const loadStaticRoutes = async () => {
+  loadingStaticRoutes.value = true
+  try {
+    const response = await makeAuthenticatedRequest('/api/cache/routes/static?limit=1000')
+    if (response.ok) {
+      const data = await response.json()
+      staticRoutes.value = data.results || []
+    }
+  } catch (error) {
+    console.error('Failed to load static routes:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to load static routes',
+      type: 'error',
+    })
+  } finally {
+    loadingStaticRoutes.value = false
+  }
+}
+
+const loadOSPFRoutes = async () => {
+  loadingOSPFRoutes.value = true
+  try {
+    const response = await makeAuthenticatedRequest('/api/cache/routes/ospf?limit=1000')
+    if (response.ok) {
+      const data = await response.json()
+      ospfRoutes.value = data.results || []
+    }
+  } catch (error) {
+    console.error('Failed to load OSPF routes:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to load OSPF routes',
+      type: 'error',
+    })
+  } finally {
+    loadingOSPFRoutes.value = false
+  }
+}
+
+const loadBGPRoutes = async () => {
+  loadingBGPRoutes.value = true
+  try {
+    const response = await makeAuthenticatedRequest('/api/cache/routes/bgp?limit=1000')
+    if (response.ok) {
+      const data = await response.json()
+      bgpRoutes.value = data.results || []
+    }
+  } catch (error) {
+    console.error('Failed to load BGP routes:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to load BGP routes',
+      type: 'error',
+    })
+  } finally {
+    loadingBGPRoutes.value = false
+  }
+}
+
+const loadMACTable = async () => {
+  loadingMACTable.value = true
+  try {
+    const response = await makeAuthenticatedRequest('/api/cache/mac-table?limit=1000')
+    if (response.ok) {
+      const data = await response.json()
+      macTableEntries.value = data.results || []
+    }
+  } catch (error) {
+    console.error('Failed to load MAC address table:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to load MAC address table',
+      type: 'error',
+    })
+  } finally {
+    loadingMACTable.value = false
+  }
+}
+
+const loadCDPNeighbors = async () => {
+  loadingCDPNeighbors.value = true
+  try {
+    const response = await makeAuthenticatedRequest('/api/cache/cdp-neighbors?limit=1000')
+    if (response.ok) {
+      const data = await response.json()
+      cdpNeighbors.value = data.results || []
+    }
+  } catch (error) {
+    console.error('Failed to load CDP neighbors:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to load CDP neighbors',
+      type: 'error',
+    })
+  } finally {
+    loadingCDPNeighbors.value = false
+  }
+}
+
+const getDeviceName = (deviceId: string) => {
+  const device = cachedDevices.value.find(d => d.device_id === deviceId)
+  return device ? device.device_name : deviceId
 }
 
 const cleanExpiredCache = async () => {

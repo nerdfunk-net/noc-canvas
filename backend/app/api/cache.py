@@ -14,6 +14,7 @@ from app.schemas.device_cache import (
     IPAddressCacheResponse,
     ARPCacheResponse,
     BulkCacheUpdate,
+    DeviceCacheWithDetails,
 )
 from app.services.device_cache_service import DeviceCacheService
 from app.models.device_cache import DeviceCache, InterfaceCache, IPAddressCache, ARPCache
@@ -99,6 +100,18 @@ def get_device_cache(
     db: Session = Depends(get_db),
 ):
     """Get cached device information."""
+    device = DeviceCacheService.get_device(db, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found in cache")
+    return device
+
+
+@router.get("/devices/{device_id}/details", response_model=DeviceCacheWithDetails)
+def get_device_cache_with_details(
+    device_id: str,
+    db: Session = Depends(get_db),
+):
+    """Get cached device information with all related data (interfaces, IPs, ARP)."""
     device = DeviceCacheService.get_device(db, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found in cache")

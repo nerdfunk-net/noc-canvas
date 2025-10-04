@@ -1207,7 +1207,14 @@
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                       <tr v-for="device in cachedDevices" :key="device.device_id" class="hover:bg-gray-50">
-                        <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ device.device_name }}</td>
+                        <td class="px-4 py-3 text-sm font-medium">
+                          <button
+                            @click="openDeviceDetailsModal(device.device_id)"
+                            class="text-primary-600 hover:text-primary-800 hover:underline transition-colors"
+                          >
+                            {{ device.device_name }}
+                          </button>
+                        </td>
                         <td class="px-4 py-3 text-sm text-gray-500">{{ device.primary_ip || '-' }}</td>
                         <td class="px-4 py-3 text-sm text-gray-500">{{ device.platform || '-' }}</td>
                         <td class="px-4 py-3 text-sm text-gray-500">{{ formatTimestamp(device.last_updated) }}</td>
@@ -2012,6 +2019,199 @@
         </div>
       </div>
     </div>
+
+    <!-- Device Details Modal -->
+    <div
+      v-if="showDeviceDetailsModal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      @click.self="closeDeviceDetailsModal"
+    >
+      <div class="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+        <!-- Modal Header -->
+        <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 class="text-xl font-semibold text-gray-900">
+              {{ selectedDeviceDetails?.device_name || 'Device Details' }}
+            </h2>
+            <p v-if="selectedDeviceDetails" class="text-sm text-gray-500 mt-1">
+              {{ selectedDeviceDetails.primary_ip }} • {{ selectedDeviceDetails.platform }}
+            </p>
+          </div>
+          <button
+            @click="closeDeviceDetailsModal"
+            class="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+
+        <!-- Modal Content -->
+        <div v-if="loadingDeviceDetails" class="p-12 text-center text-gray-500">
+          <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
+          <p>Loading device details...</p>
+        </div>
+
+        <div v-else-if="selectedDeviceDetails" class="p-6 space-y-6">
+          <!-- Device Info -->
+          <div class="border border-gray-200 rounded-lg p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">Device Information</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <span class="text-sm font-medium text-gray-500">Device ID:</span>
+                <p class="text-sm text-gray-900 font-mono">{{ selectedDeviceDetails.device_id }}</p>
+              </div>
+              <div>
+                <span class="text-sm font-medium text-gray-500">Last Updated:</span>
+                <p class="text-sm text-gray-900">{{ formatTimestamp(selectedDeviceDetails.last_updated) }}</p>
+              </div>
+              <div>
+                <span class="text-sm font-medium text-gray-500">Cache Valid Until:</span>
+                <p class="text-sm" :class="isValidCache(selectedDeviceDetails.cache_valid_until) ? 'text-green-600' : 'text-red-600'">
+                  {{ formatTimestamp(selectedDeviceDetails.cache_valid_until) }}
+                </p>
+              </div>
+              <div>
+                <span class="text-sm font-medium text-gray-500">Polling Status:</span>
+                <span
+                  :class="selectedDeviceDetails.polling_enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
+                  class="inline-block px-2 py-1 rounded-full text-xs ml-2"
+                >
+                  {{ selectedDeviceDetails.polling_enabled ? 'Enabled' : 'Disabled' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interfaces -->
+          <div v-if="selectedDeviceDetails.interfaces && selectedDeviceDetails.interfaces.length > 0" class="border border-gray-200 rounded-lg p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">
+              Interfaces ({{ selectedDeviceDetails.interfaces.length }})
+            </h3>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">MAC Address</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Speed</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Duplex</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">VLAN</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <tr v-for="iface in selectedDeviceDetails.interfaces" :key="iface.id" class="hover:bg-gray-50">
+                    <td class="px-3 py-2 text-sm font-medium text-gray-900">{{ iface.interface_name }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500">{{ iface.description || '-' }}</td>
+                    <td class="px-3 py-2 text-sm">
+                      <span
+                        :class="{
+                          'text-green-600': iface.status?.toLowerCase() === 'up',
+                          'text-red-600': iface.status?.toLowerCase() === 'down',
+                          'text-gray-600': !iface.status || iface.status?.toLowerCase() === 'admin-down'
+                        }"
+                      >
+                        {{ iface.status || '-' }}
+                      </span>
+                    </td>
+                    <td class="px-3 py-2 text-sm text-gray-500 font-mono">{{ iface.mac_address || '-' }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500">{{ iface.speed || '-' }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500">{{ iface.duplex || '-' }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500">{{ iface.vlan_id || '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- IP Addresses -->
+          <div v-if="selectedDeviceDetails.ip_addresses && selectedDeviceDetails.ip_addresses.length > 0" class="border border-gray-200 rounded-lg p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">
+              IP Addresses ({{ selectedDeviceDetails.ip_addresses.length }})
+            </h3>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Subnet Mask</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Interface</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Version</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Primary</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <tr v-for="ip in selectedDeviceDetails.ip_addresses" :key="ip.id" class="hover:bg-gray-50">
+                    <td class="px-3 py-2 text-sm font-medium text-gray-900 font-mono">{{ ip.ip_address }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500 font-mono">{{ ip.subnet_mask || '-' }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500">{{ ip.interface_name || '-' }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500">IPv{{ ip.ip_version }}</td>
+                    <td class="px-3 py-2 text-sm">
+                      <span v-if="ip.is_primary" class="text-green-600">
+                        <i class="fas fa-check"></i>
+                      </span>
+                      <span v-else class="text-gray-400">-</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ARP Entries -->
+          <div v-if="selectedDeviceDetails.arp_entries && selectedDeviceDetails.arp_entries.length > 0" class="border border-gray-200 rounded-lg p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">
+              ARP Entries ({{ selectedDeviceDetails.arp_entries.length }})
+            </h3>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">MAC Address</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Interface</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Age</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <tr v-for="arp in selectedDeviceDetails.arp_entries" :key="arp.id" class="hover:bg-gray-50">
+                    <td class="px-3 py-2 text-sm font-medium text-gray-900 font-mono">{{ arp.ip_address }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500 font-mono">{{ arp.mac_address }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500">{{ arp.interface_name || '-' }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500">{{ arp.arp_type || '-' }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500">{{ arp.age || '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div v-if="!selectedDeviceDetails.interfaces?.length && !selectedDeviceDetails.ip_addresses?.length && !selectedDeviceDetails.arp_entries?.length"
+               class="text-center py-8 text-gray-500">
+            <i class="fas fa-inbox text-4xl mb-2"></i>
+            <p>No cached data available for this device</p>
+          </div>
+        </div>
+
+        <div v-else class="p-12 text-center text-gray-500">
+          <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+          <p>Failed to load device details</p>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end">
+          <button
+            @click="closeDeviceDetailsModal"
+            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   </MainLayout>
 </template>
 
@@ -2223,6 +2423,9 @@ const cachedDevices = ref<any[]>([])
 const loadingCachedDevices = ref(false)
 const selectedCacheView = ref<'overview' | 'devices' | 'interfaces' | 'arp'>('overview')
 const cacheError = ref<string | null>(null)
+const showDeviceDetailsModal = ref(false)
+const selectedDeviceDetails = ref<any>(null)
+const loadingDeviceDetails = ref(false)
 
 const isPasswordChangeValid = computed(() => {
   return (
@@ -3245,6 +3448,35 @@ const loadCachedDevices = async () => {
   } finally {
     loadingCachedDevices.value = false
   }
+}
+
+const openDeviceDetailsModal = async (deviceId: string) => {
+  showDeviceDetailsModal.value = true
+  loadingDeviceDetails.value = true
+  selectedDeviceDetails.value = null
+
+  try {
+    const response = await makeAuthenticatedRequest(`/api/cache/devices/${deviceId}/details`)
+    if (response.ok) {
+      selectedDeviceDetails.value = await response.json()
+    } else {
+      throw new Error('Failed to load device details')
+    }
+  } catch (error) {
+    console.error('Failed to load device details:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to load device details',
+      type: 'error',
+    })
+  } finally {
+    loadingDeviceDetails.value = false
+  }
+}
+
+const closeDeviceDetailsModal = () => {
+  showDeviceDetailsModal.value = false
+  selectedDeviceDetails.value = null
 }
 
 const cleanExpiredCache = async () => {

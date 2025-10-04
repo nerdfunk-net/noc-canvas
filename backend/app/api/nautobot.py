@@ -5,8 +5,12 @@ Nautobot API router for device management and API interactions.
 import logging
 from typing import Optional, List, Union, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..core.security import get_current_user
+from ..core.database import get_db
+from ..services.device_cache_service import device_cache_service
+from ..schemas.device_cache import DeviceCacheCreate
 from ..models.nautobot import (
     DeviceFilter,
     DeviceListResponse,
@@ -365,8 +369,11 @@ async def get_devices(
     filter_value: Optional[str] = None,
     disable_cache: bool = False,
     current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Get list of devices from Nautobot with optional filtering and pagination.
+
+    Also populates the device cache with basic device information.
 
     Args:
         limit: Maximum number of devices to return
@@ -375,6 +382,7 @@ async def get_devices(
         filter_value: Value to filter by
         disable_cache: If True, bypass cache and fetch fresh data from Nautobot
         current_user: Current authenticated user
+        db: Database session for caching
     """
     try:
         logger.info("Fetching devices from Nautobot")
@@ -390,6 +398,42 @@ async def get_devices(
             username=username,
             disable_cache=disable_cache,
         )
+
+        # Populate device cache with basic device information
+        devices = result.get("results", [])
+        cached_count = 0
+        for device in devices:
+            try:
+                # Extract primary IP
+                primary_ip = None
+                if device.get("primary_ip4"):
+                    primary_ip_addr = device["primary_ip4"].get("address", "")
+                    if primary_ip_addr:
+                        primary_ip = primary_ip_addr.split("/")[0]  # Remove subnet mask
+
+                # Extract platform
+                platform = None
+                if device.get("platform"):
+                    platform = device["platform"].get("name") or device["platform"].get("network_driver")
+
+                # Create or update device cache entry
+                device_cache_data = DeviceCacheCreate(
+                    device_id=device.get("id"),
+                    device_name=device.get("name", ""),
+                    primary_ip=primary_ip,
+                    platform=platform,
+                    polling_enabled=True,  # Default to enabled
+                )
+
+                device_cache_service.get_or_create_device_cache(db, device_cache_data)
+                cached_count += 1
+            except Exception as cache_error:
+                # Log but don't fail the request if caching fails
+                logger.warning(f"Failed to cache device {device.get('name')}: {str(cache_error)}")
+
+        if cached_count > 0:
+            logger.info(f"Successfully cached {cached_count} devices")
+
         return DeviceListResponse(**result)
     except Exception as e:
         logger.error(f"Error fetching devices: {str(e)}")

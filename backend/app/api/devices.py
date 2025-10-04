@@ -12,7 +12,9 @@ from ..core.security import get_current_user
 from ..core.database import get_db
 from ..services.nautobot import nautobot_service
 from ..services.device_communication import device_communication_service
+from ..services.device_cache_service import device_cache_service
 from ..models.settings import DeviceCommand
+from ..schemas.device_cache import InterfaceCacheCreate, DeviceCacheCreate, IPAddressCacheCreate, ARPCacheCreate
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -527,13 +529,15 @@ async def get_ip_arp(
     device_id: str,
     use_textfsm: bool = False,
     current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Get IP ARP table from a network device.
 
     Args:
         device_id: The ID of the device to query
-        use_textfsm: If True, parse output using TextFSM. Default is False.
+        use_textfsm: If True, parse output using TextFSM and cache the results. Default is False.
         current_user: The authenticated user
+        db: Database session
 
     Returns:
         DeviceCommandResponse with parsed or raw output
@@ -555,6 +559,65 @@ async def get_ip_arp(
             username=username,
             parser="TEXTFSM" if use_textfsm else None,
         )
+
+        # If TextFSM was used and parsing succeeded, cache the ARP data
+        if use_textfsm and result.get("parsed") and result.get("success"):
+            output = result.get("output")
+            if isinstance(output, list):
+                logger.info(f"Caching {len(output)} ARP entries for device {device_id}")
+
+                # Ensure device exists in cache
+                device_cache_data = DeviceCacheCreate(
+                    device_id=device_id,
+                    device_name=device_info.name,
+                    primary_ip=device_info.primary_ip,
+                    platform=device_info.platform,
+                )
+                device_cache_service.get_or_create_device_cache(db, device_cache_data)
+
+                arp_entries_to_cache = []
+
+                for arp_data in output:
+                    # Try both uppercase and lowercase field names (different TextFSM templates use different cases)
+                    ip_address = (arp_data.get("ADDRESS") or arp_data.get("address") or
+                                arp_data.get("IP_ADDRESS") or arp_data.get("ip_address") or "").strip()
+                    mac_address = (arp_data.get("MAC") or arp_data.get("mac") or
+                                 arp_data.get("MAC_ADDRESS") or arp_data.get("mac_address") or "").strip()
+
+                    # Skip entries without IP or MAC
+                    if not ip_address or not mac_address:
+                        logger.warning(f"Skipping ARP entry with missing IP or MAC: {arp_data}")
+                        continue
+
+                    interface_name = (arp_data.get("INTERFACE") or arp_data.get("interface") or "").strip()
+                    age = arp_data.get("AGE") or arp_data.get("age")
+                    arp_type = (arp_data.get("TYPE") or arp_data.get("type") or
+                              arp_data.get("PROTOCOL") or arp_data.get("protocol") or "").strip()
+
+                    # Convert age to integer if possible
+                    age_int = None
+                    if age:
+                        try:
+                            age_int = int(age)
+                        except (ValueError, TypeError):
+                            pass
+
+                    arp_cache = ARPCacheCreate(
+                        device_id=device_id,
+                        ip_address=ip_address,
+                        mac_address=mac_address,
+                        interface_name=interface_name if interface_name else None,
+                        age=age_int,
+                        arp_type=arp_type if arp_type else None,
+                    )
+                    arp_entries_to_cache.append(arp_cache)
+
+                # Bulk replace ARP entries (removes old entries and adds new ones)
+                if arp_entries_to_cache:
+                    device_cache_service.bulk_replace_arp(
+                        db, device_id, arp_entries_to_cache
+                    )
+                    logger.info(f"Successfully cached {len(arp_entries_to_cache)} ARP entries")
 
         return DeviceCommandResponse(
             success=result["success"],
@@ -671,6 +734,151 @@ async def get_access_lists(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get access lists: {str(e)}",
+        )
+
+
+@router.get("/{device_id}/interfaces", response_model=DeviceCommandResponse)
+async def get_interfaces(
+    device_id: str,
+    use_textfsm: bool = False,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get interfaces from a network device.
+
+    Args:
+        device_id: The ID of the device to query
+        use_textfsm: If True, parse output using TextFSM and cache the results. Default is False.
+        current_user: The authenticated user
+        db: Database session
+
+    Returns:
+        DeviceCommandResponse with parsed or raw output
+    """
+    try:
+        username = (
+            current_user.get("username")
+            if isinstance(current_user, dict)
+            else current_user.username
+        )
+
+        # Get device connection information
+        device_info = await get_device_connection_info(device_id, username)
+
+        # Execute command on device with optional TextFSM parsing
+        result = await device_communication_service.execute_command(
+            device_info=device_info,
+            command="show interfaces",
+            username=username,
+            parser="TEXTFSM" if use_textfsm else None,
+        )
+
+        # If TextFSM was used and parsing succeeded, cache the interface data
+        if use_textfsm and result.get("parsed") and result.get("success"):
+            output = result.get("output")
+            if isinstance(output, list):
+                logger.info(f"Caching {len(output)} interfaces for device {device_id}")
+
+                # Ensure device exists in cache before adding interfaces
+                device_cache_data = DeviceCacheCreate(
+                    device_id=device_id,
+                    device_name=device_info.name,
+                    primary_ip=device_info.primary_ip,
+                    platform=device_info.platform,
+                )
+                device_cache_service.get_or_create_device_cache(db, device_cache_data)
+
+                interfaces_to_cache = []
+                ip_addresses_to_cache = []
+
+                for interface_data in output:
+                    # Try both uppercase and lowercase field names (different TextFSM templates use different cases)
+                    interface_name = (interface_data.get("INTERFACE") or interface_data.get("interface") or "").strip()
+                    if not interface_name:
+                        logger.warning(f"Skipping interface with empty name: {interface_data}")
+                        continue
+
+                    # Get speed - try speed field first, then bandwidth as fallback
+                    speed = (interface_data.get("SPEED") or interface_data.get("speed") or
+                            interface_data.get("BANDWIDTH") or interface_data.get("bandwidth") or "").strip()
+
+                    # Get duplex
+                    duplex = (interface_data.get("DUPLEX") or interface_data.get("duplex") or "").strip()
+
+                    # Get VLAN ID
+                    vlan_str = (interface_data.get("VLAN_ID") or interface_data.get("vlan_id") or "").strip()
+                    vlan_id = None
+                    if vlan_str and vlan_str.isdigit():
+                        vlan_id = int(vlan_str)
+
+                    # Get description
+                    description = (interface_data.get("DESCRIPTION") or interface_data.get("description") or "").strip()
+
+                    # Map TextFSM fields to cache schema (try both cases)
+                    interface_cache = InterfaceCacheCreate(
+                        device_id=device_id,
+                        interface_name=interface_name,
+                        mac_address=interface_data.get("MAC_ADDRESS") or interface_data.get("mac_address"),
+                        status=interface_data.get("LINK_STATUS") or interface_data.get("link_status"),
+                        description=description if description else None,
+                        speed=speed if speed else None,
+                        duplex=duplex if duplex else None,
+                        vlan_id=vlan_id,
+                    )
+                    interfaces_to_cache.append(interface_cache)
+
+                    # Extract IP address information if present
+                    ip_address = (interface_data.get("IP_ADDRESS") or interface_data.get("ip_address") or "").strip()
+                    if ip_address and ip_address != "":
+                        prefix_length = (interface_data.get("PREFIX_LENGTH") or interface_data.get("prefix_length") or "").strip()
+
+                        # Convert prefix length to subnet mask if needed
+                        subnet_mask = None
+                        if prefix_length and prefix_length.isdigit():
+                            # Store as CIDR notation (e.g., "/24")
+                            subnet_mask = f"/{prefix_length}"
+
+                        ip_cache = IPAddressCacheCreate(
+                            device_id=device_id,
+                            interface_name=interface_name,
+                            ip_address=ip_address,
+                            subnet_mask=subnet_mask,
+                            ip_version=4,  # Assuming IPv4 from show interfaces
+                            is_primary=False,  # Would need additional logic to determine primary
+                        )
+                        ip_addresses_to_cache.append(ip_cache)
+
+                # Bulk upsert interfaces
+                device_cache_service.bulk_upsert_interfaces(
+                    db, device_id, interfaces_to_cache
+                )
+                logger.info(f"Successfully cached {len(interfaces_to_cache)} interfaces")
+
+                # Bulk upsert IP addresses
+                if ip_addresses_to_cache:
+                    device_cache_service.bulk_upsert_ips(
+                        db, device_id, ip_addresses_to_cache
+                    )
+                    logger.info(f"Successfully cached {len(ip_addresses_to_cache)} IP addresses")
+
+        return DeviceCommandResponse(
+            success=result["success"],
+            output=result.get("output"),
+            error=result.get("error"),
+            device_info=device_info.model_dump(),
+            command="show interfaces",
+            execution_time=result.get("execution_time"),
+            parsed=result.get("parsed", False),
+            parser_used=result.get("parser_used"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting interfaces for device {device_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get interfaces: {str(e)}",
         )
 
 

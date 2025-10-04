@@ -10,6 +10,7 @@ export interface Device {
   position_y: number
   properties?: string
   layer?: string // 'background' or 'devices'
+  connectionPorts?: { id: string; x: number; y: number; label?: string }[] // Custom connection points/anchors
 }
 
 export interface Connection {
@@ -21,6 +22,8 @@ export interface Connection {
   routing_style?: 'straight' | 'orthogonal' // Line routing: straight or with right-angle corners
   waypoints?: { x: number; y: number }[] // Custom waypoints for manual route adjustment
   layer?: 'layer2' | 'layer3' // Network layer: layer2 (CDP/MAC) or layer3 (IP/Routing)
+  source_port_id?: string // ID of the specific connection port on source device
+  target_port_id?: string // ID of the specific connection port on target device
 }
 
 export const useDevicesStore = defineStore('devices', () => {

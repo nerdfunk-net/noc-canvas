@@ -237,13 +237,36 @@ cd<template>
             :config="{
               x: point.x,
               y: point.y,
-              radius: 4,
-              fill: '#10b981',
-              stroke: '#065f46',
-              strokeWidth: 1,
+              radius: point.label ? 5 : 4,
+              fill: point.label ? '#3b82f6' : '#10b981',
+              stroke: point.label ? '#1e40af' : '#065f46',
+              strokeWidth: point.label ? 2 : 1,
               opacity: connectionMode ? 1 : 0,
+              draggable: point.label ? true : false,
             }"
             @click="onConnectionPointClick(device, point, $event)"
+            @contextmenu="onConnectionPointRightClick(device, point, $event)"
+            @dragstart="onConnectionPortDragStart(device, point, $event)"
+            @dragmove="onConnectionPortDragMove(device, point, $event)"
+            @dragend="onConnectionPortDragEnd(device, point, $event)"
+            @mouseenter="(e: any) => { if (point.label) e.target.getStage().container().style.cursor = 'move' }"
+            @mouseleave="(e: any) => e.target.getStage().container().style.cursor = 'default'"
+          />
+          
+          <!-- Connection Point Labels (for custom ports) -->
+          <v-text
+            v-for="(point, index) in getConnectionPoints(device).filter(p => p.label)"
+            :key="`point-label-${device.id}-${index}`"
+            :config="{
+              x: point.x + 8,
+              y: point.y - 6,
+              text: point.label,
+              fontSize: 8,
+              fill: '#1e40af',
+              fontFamily: 'Arial',
+              fontStyle: 'bold',
+              opacity: connectionMode ? 1 : 0,
+            }"
           />
         </v-group>
       </v-layer>
@@ -514,12 +537,30 @@ cd<template>
       </div>
     </div>
 
+    <!-- Connection Mode Help Text -->
+    <div v-if="connectionMode" class="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+      <div class="bg-green-50 border border-green-200 rounded-lg shadow-lg px-4 py-2 text-sm">
+        <div class="flex items-center space-x-2">
+          <span class="text-green-600 font-semibold">🔗 Connection Mode Active</span>
+          <span class="text-gray-600">|</span>
+          <span class="text-gray-700">Alt+Click device to add port</span>
+          <span class="text-gray-600">|</span>
+          <span class="text-gray-700">Drag port to move</span>
+          <span class="text-gray-600">|</span>
+          <span class="text-gray-700">Right-click port to delete</span>
+          <span class="text-gray-600">|</span>
+          <span class="text-gray-700">Click ports to connect</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Canvas Controls -->
     <div class="absolute bottom-4 right-4 flex flex-col space-y-2">
       <button
         @click="toggleGrid"
         class="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 flex-shrink-0"
         :class="{ 'bg-primary-50 border-primary-200': showGrid }"
+        title="Toggle Grid"
       >
         📐
       </button>
@@ -527,6 +568,7 @@ cd<template>
         @click="toggleConnectionMode"
         class="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 flex-shrink-0"
         :class="{ 'bg-green-50 border-green-200': connectionMode }"
+        title="Connection Mode&#10;• Alt+Click device to add port&#10;• Drag port to reposition&#10;• Right-click port to delete&#10;• Click ports to connect"
       >
         🔗
       </button>
@@ -966,7 +1008,7 @@ const connectionRightClickInProgress = ref(false)
 // Connection state
 const connectionStart = ref<{
   device: Device
-  point: { x: number; y: number }
+  point: { x: number; y: number; id?: string; label?: string }
 } | null>(null)
 
 // Selected connection state
@@ -976,6 +1018,12 @@ const selectedConnection = ref<number | null>(null)
 const draggingWaypoint = ref<{
   connectionId: number
   waypointIndex: number
+} | null>(null)
+
+// Connection port dragging state
+const draggingPort = ref<{
+  deviceId: number
+  portId: string
 } | null>(null)
 
 // Layer visibility state
@@ -1180,11 +1228,46 @@ const renderConnections = computed(() => {
         y: targetDevice.position_y
       }
 
-      // Calculate center points of devices
-      const x1 = sourcePos.x + DEVICE_HALF_SIZE
-      const y1 = sourcePos.y + DEVICE_HALF_SIZE
-      const x2 = targetPos.x + DEVICE_HALF_SIZE
-      const y2 = targetPos.y + DEVICE_HALF_SIZE
+      // Check if connection uses specific ports
+      let x1: number, y1: number, x2: number, y2: number
+      
+      if (connection.source_port_id && sourceDevice.connectionPorts) {
+        // Use specific source port
+        const sourcePort = sourceDevice.connectionPorts.find(p => p.id === connection.source_port_id)
+        if (sourcePort) {
+          x1 = sourcePos.x + sourcePort.x
+          y1 = sourcePos.y + sourcePort.y
+        } else {
+          // Fallback to edge point if port not found
+          const { sourcePoint } = getEdgeConnectionPoint(sourcePos, targetPos)
+          x1 = sourcePoint.x
+          y1 = sourcePoint.y
+        }
+      } else {
+        // Use automatic edge connection point
+        const { sourcePoint } = getEdgeConnectionPoint(sourcePos, targetPos)
+        x1 = sourcePoint.x
+        y1 = sourcePoint.y
+      }
+
+      if (connection.target_port_id && targetDevice.connectionPorts) {
+        // Use specific target port
+        const targetPort = targetDevice.connectionPorts.find(p => p.id === connection.target_port_id)
+        if (targetPort) {
+          x2 = targetPos.x + targetPort.x
+          y2 = targetPos.y + targetPort.y
+        } else {
+          // Fallback to edge point if port not found
+          const { targetPoint } = getEdgeConnectionPoint(sourcePos, targetPos)
+          x2 = targetPoint.x
+          y2 = targetPoint.y
+        }
+      } else {
+        // Use automatic edge connection point
+        const { targetPoint } = getEdgeConnectionPoint(sourcePos, targetPos)
+        x2 = targetPoint.x
+        y2 = targetPoint.y
+      }
 
       // Determine points based on routing style (default to straight)
       const routingStyle = connection.routing_style || 'straight'
@@ -1540,6 +1623,7 @@ const contextMenuItems = computed(() => {
             { icon: '↕️', label: 'Vertical', action: () => { alignDevicesVertically() } },
           ],
         },
+        { icon: '🔌', label: 'Connection Ports', action: () => { hideContextMenu(); manageConnectionPorts(contextMenu.target!) } },
         { icon: '🗑️', label: 'Remove', action: () => { hideContextMenu(); deleteDevice(contextMenu.target!) } },
       ],
     },
@@ -1942,6 +2026,85 @@ const connectTwoDevices = () => {
 const analyzeDevice = (device: Device) => {
 }
 
+// Manage connection ports on a device
+const manageConnectionPorts = (device: Device) => {
+  const currentPorts = device.connectionPorts || []
+  
+  let portsText = `Manage Connection Ports for ${device.name}\n\n`
+  portsText += `Current ports:\n`
+  
+  if (currentPorts.length === 0) {
+    portsText += `  (No custom ports defined - using default edges)\n`
+  } else {
+    currentPorts.forEach((port, index) => {
+      portsText += `  ${index + 1}. ${port.label || port.id} at (${port.x}, ${port.y})\n`
+    })
+  }
+  
+  portsText += `\nActions:\n`
+  portsText += `1. Add a new port\n`
+  portsText += `2. Remove a port\n`
+  portsText += `3. Clear all ports\n`
+  portsText += `4. Cancel\n\n`
+  portsText += `Enter choice (1-4):`
+  
+  const choice = prompt(portsText)
+  
+  if (choice === '1') {
+    // Add a new port
+    const x = prompt('Enter X position (0-60):', '30')
+    const y = prompt('Enter Y position (0-60):', '0')
+    const label = prompt('Enter port label (optional):', '')
+    
+    if (x !== null && y !== null) {
+      const newPort = {
+        id: `port-${Date.now()}`,
+        x: Number(x),
+        y: Number(y),
+        label: label || undefined
+      }
+      
+      const updatedPorts = [...currentPorts, newPort]
+      deviceStore.updateDevice(device.id, {
+        connectionPorts: updatedPorts
+      })
+      
+      console.log('✅ Port added:', newPort)
+      alert(`Port added at (${x}, ${y})`)
+    }
+  } else if (choice === '2') {
+    // Remove a port
+    if (currentPorts.length === 0) {
+      alert('No ports to remove')
+      return
+    }
+    
+    const indexStr = prompt(`Enter port number to remove (1-${currentPorts.length}):`)
+    if (indexStr !== null) {
+      const index = Number(indexStr) - 1
+      if (index >= 0 && index < currentPorts.length) {
+        const updatedPorts = currentPorts.filter((_, i) => i !== index)
+        deviceStore.updateDevice(device.id, {
+          connectionPorts: updatedPorts
+        })
+        
+        console.log('✅ Port removed')
+        alert('Port removed successfully')
+      }
+    }
+  } else if (choice === '3') {
+    // Clear all ports
+    if (confirm('Remove all custom connection ports?')) {
+      deviceStore.updateDevice(device.id, {
+        connectionPorts: []
+      })
+      
+      console.log('✅ All ports cleared')
+      alert('All ports cleared')
+    }
+  }
+}
+
 // Alignment functions
 const alignDevicesHorizontally = () => {
   if (!contextMenu.target) return
@@ -2094,12 +2257,85 @@ const deleteMultiDevices = () => {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const getConnectionPoints = (device: Device) => {
+  // If device has custom connection ports, return those
+  if (device.connectionPorts && device.connectionPorts.length > 0) {
+    return device.connectionPorts.map(port => ({
+      id: port.id,
+      x: port.x,
+      y: port.y,
+      label: port.label
+    }))
+  }
+  
+  // Otherwise return default connection points
   return [
     { x: 0, y: DEVICE_HALF_SIZE }, // Left (middle of device height)
     { x: DEVICE_SIZE, y: DEVICE_HALF_SIZE }, // Right (middle of device height)
     { x: DEVICE_HALF_SIZE, y: 0 }, // Top (middle of device width)
     { x: DEVICE_HALF_SIZE, y: DEVICE_SIZE }, // Bottom (middle of device width)
   ]
+}
+
+// Calculate the best edge connection point between two devices
+const getEdgeConnectionPoint = (
+  sourcePos: { x: number; y: number },
+  targetPos: { x: number; y: number }
+): { sourcePoint: { x: number; y: number }; targetPoint: { x: number; y: number } } => {
+  // Calculate center points
+  const sourceCenterX = sourcePos.x + DEVICE_HALF_SIZE
+  const sourceCenterY = sourcePos.y + DEVICE_HALF_SIZE
+  const targetCenterX = targetPos.x + DEVICE_HALF_SIZE
+  const targetCenterY = targetPos.y + DEVICE_HALF_SIZE
+
+  // Calculate direction from source to target
+  const dx = targetCenterX - sourceCenterX
+  const dy = targetCenterY - sourceCenterY
+
+  // Determine which edge of source device to use
+  let sourcePoint: { x: number; y: number }
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Horizontal connection dominates
+    if (dx > 0) {
+      // Target is to the right - use right edge
+      sourcePoint = { x: sourcePos.x + DEVICE_SIZE, y: sourceCenterY }
+    } else {
+      // Target is to the left - use left edge
+      sourcePoint = { x: sourcePos.x, y: sourceCenterY }
+    }
+  } else {
+    // Vertical connection dominates
+    if (dy > 0) {
+      // Target is below - use bottom edge
+      sourcePoint = { x: sourceCenterX, y: sourcePos.y + DEVICE_SIZE }
+    } else {
+      // Target is above - use top edge
+      sourcePoint = { x: sourceCenterX, y: sourcePos.y }
+    }
+  }
+
+  // Determine which edge of target device to use (opposite direction)
+  let targetPoint: { x: number; y: number }
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Horizontal connection dominates
+    if (dx > 0) {
+      // Source is to the left - use left edge
+      targetPoint = { x: targetPos.x, y: targetCenterY }
+    } else {
+      // Source is to the right - use right edge
+      targetPoint = { x: targetPos.x + DEVICE_SIZE, y: targetCenterY }
+    }
+  } else {
+    // Vertical connection dominates
+    if (dy > 0) {
+      // Source is above - use top edge
+      targetPoint = { x: targetCenterX, y: targetPos.y }
+    } else {
+      // Source is below - use bottom edge
+      targetPoint = { x: targetCenterX, y: targetPos.y + DEVICE_SIZE }
+    }
+  }
+
+  return { sourcePoint, targetPoint }
 }
 
 // Helper function to map Nautobot device types to canvas device types
@@ -2460,6 +2696,40 @@ const onDeviceClick = (device: Device, event: any) => {
     return
   }
 
+  // Handle Alt+Click to add connection port at click position
+  if (event.evt?.altKey && connectionMode.value) {
+    const stage = event.target.getStage()
+    const pointerPosition = stage.getPointerPosition()
+    
+    if (pointerPosition) {
+      // Convert stage coordinates to device-relative coordinates
+      const deviceRelativeX = (pointerPosition.x - position.value.x) / scale.value - device.position_x
+      const deviceRelativeY = (pointerPosition.y - position.value.y) / scale.value - device.position_y
+      
+      // Clamp to device bounds (0 to DEVICE_SIZE)
+      const clampedX = Math.max(0, Math.min(DEVICE_SIZE, deviceRelativeX))
+      const clampedY = Math.max(0, Math.min(DEVICE_SIZE, deviceRelativeY))
+      
+      // Add the new port
+      const currentPorts = device.connectionPorts || []
+      const newPort = {
+        id: `port-${Date.now()}`,
+        x: Math.round(clampedX),
+        y: Math.round(clampedY),
+        label: `P${currentPorts.length + 1}`
+      }
+      
+      const updatedPorts = [...currentPorts, newPort]
+      deviceStore.updateDevice(device.id, {
+        connectionPorts: updatedPorts
+      })
+      
+      console.log('✅ Port added via Alt+Click:', newPort, 'at device position:', device.position_x, device.position_y)
+    }
+    
+    return // Don't process normal selection when Alt+Click
+  }
+
   // Deselect any selected connection when clicking a device (unless shift is held)
   if (!event.evt?.shiftKey && selectedConnection.value !== null) {
     selectedConnection.value = null
@@ -2578,6 +2848,12 @@ const dragState = ref<{
 const dragPositions = ref<Map<number, { x: number; y: number }>>(new Map())
 
 const onDeviceDragStart = (device: Device) => {
+  // Don't start device drag if we're dragging a port
+  if (draggingPort.value !== null) {
+    console.log('🚫 Preventing device drag - port is being dragged')
+    return false
+  }
+  
   // Initialize drag state
   dragState.value = {
     draggedDevice: device,
@@ -2905,15 +3181,15 @@ const onWaypointDragMove = (connectionId: number, waypointIndex: number, event: 
   const connection = deviceStore.connections.find(c => c.id === connectionId)
   if (!connection || !connection.waypoints) return
 
-  const stage = event.target.getStage()
-  const pointerPosition = stage.getPointerPosition()
+  // Get the dragged node's position (already in world coordinates by Konva)
+  const node = event.target
+  const nodeX = node.x()
+  const nodeY = node.y()
 
-  if (!pointerPosition) return
-
-  // Update waypoint position
+  // Update waypoint position with the node's position
   connection.waypoints[waypointIndex] = {
-    x: pointerPosition.x,
-    y: pointerPosition.y
+    x: nodeX,
+    y: nodeY
   }
 }
 
@@ -2950,6 +3226,10 @@ const addWaypointAtPosition = (connectionId: number, event: any) => {
 
   if (!pointerPosition) return
 
+  // Convert stage coordinates to world coordinates (accounting for zoom/pan)
+  const worldX = (pointerPosition.x - position.value.x) / scale.value
+  const worldY = (pointerPosition.y - position.value.y) / scale.value
+
   // Initialize waypoints array if it doesn't exist
   if (!connection.waypoints) {
     connection.waypoints = []
@@ -2968,7 +3248,7 @@ const addWaypointAtPosition = (connectionId: number, event: any) => {
     const y2 = points[i + 3]
 
     // Calculate distance from point to line segment
-    const distance = distanceToSegment(pointerPosition.x, pointerPosition.y, x1, y1, x2, y2)
+    const distance = distanceToSegment(worldX, worldY, x1, y1, x2, y2)
     if (distance < minDistance) {
       minDistance = distance
       closestSegmentIndex = i / 2
@@ -2977,11 +3257,11 @@ const addWaypointAtPosition = (connectionId: number, event: any) => {
 
   // Insert waypoint at the appropriate position
   connection.waypoints.splice(closestSegmentIndex, 0, {
-    x: pointerPosition.x,
-    y: pointerPosition.y
+    x: worldX,
+    y: worldY
   })
 
-  console.log('✅ Waypoint added at:', pointerPosition, 'segment:', closestSegmentIndex)
+  console.log('✅ Waypoint added at:', { x: worldX, y: worldY }, 'segment:', closestSegmentIndex)
 }
 
 // Helper function to calculate distance from point to line segment
@@ -3005,7 +3285,7 @@ const distanceToSegment = (px: number, py: number, x1: number, y1: number, x2: n
   return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2)
 }
 
-const onConnectionPointClick = (device: Device, point: { x: number; y: number }, event: any) => {
+const onConnectionPointClick = (device: Device, point: { x: number; y: number; id?: string }, event: any) => {
   event.cancelBubble = true
 
   if (!connectionMode.value) return
@@ -3015,10 +3295,13 @@ const onConnectionPointClick = (device: Device, point: { x: number; y: number },
   } else {
     if (connectionStart.value.device.id !== device.id) {
       try {
+        // Create connection with port IDs if available
         deviceStore.createConnection({
           source_device_id: connectionStart.value.device.id,
           target_device_id: device.id,
           connection_type: 'ethernet',
+          source_port_id: connectionStart.value.point.id,
+          target_port_id: point.id,
         })
       } catch (error) {
         console.error('Failed to create connection:', error)
@@ -3027,6 +3310,109 @@ const onConnectionPointClick = (device: Device, point: { x: number; y: number },
     connectionStart.value = null
     connectionMode.value = false
   }
+}
+
+// Right-click on connection point to delete custom port
+const onConnectionPointRightClick = (device: Device, point: { x: number; y: number; id?: string; label?: string }, event: any) => {
+  event.evt.preventDefault()
+  event.evt.stopPropagation()
+  event.cancelBubble = true
+
+  // Only allow deleting custom ports (those with an id and label)
+  if (!point.id || !point.label) {
+    console.log('Cannot delete default edge connection points')
+    return
+  }
+
+  if (confirm(`Delete connection port "${point.label}"?`)) {
+    const currentPorts = device.connectionPorts || []
+    const updatedPorts = currentPorts.filter(p => p.id !== point.id)
+    
+    deviceStore.updateDevice(device.id, {
+      connectionPorts: updatedPorts
+    })
+    
+    console.log('✅ Port deleted via right-click:', point.label)
+  }
+}
+
+// Connection port drag handlers
+const onConnectionPortDragStart = (device: Device, point: { x: number; y: number; id?: string; label?: string }, event: any) => {
+  // Only allow dragging custom ports
+  if (!point.id || !point.label) {
+    event.cancelBubble = true
+    return false
+  }
+  
+  // Stop event from propagating to device group
+  event.cancelBubble = true
+  
+  // Set dragging port state to prevent device dragging
+  draggingPort.value = {
+    deviceId: device.id,
+    portId: point.id
+  }
+  
+  console.log('🎯 Port drag start:', point.label)
+}
+
+const onConnectionPortDragMove = (device: Device, point: { x: number; y: number; id?: string; label?: string }, event: any) => {
+  // Only allow dragging custom ports
+  if (!point.id || !point.label) {
+    return
+  }
+
+  // Stop event from propagating to device group
+  event.cancelBubble = true
+
+  // Get the dragged node's position (relative to device group)
+  const node = event.target
+  const nodeX = node.x()
+  const nodeY = node.y()
+  
+  // Clamp to device bounds
+  const clampedX = Math.max(0, Math.min(DEVICE_SIZE, nodeX))
+  const clampedY = Math.max(0, Math.min(DEVICE_SIZE, nodeY))
+  
+  // Update node position to clamped values
+  node.x(clampedX)
+  node.y(clampedY)
+  
+  // Update the port in the device's connectionPorts array
+  const currentPorts = device.connectionPorts || []
+  const portIndex = currentPorts.findIndex(p => p.id === point.id)
+  
+  if (portIndex !== -1) {
+    currentPorts[portIndex] = {
+      ...currentPorts[portIndex],
+      x: Math.round(clampedX),
+      y: Math.round(clampedY)
+    }
+    
+    // Update device (this will trigger reactivity)
+    deviceStore.updateDevice(device.id, {
+      connectionPorts: [...currentPorts]
+    })
+  }
+}
+
+const onConnectionPortDragEnd = (device: Device, point: { x: number; y: number; id?: string; label?: string }, event: any) => {
+  // Only allow dragging custom ports
+  if (!point.id || !point.label) {
+    return
+  }
+  
+  // Stop event from propagating to device group (critical!)
+  event.cancelBubble = true
+  
+  const node = event.target
+  const finalX = Math.round(node.x())
+  const finalY = Math.round(node.y())
+  
+  console.log('✅ Port drag end:', point.label, 'final position:', finalX, finalY)
+  
+  // Clear dragging port state
+  draggingPort.value = null
 }
 
 // Canvas controls - now handled by useCanvasControls composable

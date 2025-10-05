@@ -123,7 +123,7 @@
           </div>
 
           <!-- Discovery In Progress -->
-          <div v-else-if="discovering">
+          <div v-else-if="discovering && !jobScheduled">
             <div class="space-y-4">
               <!-- Overall Progress -->
               <div>
@@ -162,6 +162,42 @@
                   </div>
                   <p v-if="device.current_task" class="text-xs text-gray-500 ml-6">{{ device.current_task }}</p>
                   <p v-if="device.error" class="text-xs text-red-600 ml-6">{{ device.error }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Job Scheduled (Background Mode) -->
+          <div v-else-if="jobScheduled">
+            <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-6 mb-4">
+              <div class="flex items-start gap-3">
+                <svg class="w-6 h-6 text-indigo-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <div class="flex-1">
+                  <h4 class="font-semibold text-indigo-900 text-lg">Job Scheduled in Background</h4>
+                  <p class="text-sm text-indigo-700 mt-2">
+                    Your topology discovery job has been scheduled and will be processed by a Celery worker.
+                  </p>
+                  <div class="mt-3 space-y-2">
+                    <div class="flex items-center gap-2 text-sm text-indigo-800">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                      </svg>
+                      <span><strong>Job ID:</strong> <code class="bg-white px-2 py-0.5 rounded">{{ jobId }}</code></span>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm text-indigo-800">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span><strong>Devices:</strong> {{ selectedDevices.length }}</span>
+                    </div>
+                  </div>
+                  <div class="mt-4 p-3 bg-white rounded border border-indigo-200">
+                    <p class="text-xs text-indigo-700">
+                      <strong>💡 Tip:</strong> You can monitor the job progress in Settings → Background Jobs. The job will process your devices in parallel and cache the results when complete.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -218,22 +254,22 @@
             @click="close"
             class="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium transition"
           >
-            {{ discoveryResult ? 'Close' : 'Cancel' }}
+            {{ discoveryResult || jobScheduled ? 'Close' : 'Cancel' }}
           </button>
           <div class="flex gap-3">
-            <!-- Cancel Discovery Button (shown during background discovery) -->
+            <!-- Show Jobs Button (when job scheduled) -->
             <button
-              v-if="discovering && runInBackground && jobId"
-              @click="cancelDiscovery"
-              class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium flex items-center gap-2"
+              v-if="jobScheduled"
+              @click="navigateToJobs"
+              class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium flex items-center gap-2"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
-              Cancel Job
+              Show Jobs
             </button>
             <button
-              v-if="!discovering && !discoveryResult"
+              v-if="!discovering && !discoveryResult && !jobScheduled"
               @click="startDiscovery"
               :disabled="selectedDevices.length === 0 || !hasDataSelected"
               class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition font-medium"
@@ -256,6 +292,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { makeAuthenticatedRequest } from '@/services/api'
 import { useDevicesStore } from '@/stores/devices'
 
@@ -268,6 +305,7 @@ const emit = defineEmits<{
   openBuilder: []
 }>()
 
+const router = useRouter()
 const deviceStore = useDevicesStore()
 
 // State
@@ -283,6 +321,7 @@ const discovering = ref(false)
 const jobId = ref<string | null>(null)
 const progress = ref<any>(null)
 const discoveryResult = ref<any>(null)
+const jobScheduled = ref(false) // Track if async job was just scheduled
 let progressInterval: any = null
 
 // Computed
@@ -290,7 +329,7 @@ const canvasDevices = computed(() => {
   // Show all devices, but prefer those with nautobot_id or device IDs from properties
   return deviceStore.devices.map(d => {
     // Try to get device ID from various sources
-    let deviceId = d.nautobot_id
+    let deviceId: string | undefined = (d as any).nautobot_id
 
     if (!deviceId && d.properties) {
       try {
@@ -328,12 +367,21 @@ const close = () => {
   discoveryResult.value = null
   progress.value = null
   jobId.value = null
+  jobScheduled.value = false
   emit('close')
+}
+
+const navigateToJobs = () => {
+  // Navigate to Settings -> Background Jobs with tab query parameter
+  close()
+  // Use Vue Router to navigate with query parameter for the jobs tab
+  router.push({ path: '/settings', query: { tab: 'jobs' } })
 }
 
 const startDiscovery = async () => {
   discovering.value = true
   discoveryResult.value = null
+  jobScheduled.value = false
 
   try {
     // Choose endpoint based on execution mode
@@ -363,10 +411,9 @@ const startDiscovery = async () => {
     jobId.value = result.job_id
 
     if (runInBackground.value) {
-      // Start polling for progress using new Celery-based progress endpoint
-      progressInterval = setInterval(async () => {
-        await checkProgress()
-      }, 2000) // Poll every 2 seconds
+      // Show "Job scheduled" message instead of polling immediately
+      jobScheduled.value = true
+      discovering.value = false
     } else {
       // Synchronous - result is complete
       discoveryResult.value = result
@@ -375,6 +422,7 @@ const startDiscovery = async () => {
   } catch (error: any) {
     console.error('Discovery failed:', error)
     discovering.value = false
+    jobScheduled.value = false
 
     // Show error in UI instead of alert
     discoveryResult.value = {
@@ -390,91 +438,9 @@ const startDiscovery = async () => {
   }
 }
 
-const checkProgress = async () => {
-  if (!jobId.value) return
-
-  try {
-    // Use the new Celery-based progress endpoint
-    const response = await makeAuthenticatedRequest(`/api/topology/discover/progress/${jobId.value}`)
-    
-    if (!response.ok) {
-      console.error('Failed to get progress:', response.statusText)
-      return
-    }
-    
-    progress.value = await response.json()
-
-    // Check if discovery is complete or failed
-    if (progress.value.status === 'completed' || progress.value.status === 'failed') {
-      // For Celery-based discovery, the final result is already in the Celery state
-      // We can get it from the progress response when status is SUCCESS
-      const resultResponse = await makeAuthenticatedRequest(`/api/topology/discover/progress/${jobId.value}`)
-      const finalProgress = await resultResponse.json()
-      
-      // Convert progress format to result format
-      discoveryResult.value = {
-        job_id: jobId.value,
-        status: finalProgress.status,
-        total_devices: finalProgress.total_devices || 0,
-        successful_devices: finalProgress.completed_devices || 0,
-        failed_devices: finalProgress.failed_devices || 0,
-        devices_data: {}, // Data is cached, not returned in progress
-        errors: finalProgress.error ? { 'job': finalProgress.error } : {},
-        duration_seconds: 0
-      }
-
-      discovering.value = false
-      if (progressInterval) {
-        clearInterval(progressInterval)
-        progressInterval = null
-      }
-    }
-  } catch (error) {
-    console.error('Failed to check progress:', error)
-    
-    // Don't stop polling on temporary errors
-    // Only stop if we've been trying for too long
-  }
-}
-
 const openTopologyBuilder = () => {
   emit('openBuilder')
   close()
-}
-
-const cancelDiscovery = async () => {
-  if (!jobId.value) return
-
-  try {
-    const response = await makeAuthenticatedRequest(`/api/topology/discover/${jobId.value}`, {
-      method: 'DELETE'
-    })
-
-    if (response.ok) {
-      // Stop polling
-      if (progressInterval) {
-        clearInterval(progressInterval)
-        progressInterval = null
-      }
-
-      // Show cancellation result
-      discoveryResult.value = {
-        job_id: jobId.value,
-        status: 'cancelled',
-        total_devices: selectedDevices.value.length,
-        successful_devices: 0,
-        failed_devices: selectedDevices.value.length,
-        devices_data: {},
-        errors: { 'job': 'Discovery job was cancelled by user' },
-        duration_seconds: 0
-      }
-      discovering.value = false
-    } else {
-      console.error('Failed to cancel job:', response.statusText)
-    }
-  } catch (error) {
-    console.error('Error cancelling discovery:', error)
-  }
 }
 
 // Watch for modal close

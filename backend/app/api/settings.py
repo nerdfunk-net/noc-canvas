@@ -1167,29 +1167,126 @@ async def get_job_status(
         except Exception as e:
             logger.warning(f"Could not get queue size: {e}")
 
-        # Get recent job results
+        # Get recent job results - both running and completed
         recent_jobs = []
+        task_ids_seen = set()
+        
         try:
+            # First, add currently running jobs
             for worker_name in active_workers.keys():
                 for job in active_workers[worker_name]:
-                    recent_jobs.append(
-                        {
-                            "id": job.get("id", "unknown"),
-                            "name": job.get("name", "Unknown Task"),
-                            "state": "RUNNING",
-                            "timestamp": job.get("time_start", ""),
-                            "worker": worker_name,
-                        }
-                    )
+                    task_id = job.get('id', 'unknown')
+                    if task_id not in task_ids_seen:
+                        recent_jobs.append(
+                            {
+                                "id": task_id,
+                                "name": job.get("name", "Unknown Task"),
+                                "state": "RUNNING",
+                                "timestamp": job.get("time_start", ""),
+                                "worker": worker_name,
+                            }
+                        )
+                        task_ids_seen.add(task_id)
         except Exception as e:
-            logger.warning(f"Could not get recent jobs: {e}")
+            logger.warning(f"Could not get running jobs: {e}")
+
+        # Now try to get completed/failed jobs from result backend
+        try:
+            from celery.result import AsyncResult
+            # Get recent task IDs from registered tasks
+            # We'll check for results of recently executed tasks
+            
+            # Try to get reserved tasks which includes queued jobs
+            try:
+                reserved = inspect.reserved() or {}
+                for worker_name, tasks in reserved.items():
+                    for task in tasks:
+                        task_id = task.get('id', 'unknown')
+                        if task_id not in task_ids_seen:
+                            recent_jobs.append({
+                                "id": task_id,
+                                "name": task.get("name", "Unknown Task"),
+                                "state": "PENDING",
+                                "timestamp": "",
+                                "worker": worker_name,
+                            })
+                            task_ids_seen.add(task_id)
+            except Exception as e:
+                logger.warning(f"Could not get reserved tasks: {e}")
+            
+            # Try to query the result backend directly for recent results
+            # This is implementation-specific to Redis backend
+            try:
+                from celery import current_app
+                import redis
+                
+                # Get Redis connection from Celery config
+                redis_url = current_app.conf.result_backend
+                if redis_url and redis_url.startswith('redis://'):
+                    r = redis.from_url(redis_url)
+                    
+                    # Scan for celery task result keys
+                    # Results are stored with key pattern: celery-task-meta-{task_id}
+                    cursor = 0
+                    max_jobs = 20
+                    jobs_found = 0
+                    
+                    while jobs_found < max_jobs:
+                        cursor, keys = r.scan(cursor, match='celery-task-meta-*', count=100)
+                        
+                        for key in keys:
+                            if jobs_found >= max_jobs:
+                                break
+                                
+                            try:
+                                # Extract task ID from key
+                                task_id = key.decode('utf-8').replace('celery-task-meta-', '')
+                                
+                                if task_id not in task_ids_seen:
+                                    # Get the task result
+                                    result = AsyncResult(task_id, app=celery_app)
+                                    
+                                    # Only add if we can get status
+                                    if result.state:
+                                        job_data = {
+                                            "id": task_id,
+                                            "name": result.name or "Unknown Task",
+                                            "state": result.state,
+                                            "timestamp": "",
+                                        }
+                                        
+                                        # Add result details if available
+                                        if result.state == 'SUCCESS':
+                                            job_data["result"] = str(result.result)[:200]  # Truncate long results
+                                        elif result.state == 'FAILURE':
+                                            job_data["traceback"] = str(result.traceback)[:500] if result.traceback else "Unknown error"
+                                        
+                                        recent_jobs.append(job_data)
+                                        task_ids_seen.add(task_id)
+                                        jobs_found += 1
+                            except Exception as e:
+                                logger.debug(f"Error processing task result {key}: {e}")
+                                continue
+                        
+                        if cursor == 0:  # Scan complete
+                            break
+                            
+            except Exception as e:
+                logger.warning(f"Could not query Redis result backend: {e}")
+                
+        except Exception as e:
+            logger.warning(f"Could not get completed jobs: {e}")
+
+        # Sort by state priority: RUNNING > PENDING > FAILURE > SUCCESS
+        state_priority = {"RUNNING": 0, "PENDING": 1, "STARTED": 2, "FAILURE": 3, "SUCCESS": 4}
+        recent_jobs.sort(key=lambda x: state_priority.get(x.get("state", ""), 99))
 
         return {
             "workerActive": len(worker_info) > 0,
             "queueSize": queue_size,
             "activeJobs": total_active_jobs,
             "workers": worker_info,
-            "recentJobs": recent_jobs[-10:] if recent_jobs else [],  # Last 10 jobs
+            "recentJobs": recent_jobs[:20],  # Return top 20 jobs
             "availableWorkers": available_workers,
         }
 
@@ -1229,4 +1326,73 @@ async def submit_test_job(
         logger.error(f"Error submitting test job: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Failed to submit test job: {str(e)}"
+        )
+
+
+@router.post("/jobs/clear")
+async def clear_job_logs(
+    current_user: User = Depends(get_current_user),
+):
+    """Clear all Celery job result logs from Redis backend."""
+    try:
+        from ..services.background_jobs import celery_app, CELERY_AVAILABLE
+        
+        if not CELERY_AVAILABLE or not celery_app:
+            raise HTTPException(
+                status_code=503, 
+                detail="Celery is not available"
+            )
+        
+        # Clear job results from Redis backend
+        try:
+            from celery import current_app
+            import redis
+            
+            # Get Redis connection from Celery config
+            redis_url = current_app.conf.result_backend
+            if not redis_url or not redis_url.startswith('redis://'):
+                raise HTTPException(
+                    status_code=500,
+                    detail="Redis result backend not configured"
+                )
+            
+            r = redis.from_url(redis_url)
+            
+            # Scan for all celery task result keys
+            cursor = 0
+            deleted_count = 0
+            
+            while True:
+                cursor, keys = r.scan(cursor, match='celery-task-meta-*', count=100)
+                
+                if keys:
+                    # Delete all found keys
+                    deleted_count += r.delete(*keys)
+                
+                # Scan complete
+                if cursor == 0:
+                    break
+            
+            logger.info(f"Cleared {deleted_count} job result(s) from Redis")
+            
+            return {
+                "success": True,
+                "message": f"Successfully cleared {deleted_count} job log(s)",
+                "deleted_count": deleted_count,
+            }
+            
+        except redis.RedisError as e:
+            logger.error(f"Redis error while clearing jobs: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to clear jobs from Redis: {str(e)}"
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error clearing job logs: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to clear job logs: {str(e)}"
         )

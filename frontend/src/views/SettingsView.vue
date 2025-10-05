@@ -947,7 +947,18 @@
 
             <!-- Recent Jobs -->
             <div class="card p-6">
-              <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Jobs</h2>
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Recent Jobs</h2>
+                <button 
+                  v-if="jobStatus.recentJobs && jobStatus.recentJobs.length > 0"
+                  @click="clearJobLogs" 
+                  class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium text-sm flex items-center gap-2"
+                  :disabled="clearingJobs"
+                >
+                  <i class="fas fa-trash-alt" :class="{ 'animate-spin': clearingJobs }"></i>
+                  {{ clearingJobs ? 'Clearing...' : 'Clear Jobs' }}
+                </button>
+              </div>
               
               <div v-if="jobStatus.recentJobs && jobStatus.recentJobs.length > 0" class="space-y-3">
                 <div 
@@ -1672,7 +1683,7 @@
           </div>
 
           <!-- Save Button (for General and Plugins tabs) -->
-          <div v-if="activeTab !== 'profile' && activeTab !== 'canvas' && activeTab !== 'commands' && activeTab !== 'cache'" class="flex justify-end">
+          <div v-if="activeTab !== 'profile' && activeTab !== 'canvas' && activeTab !== 'commands' && activeTab !== 'cache' && activeTab !== 'jobs'" class="flex justify-end">
             <button @click="saveSettings" class="btn-primary" :disabled="saving">
               <i class="fas fa-save mr-2"></i>
               {{ saving ? 'Saving...' : 'Save Settings' }}
@@ -2482,8 +2493,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
 import { useNotificationStore } from '@/stores/notification'
 import { canvasApi, type CanvasListItem, makeAuthenticatedRequest } from '@/services/api'
@@ -2493,17 +2504,31 @@ import { useCommands } from '@/composables/useCommands'
 
 const notificationStore = useNotificationStore()
 const router = useRouter()
+const route = useRoute()
 const deviceStore = useDevicesStore()
 const { reloadCommands } = useCommands()
 
 // Persist active tab in sessionStorage to survive re-renders/HMR
-const activeTab = ref(sessionStorage.getItem('settings-active-tab') || 'general')
+// Also check for query parameter on initial load
+const getInitialTab = () => {
+  const tabFromQuery = route.query.tab as string
+  if (tabFromQuery) return tabFromQuery
+  return sessionStorage.getItem('settings-active-tab') || 'general'
+}
+const activeTab = ref(getInitialTab())
 const showMobileMenu = ref(false)
 
 // Watch for tab changes and persist to sessionStorage
 watch(activeTab, (newTab) => {
   sessionStorage.setItem('settings-active-tab', newTab)
   console.log('📑 Active tab changed to:', newTab)
+})
+
+// Watch for route query changes (e.g., when navigating from other components)
+watch(() => route.query.tab, (newTab) => {
+  if (newTab && typeof newTab === 'string') {
+    activeTab.value = newTab
+  }
 })
 const saving = ref(false)
 const savingProfile = ref(false)
@@ -2522,6 +2547,8 @@ const connectionStatus = reactive({
 // Job monitoring state
 const loadingJobStatus = ref(false)
 const submittingTestJob = ref(false)
+const clearingJobs = ref(false)
+let jobStatusInterval: number | null = null
 const jobStatus = reactive({
   workerActive: false,
   queueSize: 0,
@@ -3027,10 +3054,35 @@ onMounted(() => {
   }
 })
 
+// Cleanup: stop auto-refresh when component unmounts
+onBeforeUnmount(() => {
+  if (jobStatusInterval !== null) {
+    clearInterval(jobStatusInterval)
+    jobStatusInterval = null
+    console.log('🧹 Cleaned up job status auto-refresh on unmount')
+  }
+})
+
 // Auto-refresh job status when Jobs tab is selected
-watch(activeTab, async (newTab) => {
+watch(activeTab, async (newTab, oldTab) => {
+  // Clear any existing interval when switching away from jobs tab
+  if (oldTab === 'jobs' && jobStatusInterval !== null) {
+    clearInterval(jobStatusInterval)
+    jobStatusInterval = null
+    console.log('⏹ Stopped job status auto-refresh')
+  }
+  
   if (newTab === 'jobs') {
+    // Immediately refresh on tab switch
     await refreshJobStatus()
+    
+    // Set up auto-refresh every 2 seconds while on jobs tab
+    jobStatusInterval = window.setInterval(async () => {
+      if (!loadingJobStatus.value) {
+        await refreshJobStatus()
+      }
+    }, 2000)
+    console.log('▶️ Started job status auto-refresh (every 2 seconds)')
   }
 })
 
@@ -4097,6 +4149,41 @@ const submitTestJob = async () => {
     console.error('Failed to submit test job:', error)
   } finally {
     submittingTestJob.value = false
+  }
+}
+
+const clearJobLogs = async () => {
+  if (!confirm('Are you sure you want to clear all job logs? This will remove all completed job results from Redis.')) {
+    return
+  }
+  
+  clearingJobs.value = true
+  try {
+    const response = await makeAuthenticatedRequest('/api/settings/jobs/clear', {
+      method: 'POST'
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      notificationStore.addNotification({
+        title: 'Jobs Cleared',
+        message: data.message || 'All job logs have been cleared successfully.',
+        type: 'success',
+      })
+      // Refresh to show updated (empty) list
+      await refreshJobStatus()
+    } else {
+      throw new Error('Failed to clear job logs')
+    }
+  } catch (error) {
+    notificationStore.addNotification({
+      title: 'Clear Jobs Error',
+      message: 'Failed to clear job logs. Please try again.',
+      type: 'error',
+    })
+    console.error('Failed to clear job logs:', error)
+  } finally {
+    clearingJobs.value = false
   }
 }
 

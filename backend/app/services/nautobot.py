@@ -612,29 +612,10 @@ class NautobotService:
 
         # Calculate pagination info
         has_more = (offset or 0) + len(devices) < total_count if limit else False
-
-        # Debug: Log final devices data before returning
-        logger.info("=" * 80)
-        logger.info("DEBUG: FINAL DEVICES DATA BEFORE RETURN")
-        logger.info(f"Total devices being returned: {len(devices)}")
         
         # Count devices with/without primary_ip4
         devices_with_ip = sum(1 for d in devices if d.get('primary_ip4'))
         devices_without_ip = len(devices) - devices_with_ip
-        logger.info(f"Devices WITH primary_ip4: {devices_with_ip}")
-        logger.info(f"Devices WITHOUT primary_ip4: {devices_without_ip}")
-        
-        if devices:
-            sample_final = devices[0]
-            logger.info(f"Sample final device name: {sample_final.get('name')}")
-            logger.info(f"Sample final device FULL: {sample_final}")
-            logger.info(f"Sample final device primary_ip4: {sample_final.get('primary_ip4')}")
-            
-            if sample_final.get('primary_ip4'):
-                logger.info(f"Sample final primary_ip4 TYPE: {type(sample_final.get('primary_ip4'))}")
-                if isinstance(sample_final.get('primary_ip4'), dict):
-                    logger.info(f"Sample final primary_ip4 keys: {sample_final.get('primary_ip4').keys()}")
-        logger.info("=" * 80)
 
         response_data = {
             "devices": devices,

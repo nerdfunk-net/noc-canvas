@@ -32,12 +32,6 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">
                 Select Devices to Discover
               </label>
-              <div class="mb-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p class="text-sm text-blue-800">
-                  <strong>Note:</strong> Discovery requires devices with Nautobot IDs. Devices added manually may not have network connectivity configured.
-                  For best results, use devices from the Inventory panel.
-                </p>
-              </div>
               <select
                 v-model="selectedDevices"
                 multiple
@@ -94,22 +88,9 @@
                   <input type="radio" :value="true" v-model="runInBackground" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300" />
                   <div>
                     <div class="font-medium text-gray-900">Asynchronous (Background via Celery)</div>
-                    <div class="text-sm text-gray-500">✨ Recommended for all workloads. Runs in Celery worker with real-time progress tracking.</div>
+                    <div class="text-sm text-gray-500">Runs in Celery worker with real-time progress tracking.</div>
                   </div>
                 </label>
-              </div>
-              
-              <!-- Celery Info Box (shown when background mode selected) -->
-              <div v-if="runInBackground" class="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                <div class="flex items-start gap-2">
-                  <svg class="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div class="text-sm text-indigo-800">
-                    <p class="font-medium mb-1">Celery Worker Required</p>
-                    <p>This mode requires a Celery worker to be running. Jobs are processed in parallel with real-time progress updates. You can cancel running jobs at any time.</p>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -124,7 +105,23 @@
 
           <!-- Discovery In Progress -->
           <div v-else-if="discovering && !jobScheduled">
-            <div class="space-y-4">
+            <!-- Synchronous Mode - Simple Processing Message -->
+            <div v-if="!runInBackground" class="flex flex-col items-center justify-center py-12">
+              <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mb-6"></div>
+              <h3 class="text-lg font-medium text-gray-900 mb-2">Processing Discovery...</h3>
+              <p class="text-sm text-gray-500 text-center max-w-md">
+                Discovering topology from {{ selectedDevices.length }} device{{ selectedDevices.length > 1 ? 's' : '' }}.
+                This may take a few moments.
+              </p>
+              <div class="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200 max-w-md">
+                <p class="text-xs text-gray-600 text-center">
+                  💡 Tip: For real-time progress tracking, use <strong>Asynchronous (Background via Celery)</strong> mode
+                </p>
+              </div>
+            </div>
+
+            <!-- Asynchronous Mode - Detailed Progress -->
+            <div v-else class="space-y-4">
               <!-- Overall Progress -->
               <div>
                 <div class="flex items-center justify-between mb-2">

@@ -83,7 +83,7 @@ class DeviceCacheService:
     @staticmethod
     def clean_expired_cache(db: Session, device_id: Optional[str] = None) -> int:
         """Clean expired cache entries."""
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         logger.info(f"🧹 Cleaning expired cache. Current UTC time: {now}")
 
         # Only clean entries that have an expiration date AND are expired
@@ -114,7 +114,7 @@ class DeviceCacheService:
     ) -> DeviceCache:
         """Get existing device cache or create new one with default TTL."""
         device = DeviceCacheService.get_device_cache(db, device_data.device_id)
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
 
         if device:
             # Update existing device
@@ -142,7 +142,7 @@ class DeviceCacheService:
         """Check if device cache is still valid."""
         if not device.cache_valid_until:
             return False
-        return datetime.now(timezone.utc) < device.cache_valid_until
+        return datetime.utcnow() < device.cache_valid_until
 
     @staticmethod
     def set_cache_ttl(
@@ -151,7 +151,7 @@ class DeviceCacheService:
         """Set cache validity period."""
         device = DeviceCacheService.get_device_cache(db, device_id)
         if device:
-            device.cache_valid_until = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
+            device.cache_valid_until = datetime.utcnow() + timedelta(minutes=ttl_minutes)
             db.commit()
 
     @staticmethod
@@ -159,7 +159,7 @@ class DeviceCacheService:
         """Invalidate device cache (set expiry to now)."""
         device = DeviceCacheService.get_device_cache(db, device_id)
         if device:
-            device.cache_valid_until = datetime.now(timezone.utc)
+            device.cache_valid_until = datetime.utcnow()
             db.commit()
 
     # Interface Cache Operations
@@ -196,7 +196,7 @@ class DeviceCacheService:
             for key, value in interface_data.model_dump().items():
                 if value is not None:
                     setattr(interface, key, value)
-            interface.last_updated = datetime.now(timezone.utc)
+            interface.last_updated = datetime.utcnow()
         else:
             # Create new
             interface = InterfaceCache(**interface_data.model_dump())
@@ -250,7 +250,7 @@ class DeviceCacheService:
             for key, value in ip_data.model_dump().items():
                 if value is not None:
                     setattr(ip_entry, key, value)
-            ip_entry.last_updated = datetime.now(timezone.utc)
+            ip_entry.last_updated = datetime.utcnow()
         else:
             # Create new
             ip_entry = IPAddressCache(**ip_data.model_dump())
@@ -330,7 +330,7 @@ class DeviceCacheService:
         device = DeviceCacheService.get_or_create_device_cache(db, cache_data.device)
 
         # Set cache TTL
-        device.cache_valid_until = datetime.now(timezone.utc) + timedelta(minutes=cache_ttl_minutes)
+        device.cache_valid_until = datetime.utcnow() + timedelta(minutes=cache_ttl_minutes)
         db.commit()
 
         # Update interfaces first

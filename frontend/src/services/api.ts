@@ -272,3 +272,209 @@ export const settingsApi = {
     return response
   }
 }
+
+// Topology interfaces and API
+export type LinkType = 'cdp_neighbor' | 'lldp_neighbor' | 'static_route' | 'ospf_route' | 'bgp_route' | 'arp_discovered' | 'mac_table'
+
+export interface TopologyNode {
+  device_id: string
+  device_name: string
+  primary_ip?: string
+  platform?: string
+  device_type?: string
+  position_x?: number
+  position_y?: number
+  metadata?: Record<string, any>
+}
+
+export interface TopologyLink {
+  source_device_id: string
+  target_device_id: string
+  source_device_name: string
+  target_device_name: string
+  source_interface?: string
+  target_interface?: string
+  link_type: LinkType
+  bidirectional: boolean
+  link_metadata?: Record<string, any>
+}
+
+export interface TopologyGraph {
+  nodes: TopologyNode[]
+  links: TopologyLink[]
+  metadata?: Record<string, any>
+}
+
+export interface TopologyStatistics {
+  total_devices: number
+  total_links: number
+  link_types_breakdown: Record<string, number>
+  devices_by_platform: Record<string, number>
+  isolated_devices: number
+  average_connections_per_device: number
+}
+
+export interface TopologyBuildRequest {
+  device_ids?: string[]
+  include_cdp?: boolean
+  include_routing?: boolean
+  route_types?: string[]
+  include_layer2?: boolean
+  auto_layout?: boolean
+  layout_algorithm?: 'force_directed' | 'hierarchical' | 'circular'
+}
+
+export interface NeighborResolution {
+  neighbor_name: string
+  neighbor_ip?: string
+  device_id?: string
+  device_name?: string
+  matched_by?: string
+  confidence: string
+}
+
+export const topologyApi = {
+  async buildTopology(params?: {
+    device_ids?: string[]
+    include_cdp?: boolean
+    include_routing?: boolean
+    route_types?: string[]
+    include_layer2?: boolean
+    auto_layout?: boolean
+    layout_algorithm?: string
+  }): Promise<TopologyGraph> {
+    const queryParams = new URLSearchParams()
+
+    if (params?.device_ids) {
+      params.device_ids.forEach(id => queryParams.append('device_ids', id))
+    }
+    if (params?.include_cdp !== undefined) {
+      queryParams.append('include_cdp', String(params.include_cdp))
+    }
+    if (params?.include_routing !== undefined) {
+      queryParams.append('include_routing', String(params.include_routing))
+    }
+    if (params?.route_types) {
+      params.route_types.forEach(type => queryParams.append('route_types', type))
+    }
+    if (params?.include_layer2 !== undefined) {
+      queryParams.append('include_layer2', String(params.include_layer2))
+    }
+    if (params?.auto_layout !== undefined) {
+      queryParams.append('auto_layout', String(params.auto_layout))
+    }
+    if (params?.layout_algorithm) {
+      queryParams.append('layout_algorithm', params.layout_algorithm)
+    }
+
+    const endpoint = `/api/topology/build${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+    return apiClient.get<TopologyGraph>(endpoint)
+  },
+
+  async buildTopologyPost(request: TopologyBuildRequest): Promise<TopologyGraph> {
+    return apiClient.post<TopologyGraph>('/api/topology/build', request)
+  },
+
+  async getCdpTopology(params?: {
+    device_ids?: string[]
+    auto_layout?: boolean
+    layout_algorithm?: string
+  }): Promise<TopologyGraph> {
+    const queryParams = new URLSearchParams()
+
+    if (params?.device_ids) {
+      params.device_ids.forEach(id => queryParams.append('device_ids', id))
+    }
+    if (params?.auto_layout !== undefined) {
+      queryParams.append('auto_layout', String(params.auto_layout))
+    }
+    if (params?.layout_algorithm) {
+      queryParams.append('layout_algorithm', params.layout_algorithm)
+    }
+
+    const endpoint = `/api/topology/cdp${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+    return apiClient.get<TopologyGraph>(endpoint)
+  },
+
+  async getRoutingTopology(params?: {
+    device_ids?: string[]
+    route_types?: string[]
+    auto_layout?: boolean
+    layout_algorithm?: string
+  }): Promise<TopologyGraph> {
+    const queryParams = new URLSearchParams()
+
+    if (params?.device_ids) {
+      params.device_ids.forEach(id => queryParams.append('device_ids', id))
+    }
+    if (params?.route_types) {
+      params.route_types.forEach(type => queryParams.append('route_types', type))
+    }
+    if (params?.auto_layout !== undefined) {
+      queryParams.append('auto_layout', String(params.auto_layout))
+    }
+    if (params?.layout_algorithm) {
+      queryParams.append('layout_algorithm', params.layout_algorithm)
+    }
+
+    const endpoint = `/api/topology/routing${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+    return apiClient.get<TopologyGraph>(endpoint)
+  },
+
+  async getLayer2Topology(params?: {
+    device_ids?: string[]
+    auto_layout?: boolean
+    layout_algorithm?: string
+  }): Promise<TopologyGraph> {
+    const queryParams = new URLSearchParams()
+
+    if (params?.device_ids) {
+      params.device_ids.forEach(id => queryParams.append('device_ids', id))
+    }
+    if (params?.auto_layout !== undefined) {
+      queryParams.append('auto_layout', String(params.auto_layout))
+    }
+    if (params?.layout_algorithm) {
+      queryParams.append('layout_algorithm', params.layout_algorithm)
+    }
+
+    const endpoint = `/api/topology/layer2${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+    return apiClient.get<TopologyGraph>(endpoint)
+  },
+
+  async resolveNeighbor(neighbor_name: string, neighbor_ip?: string): Promise<NeighborResolution> {
+    return apiClient.post<NeighborResolution>('/api/topology/resolve-neighbor', {
+      neighbor_name,
+      neighbor_ip
+    })
+  },
+
+  async getStatistics(params?: {
+    device_ids?: string[]
+    include_cdp?: boolean
+    include_routing?: boolean
+    route_types?: string[]
+    include_layer2?: boolean
+  }): Promise<TopologyStatistics> {
+    const queryParams = new URLSearchParams()
+
+    if (params?.device_ids) {
+      params.device_ids.forEach(id => queryParams.append('device_ids', id))
+    }
+    if (params?.include_cdp !== undefined) {
+      queryParams.append('include_cdp', String(params.include_cdp))
+    }
+    if (params?.include_routing !== undefined) {
+      queryParams.append('include_routing', String(params.include_routing))
+    }
+    if (params?.route_types) {
+      params.route_types.forEach(type => queryParams.append('route_types', type))
+    }
+    if (params?.include_layer2 !== undefined) {
+      queryParams.append('include_layer2', String(params.include_layer2))
+    }
+
+    const endpoint = `/api/topology/statistics${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+    return apiClient.get<TopologyStatistics>(endpoint)
+  }
+}

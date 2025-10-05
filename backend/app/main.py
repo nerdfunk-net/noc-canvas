@@ -15,6 +15,7 @@ from .api import (
     credentials,
     shapes,
     cache,
+    topology,
 )
 # Removed old routers that were causing duplicate endpoints:
 # from .routers import (
@@ -125,6 +126,7 @@ app.include_router(settings_api.router, prefix="/api/settings", tags=["settings"
 app.include_router(jobs.router, prefix="/api/jobs", tags=["background-jobs"])
 app.include_router(shapes.router, prefix="/api", tags=["shapes"])
 app.include_router(cache.router, prefix="/api", tags=["cache"])
+app.include_router(topology.router, prefix="/api", tags=["topology"])
 
 
 @app.get("/")
@@ -148,6 +150,7 @@ async def root():
             "jobs": "/api/jobs",
             "shapes": "/api/shapes",
             "cache": "/api/cache",
+            "topology": "/api/topology",
             "docs": "/docs",
             "openapi": "/openapi.json",
         },

@@ -643,6 +643,20 @@ cd<template>
       @save="handleShapeColorSave"
     />
 
+    <!-- Topology Discovery Modal -->
+    <TopologyDiscoveryModal
+      :is-open="showTopologyDiscoveryModal"
+      @close="showTopologyDiscoveryModal = false"
+      @openBuilder="openTopologyBuilderFromDiscovery"
+    />
+
+    <!-- Topology Builder Modal -->
+    <TopologyBuilderModal
+      :is-open="showTopologyBuilderModal"
+      @close="showTopologyBuilderModal = false"
+      @import="handleTopologyImport"
+    />
+
     <!-- Unsaved Changes Warning Dialog -->
     <ConfirmDialog
       :show="showUnsavedChangesDialog"
@@ -773,6 +787,9 @@ import DuplicateDeviceModal from './DuplicateDeviceModal.vue'
 import ShapeColorModal from './ShapeColorModal.vue'
 import NeighborDiscoveryResultModal from './NeighborDiscoveryResultModal.vue'
 import CodeBlock from './CodeBlock.vue'
+import TopologyBuilderModal from './TopologyBuilderModal.vue'
+import TopologyDiscoveryModal from './TopologyDiscoveryModal.vue'
+import type { TopologyGraph } from '@/services/api'
 
 // Constants
 const DEVICE_SIZE = 60
@@ -1147,6 +1164,12 @@ const configModalContent = ref('')
 const configModalLoading = ref(false)
 const currentConfigDevice = ref<Device | null>(null)
 
+// Topology Discovery Modal state
+const showTopologyDiscoveryModal = ref(false)
+
+// Topology Builder Modal state
+const showTopologyBuilderModal = ref(false)
+
 // Device Search state
 const showDeviceSearch = ref(false)
 const deviceSearchQuery = ref('')
@@ -1441,6 +1464,14 @@ const contextMenuItems = computed(() => {
           ],
         },
         {
+          icon: '🔗',
+          label: 'Topology',
+          submenu: [
+            { icon: '🔍', label: 'Discover', action: () => { hideContextMenu(); openTopologyDiscovery() } },
+            { icon: '🔨', label: 'Build', action: () => { hideContextMenu(); openTopologyBuilder() } },
+          ],
+        },
+        {
           icon: '🎨',
           label: 'Canvas',
           submenu: [
@@ -1707,6 +1738,118 @@ const saveCanvasAs = () => {
 
 // Clear canvas - now handled by useCanvasState composable
 const clearCanvas = composableClearCanvas
+
+// Topology Discovery functions
+const openTopologyDiscovery = () => {
+  showTopologyDiscoveryModal.value = true
+}
+
+const openTopologyBuilderFromDiscovery = () => {
+  showTopologyDiscoveryModal.value = false
+  showTopologyBuilderModal.value = true
+}
+
+// Topology Builder functions
+const openTopologyBuilder = () => {
+  showTopologyBuilderModal.value = true
+}
+
+const handleTopologyImport = (topology: TopologyGraph) => {
+  console.log('📥 Importing topology to canvas...', topology)
+  console.log('📊 Topology has:', topology.nodes?.length || 0, 'nodes and', topology.links?.length || 0, 'links')
+
+  let newDevicesCount = 0
+  let skippedDevicesCount = 0
+
+  // Import nodes as devices (skip duplicates)
+  topology.nodes.forEach(node => {
+    // Check if device already exists on canvas by nautobot_id
+    const existingDevice = deviceStore.devices.find(d => {
+      try {
+        const props = d.properties ? JSON.parse(d.properties) : {}
+        return props.nautobot_id === node.device_id
+      } catch {
+        return false
+      }
+    })
+
+    if (existingDevice) {
+      console.log(`⏭️ Skipping duplicate device: ${node.device_name} (${node.device_id})`)
+      skippedDevicesCount++
+      return
+    }
+
+    // Create new device
+    const deviceData: Omit<Device, 'id'> = {
+      name: node.device_name,
+      device_type: (node.device_type as 'router' | 'switch' | 'firewall' | 'vpn_gateway') || 'router',
+      ip_address: node.primary_ip || '',
+      position_x: node.position_x || 100,
+      position_y: node.position_y || 100,
+      properties: JSON.stringify({
+        nautobot_id: node.device_id,
+        platform: node.platform,
+        ...node.metadata
+      })
+    }
+    deviceStore.createDevice(deviceData)
+    newDevicesCount++
+  })
+
+  // Import links as connections
+  let newConnectionsCount = 0
+  topology.links.forEach(link => {
+    // Find devices by nautobot_id
+    const sourceDevice = deviceStore.devices.find(d => {
+      try {
+        const props = d.properties ? JSON.parse(d.properties) : {}
+        return props.nautobot_id === link.source_device_id
+      } catch {
+        return false
+      }
+    })
+
+    const targetDevice = deviceStore.devices.find(d => {
+      try {
+        const props = d.properties ? JSON.parse(d.properties) : {}
+        return props.nautobot_id === link.target_device_id
+      } catch {
+        return false
+      }
+    })
+
+    if (sourceDevice && targetDevice) {
+      // Check if connection already exists
+      const existingConnection = deviceStore.connections.find(c =>
+        (c.source_device_id === sourceDevice.id && c.target_device_id === targetDevice.id) ||
+        (c.source_device_id === targetDevice.id && c.target_device_id === sourceDevice.id)
+      )
+
+      if (existingConnection) {
+        console.log(`⏭️ Skipping duplicate connection: ${sourceDevice.name} <-> ${targetDevice.name}`)
+        return
+      }
+
+      const connectionData: Omit<Connection, 'id'> = {
+        source_device_id: sourceDevice.id,
+        target_device_id: targetDevice.id,
+        connection_type: link.link_type,
+        properties: JSON.stringify({
+          source_interface: link.source_interface,
+          target_interface: link.target_interface,
+          bidirectional: link.bidirectional,
+          ...link.link_metadata
+        }),
+        layer: link.link_type.includes('route') ? 'layer3' : 'layer2'
+      }
+      deviceStore.createConnection(connectionData)
+      newConnectionsCount++
+    }
+  })
+
+  showTopologyBuilderModal.value = false
+  console.log(`✅ Topology imported: ${newDevicesCount} new devices (${skippedDevicesCount} skipped), ${newConnectionsCount} new connections`)
+}
 
 // Clear Canvas Confirmation Dialog functions
 const handleClearConfirm = () => {

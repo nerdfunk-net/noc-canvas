@@ -86,17 +86,30 @@
                 <label class="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50" :class="{ 'bg-indigo-50 border-indigo-300': !runInBackground }">
                   <input type="radio" :value="false" v-model="runInBackground" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300" />
                   <div>
-                    <div class="font-medium text-gray-900">Foreground (Blocking)</div>
-                    <div class="text-sm text-gray-500">Best for small number of devices (1-5). Waits for completion.</div>
+                    <div class="font-medium text-gray-900">Synchronous (Blocking)</div>
+                    <div class="text-sm text-gray-500">Best for small number of devices (1-3). Waits for completion.</div>
                   </div>
                 </label>
                 <label class="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50" :class="{ 'bg-indigo-50 border-indigo-300': runInBackground }">
                   <input type="radio" :value="true" v-model="runInBackground" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300" />
                   <div>
-                    <div class="font-medium text-gray-900">Background (Non-blocking)</div>
-                    <div class="text-sm text-gray-500">Best for large number of devices (5+). Track progress in real-time.</div>
+                    <div class="font-medium text-gray-900">Asynchronous (Background via Celery)</div>
+                    <div class="text-sm text-gray-500">✨ Recommended for all workloads. Runs in Celery worker with real-time progress tracking.</div>
                   </div>
                 </label>
+              </div>
+              
+              <!-- Celery Info Box (shown when background mode selected) -->
+              <div v-if="runInBackground" class="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                <div class="flex items-start gap-2">
+                  <svg class="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div class="text-sm text-indigo-800">
+                    <p class="font-medium mb-1">Celery Worker Required</p>
+                    <p>This mode requires a Celery worker to be running. Jobs are processed in parallel with real-time progress updates. You can cancel running jobs at any time.</p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -208,6 +221,17 @@
             {{ discoveryResult ? 'Close' : 'Cancel' }}
           </button>
           <div class="flex gap-3">
+            <!-- Cancel Discovery Button (shown during background discovery) -->
+            <button
+              v-if="discovering && runInBackground && jobId"
+              @click="cancelDiscovery"
+              class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium flex items-center gap-2"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Cancel Job
+            </button>
             <button
               v-if="!discovering && !discoveryResult"
               @click="startDiscovery"
@@ -312,7 +336,12 @@ const startDiscovery = async () => {
   discoveryResult.value = null
 
   try {
-    const response = await makeAuthenticatedRequest('/api/topology/discover', {
+    // Choose endpoint based on execution mode
+    const endpoint = runInBackground.value 
+      ? '/api/topology/discover-async'  // Use new Celery-based endpoint
+      : '/api/topology/discover-sync'   // Use synchronous endpoint
+
+    const response = await makeAuthenticatedRequest(endpoint, {
       method: 'POST',
       body: JSON.stringify({
         device_ids: selectedDevices.value,
@@ -321,7 +350,6 @@ const startDiscovery = async () => {
         include_bgp_routes: includeBgpRoutes.value,
         include_mac_table: includeMacTable.value,
         include_cdp_neighbors: includeCdpNeighbors.value,
-        run_in_background: runInBackground.value,
         cache_results: cacheResults.value
       })
     })
@@ -335,12 +363,12 @@ const startDiscovery = async () => {
     jobId.value = result.job_id
 
     if (runInBackground.value) {
-      // Start polling for progress
+      // Start polling for progress using new Celery-based progress endpoint
       progressInterval = setInterval(async () => {
         await checkProgress()
-      }, 1000)
+      }, 2000) // Poll every 2 seconds
     } else {
-      // Foreground - result is complete
+      // Synchronous - result is complete
       discoveryResult.value = result
       discovering.value = false
     }
@@ -366,13 +394,34 @@ const checkProgress = async () => {
   if (!jobId.value) return
 
   try {
+    // Use the new Celery-based progress endpoint
     const response = await makeAuthenticatedRequest(`/api/topology/discover/progress/${jobId.value}`)
+    
+    if (!response.ok) {
+      console.error('Failed to get progress:', response.statusText)
+      return
+    }
+    
     progress.value = await response.json()
 
+    // Check if discovery is complete or failed
     if (progress.value.status === 'completed' || progress.value.status === 'failed') {
-      // Get final results
-      const resultResponse = await makeAuthenticatedRequest(`/api/topology/discover/result/${jobId.value}`)
-      discoveryResult.value = await resultResponse.json()
+      // For Celery-based discovery, the final result is already in the Celery state
+      // We can get it from the progress response when status is SUCCESS
+      const resultResponse = await makeAuthenticatedRequest(`/api/topology/discover/progress/${jobId.value}`)
+      const finalProgress = await resultResponse.json()
+      
+      // Convert progress format to result format
+      discoveryResult.value = {
+        job_id: jobId.value,
+        status: finalProgress.status,
+        total_devices: finalProgress.total_devices || 0,
+        successful_devices: finalProgress.completed_devices || 0,
+        failed_devices: finalProgress.failed_devices || 0,
+        devices_data: {}, // Data is cached, not returned in progress
+        errors: finalProgress.error ? { 'job': finalProgress.error } : {},
+        duration_seconds: 0
+      }
 
       discovering.value = false
       if (progressInterval) {
@@ -382,12 +431,50 @@ const checkProgress = async () => {
     }
   } catch (error) {
     console.error('Failed to check progress:', error)
+    
+    // Don't stop polling on temporary errors
+    // Only stop if we've been trying for too long
   }
 }
 
 const openTopologyBuilder = () => {
   emit('openBuilder')
   close()
+}
+
+const cancelDiscovery = async () => {
+  if (!jobId.value) return
+
+  try {
+    const response = await makeAuthenticatedRequest(`/api/topology/discover/${jobId.value}`, {
+      method: 'DELETE'
+    })
+
+    if (response.ok) {
+      // Stop polling
+      if (progressInterval) {
+        clearInterval(progressInterval)
+        progressInterval = null
+      }
+
+      // Show cancellation result
+      discoveryResult.value = {
+        job_id: jobId.value,
+        status: 'cancelled',
+        total_devices: selectedDevices.value.length,
+        successful_devices: 0,
+        failed_devices: selectedDevices.value.length,
+        devices_data: {},
+        errors: { 'job': 'Discovery job was cancelled by user' },
+        duration_seconds: 0
+      }
+      discovering.value = false
+    } else {
+      console.error('Failed to cancel job:', response.statusText)
+    }
+  } catch (error) {
+    console.error('Error cancelling discovery:', error)
+  }
 }
 
 // Watch for modal close

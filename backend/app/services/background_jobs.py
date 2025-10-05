@@ -18,7 +18,10 @@ try:
         "noc_canvas",
         broker=settings.celery_broker_url,
         backend=settings.celery_result_backend,
-        include=["app.services.background_jobs"],
+        include=[
+            "app.services.background_jobs",
+            "app.tasks.topology_tasks"  # Include topology tasks
+        ],
     )
 except ImportError:
     logger.warning("Celery not available. Background jobs will be disabled.")

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from ..core.config import settings as app_settings
 from ..core.security import verify_token
@@ -810,9 +811,31 @@ async def test_checkmk_settings(
 
 @router.get("/cache/current", response_model=CacheSettings)
 async def get_cache_settings(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Get current cache settings."""
+    # Try to get settings from database
+    cache_settings = db.query(AppSettings).filter(
+        AppSettings.key == "cache_settings"
+    ).first()
+
+    if cache_settings and cache_settings.value:
+        import json
+        settings_data = json.loads(cache_settings.value)
+        return CacheSettings(
+            enabled=True,
+            ttl_seconds=settings_data.get("defaultTtlMinutes", 60) * 60,
+            prefetch_on_startup=True,
+            refresh_interval_minutes=settings_data.get("autoRefreshIntervalMinutes", 30),
+            prefetch_items={
+                "devices": False,
+                "locations": False,
+                "statistics": True,
+            },
+        )
+
+    # Default settings
     return CacheSettings(
         enabled=True,
         ttl_seconds=app_settings.cache_ttl_seconds,
@@ -824,6 +847,37 @@ async def get_cache_settings(
             "statistics": True,
         },
     )
+
+
+@router.post("/cache/settings")
+async def save_cache_settings(
+    settings: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Save cache settings to database."""
+    import json
+
+    # Get or create cache settings entry
+    cache_settings = db.query(AppSettings).filter(
+        AppSettings.key == "cache_settings"
+    ).first()
+
+    if cache_settings:
+        cache_settings.value = json.dumps(settings)
+        cache_settings.updated_at = func.now()
+    else:
+        cache_settings = AppSettings(
+            key="cache_settings",
+            value=json.dumps(settings),
+            description="Cache configuration settings"
+        )
+        db.add(cache_settings)
+
+    db.commit()
+    logger.info(f"💾 Cache settings saved: {settings}")
+
+    return {"message": "Cache settings saved successfully", "settings": settings}
 
 
 @router.post("/cache/clear")
@@ -1241,26 +1295,58 @@ async def get_job_status(
                             try:
                                 # Extract task ID from key
                                 task_id = key.decode('utf-8').replace('celery-task-meta-', '')
-                                
+
                                 if task_id not in task_ids_seen:
                                     # Get the task result
                                     result = AsyncResult(task_id, app=celery_app)
-                                    
+
                                     # Only add if we can get status
                                     if result.state:
+                                        # Try to get task name from result backend metadata
+                                        task_name = "Unknown Task"
+                                        timestamp = ""
+                                        try:
+                                            # Get the full result metadata from Redis
+                                            result_meta = r.get(key)
+                                            if result_meta:
+                                                import json
+                                                meta_data = json.loads(result_meta)
+
+                                                # With result_extended=True, Celery stores task name in 'name' field
+                                                if 'name' in meta_data:
+                                                    task_name = meta_data['name']
+                                                elif 'task' in meta_data:
+                                                    task_name = meta_data['task']
+
+                                                # Get timestamp
+                                                if 'date_done' in meta_data:
+                                                    timestamp = meta_data['date_done']
+
+                                                # Format task name for better readability
+                                                if task_name and task_name != "Unknown Task":
+                                                    # Convert task paths to readable names
+                                                    # e.g., "app.tasks.topology_tasks.discover_single_device_task" -> "Discover Single Device"
+                                                    # e.g., "app.services.background_jobs.test_background_task" -> "Test Background Task"
+                                                    if '.' in task_name:
+                                                        task_name = task_name.split('.')[-1]  # Get last part
+                                                    # Convert snake_case to Title Case
+                                                    task_name = task_name.replace('_task', '').replace('_', ' ').title()
+                                        except Exception as name_error:
+                                            logger.debug(f"Could not extract task name from metadata: {name_error}")
+
                                         job_data = {
                                             "id": task_id,
-                                            "name": result.name or "Unknown Task",
+                                            "name": task_name,
                                             "state": result.state,
-                                            "timestamp": "",
+                                            "timestamp": timestamp,
                                         }
-                                        
+
                                         # Add result details if available
                                         if result.state == 'SUCCESS':
                                             job_data["result"] = str(result.result)[:200]  # Truncate long results
                                         elif result.state == 'FAILURE':
                                             job_data["traceback"] = str(result.traceback)[:500] if result.traceback else "Unknown error"
-                                        
+
                                         recent_jobs.append(job_data)
                                         task_ids_seen.add(task_id)
                                         jobs_found += 1

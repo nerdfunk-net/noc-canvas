@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     checkmk_verify_ssl: bool = True
     checkmk_timeout: int = 30
 
+    # Internal API settings (for Celery worker to call back to FastAPI)
+    internal_api_url: str = "http://localhost:8000"
+
     @property
     def redis_url(self) -> str:
         """Construct Redis URL with authentication."""

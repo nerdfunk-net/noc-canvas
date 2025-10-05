@@ -81,6 +81,39 @@ async def lifespan(app: FastAPI):
 
     # Connect to cache
     await cache_service.connect()
+
+    # Clean expired cache on startup if configured
+    try:
+        from .core.database import get_db
+        from .services.device_cache_service import DeviceCacheService
+        from .models.settings import AppSettings
+        import json
+
+        db = next(get_db())
+        try:
+            # Get cache settings from database (stored as key-value)
+            cache_settings = db.query(AppSettings).filter(
+                AppSettings.key == "cache_settings"
+            ).first()
+
+            if cache_settings and cache_settings.value:
+                settings_data = json.loads(cache_settings.value)
+                if settings_data.get("cleanExpiredOnStartup", True):  # Default to True
+                    logger.info("🧹 Cleaning expired cache on startup...")
+                    count = DeviceCacheService.clean_expired_cache(db, None)
+                    logger.info(f"✅ Cleaned {count} expired cache entries on startup")
+                else:
+                    logger.info("ℹ️ Clean expired cache on startup is disabled")
+            else:
+                # Default behavior: clean on startup
+                logger.info("🧹 Cleaning expired cache on startup (default)...")
+                count = DeviceCacheService.clean_expired_cache(db, None)
+                logger.info(f"✅ Cleaned {count} expired cache entries on startup")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"⚠️ Could not clean expired cache on startup: {e}")
+
     logger.info("✅ Application startup completed")
 
     yield

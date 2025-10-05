@@ -80,24 +80,50 @@ The Docker setup consists of 5 containers:
 ```
 ┌─────────────────┐    ┌─────────────────┐
 │   noc-frontend  │    │   noc-backend   │
-│   (nginx:alpine)│────│  (python:3.11)  │
+│   (nginx:alpine)│────│  (FastAPI)      │
 │   Port: 3000    │    │   Port: 8000    │
 └─────────────────┘    └─────────────────┘
                               │
+                              │ HTTP (internal)
+                              ▼
                        ┌─────────────────┐
                        │   noc-worker    │
-                       │  (python:3.11)  │
-                       │  (Celery)       │
-                       └─────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-┌─────────────────┐    ┌─────────────────┐  ┌─────────────────┐
-│     postgres    │    │      redis      │  │   noc-network   │
-│ (postgres:15)   │    │  (redis:7-alpine)│  │   (bridge)      │
-│  Port: 5432     │    │   Port: 6379    │  │                 │
-└─────────────────┘    └─────────────────┘  └─────────────────┘
+                       │  (Celery)       │──┐
+                       │                 │  │ Device
+                       └─────────────────┘  │ Commands
+                              │              │ (SSH/Netmiko)
+        ┌─────────────────────┼──────────────┼────────┐
+        │                     │              │        │
+┌─────────────────┐    ┌─────────────────┐  │  ┌───────────────┐
+│     postgres    │    │      redis      │  │  │ Network       │
+│ (postgres:15)   │    │  (redis:8-alpine)│  │  │ Devices       │
+│  Port: 5432     │    │   Port: 6379    │  │  └───────────────┘
+└─────────────────┘    └─────────────────┘  │
+                                             │
+                              ┌──────────────┘
+                              ▼
+                       noc-network (bridge)
 ```
+
+### Container Communication
+
+- **Frontend → Backend**: HTTP requests to `noc-backend:8000`
+- **Worker → Backend**: HTTP requests to `noc-backend:8000` (for device command execution)
+- **Worker → Devices**: Direct SSH connections via Netmiko
+- **Backend/Worker → Database**: PostgreSQL connection to `postgres:5432`
+- **Backend/Worker → Redis**: Redis connection to `redis:6379` (job queue & cache)
+
+### Background Job Architecture
+
+The Celery worker runs topology discovery and other background jobs:
+
+1. **User triggers job** via Frontend → Backend
+2. **Backend submits task** to Celery via Redis queue
+3. **Worker picks up task** and executes it asynchronously
+4. **Worker calls Backend API** to execute device commands (via HTTP to `noc-backend:8000`)
+5. **Backend connects to devices** via SSH/Netmiko and returns data
+6. **Worker caches results** to PostgreSQL database
+7. **User sees progress** and results via Frontend
 
 ## Configuration
 
@@ -134,6 +160,10 @@ The Docker setup consists of 5 containers:
 | `NOC_DATABASE_PORT` | Database port | `5432` |
 | `NOC_REDIS_PASSWORD` | Redis password | `changeme` |
 | `NOC_REDIS_PORT` | Redis port | `6379` |
+| `INTERNAL_API_URL` | Internal API URL for worker | `http://noc-backend:8000` |
+
+**Worker-Specific Variables:**
+- `INTERNAL_API_URL`: The URL the Celery worker uses to call the FastAPI backend for device operations. In Docker, this is `http://noc-backend:8000` (using the container service name). For local development outside Docker, use `http://localhost:8000`.
 
 **Important for Production:**
 - Change `SECRET_KEY` to a secure 64+ character random string

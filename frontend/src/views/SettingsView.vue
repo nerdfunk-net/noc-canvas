@@ -3039,6 +3039,18 @@ onMounted(() => {
     ])
   }
 
+  // Start job status monitoring if jobs tab is active on mount
+  if (activeTab.value === 'jobs') {
+    console.log('🔄 Jobs tab active on mount, starting auto-refresh...')
+    refreshJobStatus()
+    jobStatusInterval = window.setInterval(async () => {
+      if (!loadingJobStatus.value) {
+        await refreshJobStatus()
+      }
+    }, 2000)
+    console.log('▶️ Started job status auto-refresh on mount')
+  }
+
   // Load cache settings from localStorage
   const savedCacheSettings = localStorage.getItem('cacheSettings')
   if (savedCacheSettings) {
@@ -4001,15 +4013,27 @@ const clearAllCache = async () => {
 
 const saveCacheSettings = async () => {
   try {
-    // Save cache settings to localStorage for now
-    // TODO: Implement backend endpoint to persist cache configuration
     const cacheSettings = {
       defaultTtlMinutes: settings.cache.defaultTtlMinutes,
       autoRefreshEnabled: settings.cache.autoRefreshEnabled,
       autoRefreshIntervalMinutes: settings.cache.autoRefreshIntervalMinutes,
       cleanExpiredOnStartup: settings.cache.cleanExpiredOnStartup,
     }
+
+    // Save to localStorage as backup
     localStorage.setItem('cacheSettings', JSON.stringify(cacheSettings))
+
+    // Save to backend database
+    const response = await makeAuthenticatedRequest('/api/settings/cache/settings', {
+      method: 'POST',
+      body: JSON.stringify(cacheSettings)
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to save cache settings to server')
+    }
+
+    console.log('✅ Cache settings saved to database')
 
     notificationStore.addNotification({
       title: 'Settings Saved',

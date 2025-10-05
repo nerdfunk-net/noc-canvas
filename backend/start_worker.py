@@ -23,10 +23,11 @@ except ImportError:
 from app.services.background_jobs import celery_app
 
 if __name__ == "__main__":
-    # Start the Celery worker
+    # Start the Celery worker with prefork pool for Linux/Mac
+    # This allows the worker to remain responsive to control commands even when tasks are running
     celery_app.worker_main([
         'worker',
         '--loglevel=info',
-        '--concurrency=2',
-        '--pool=solo',  # Use solo pool for Windows compatibility, remove for Linux/Mac
+        '--concurrency=4',  # 4 worker processes for parallel task execution
+        '--pool=prefork',   # Prefork pool keeps control thread responsive
     ])

@@ -103,6 +103,8 @@ def discover_single_device_task(
             include_bgp_routes=options.get('include_bgp_routes', True),
             include_mac_table=options.get('include_mac_table', True),
             include_cdp_neighbors=options.get('include_cdp_neighbors', True),
+            include_arp=options.get('include_arp', True),
+            include_interfaces=options.get('include_interfaces', True),
             cache_results=options.get('cache_results', True),
             auth_token=auth_token
         )
@@ -169,6 +171,8 @@ def discover_topology_task(
     include_bgp_routes: bool = True,
     include_mac_table: bool = True,
     include_cdp_neighbors: bool = True,
+    include_arp: bool = True,
+    include_interfaces: bool = True,
     cache_results: bool = True,
     auth_token: str = ""
 ):
@@ -188,6 +192,7 @@ def discover_topology_task(
         include_bgp_routes: Whether to collect BGP routes
         include_mac_table: Whether to collect MAC address table
         include_cdp_neighbors: Whether to collect CDP neighbors
+        include_arp: Whether to collect ARP entries
         cache_results: Whether to cache results to database
         auth_token: Authentication token for API calls
         
@@ -246,6 +251,8 @@ def discover_topology_task(
         'include_bgp_routes': include_bgp_routes,
         'include_mac_table': include_mac_table,
         'include_cdp_neighbors': include_cdp_neighbors,
+        'include_arp': include_arp,
+        'include_interfaces': include_interfaces,
         'cache_results': cache_results
     }
     

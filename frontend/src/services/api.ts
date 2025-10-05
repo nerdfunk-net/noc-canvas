@@ -57,6 +57,28 @@ export interface CanvasListItem {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
+// Track if we're currently refreshing the token to avoid multiple simultaneous refreshes
+let isRefreshing = false
+let refreshSubscribers: ((token: string) => void)[] = []
+
+// Subscribe to token refresh
+const subscribeTokenRefresh = (callback: (token: string) => void) => {
+  refreshSubscribers.push(callback)
+}
+
+// Notify all subscribers when token is refreshed
+const onTokenRefreshed = (token: string) => {
+  refreshSubscribers.forEach(callback => callback(token))
+  refreshSubscribers = []
+}
+
+// Callback for when 401 occurs - to be set by the app
+let on401Callback: (() => void) | null = null
+
+export const set401Handler = (callback: () => void) => {
+  on401Callback = callback
+}
+
 // Helper function to make authenticated requests with proper URL handling
 export const makeAuthenticatedRequest = async (
   endpoint: string,
@@ -75,7 +97,76 @@ export const makeAuthenticatedRequest = async (
     },
   }
 
-  return fetch(url, config)
+  const response = await fetch(url, config)
+
+  // Handle 401 Unauthorized
+  if (response.status === 401) {
+    // Don't try to refresh if we're logging in or refreshing
+    if (endpoint === '/api/auth/login' || endpoint === '/api/auth/refresh') {
+      return response
+    }
+
+    // If already refreshing, wait for the new token
+    if (isRefreshing) {
+      return new Promise((resolve) => {
+        subscribeTokenRefresh((newToken: string) => {
+          // Retry the request with new token
+          const newConfig = {
+            ...config,
+            headers: {
+              ...config.headers,
+              Authorization: `Bearer ${newToken}`,
+            },
+          }
+          resolve(fetch(url, newConfig))
+        })
+      })
+    }
+
+    // Try to refresh the token
+    isRefreshing = true
+    try {
+      const refreshResponse = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (refreshResponse.ok) {
+        const { access_token } = await refreshResponse.json()
+        secureStorage.setToken(access_token)
+        isRefreshing = false
+        onTokenRefreshed(access_token)
+
+        // Retry the original request with new token
+        const newConfig = {
+          ...config,
+          headers: {
+            ...config.headers,
+            Authorization: `Bearer ${access_token}`,
+          },
+        }
+        return fetch(url, newConfig)
+      } else {
+        // Refresh failed, trigger logout
+        isRefreshing = false
+        if (on401Callback) {
+          on401Callback()
+        }
+        return response
+      }
+    } catch (error) {
+      isRefreshing = false
+      if (on401Callback) {
+        on401Callback()
+      }
+      return response
+    }
+  }
+
+  return response
 }
 
 class ApiClient {
@@ -151,6 +242,10 @@ export const authApi = {
 
   async getMe() {
     return apiClient.get<User>('/api/auth/me')
+  },
+
+  async refreshToken() {
+    return apiClient.post<{ access_token: string; token_type: string }>('/api/auth/refresh')
   },
 }
 

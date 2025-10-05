@@ -100,16 +100,19 @@ services:
       NOC_DATABASE_PORT: 5432
       NOC_DATABASE_NAME: ${NOC_DATABASE_NAME:-noc}
       NOC_DATABASE_SSL: "false"
-      
+
       # Redis settings
       NOC_REDIS_HOST: redis
       NOC_REDIS_PORT: 6379
       NOC_REDIS_PASSWORD: ${NOC_REDIS_PASSWORD:-changeme}
       NOC_REDIS_SSL: "false"
-      
+
       # App settings
       SECRET_KEY: ${SECRET_KEY:-your-production-secret-key-change-this}
       ALGORITHM: ${ALGORITHM:-HS256}
+
+      # Internal API URL (for worker to call backend)
+      INTERNAL_API_URL: http://noc-backend:8000
     volumes:
       - app_data:/app/data
     depends_on:

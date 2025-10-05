@@ -117,6 +117,19 @@ async def get_me(current_user: User = Depends(get_current_user)):
     )
 
 
+@router.post("/refresh", response_model=LoginResponse)
+async def refresh_token(current_user: User = Depends(get_current_user)):
+    """
+    Refresh the access token for an authenticated user.
+    This extends the session by issuing a new token with a fresh expiration time.
+    """
+    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+    access_token = create_access_token(
+        data={"sub": current_user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
 class PasswordChangeRequest(BaseModel):
     current_password: str
     new_password: str

@@ -11,10 +11,12 @@ from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 
+from ..core.config import settings
 from ..services.device_cache_service import device_cache_service
 from ..schemas.device_cache import (
     StaticRouteCacheCreate, OSPFRouteCacheCreate, BGPRouteCacheCreate,
-    MACAddressTableCacheCreate, CDPNeighborCacheCreate
+    MACAddressTableCacheCreate, CDPNeighborCacheCreate, ARPCacheCreate,
+    InterfaceCacheCreate, IPAddressCacheCreate
 )
 
 logger = logging.getLogger(__name__)
@@ -39,7 +41,7 @@ class TopologyDiscoveryService:
         Returns:
             API response as dict
         """
-        base_url = "http://localhost:8000"  # Internal API call
+        base_url = settings.internal_api_url
         url = f"{base_url}/api/devices/{device_id}/{endpoint}?use_textfsm=true"
 
         async with httpx.AsyncClient() as client:
@@ -68,7 +70,7 @@ class TopologyDiscoveryService:
         Returns:
             API response as dict
         """
-        base_url = "http://localhost:8000"  # Internal API call
+        base_url = settings.internal_api_url
         url = f"{base_url}/api/devices/{device_id}/{endpoint}?use_textfsm=true"
 
         with httpx.Client() as client:
@@ -180,6 +182,8 @@ class TopologyDiscoveryService:
         include_bgp_routes: bool = True,
         include_mac_table: bool = True,
         include_cdp_neighbors: bool = True,
+        include_arp: bool = True,
+        include_interfaces: bool = True,
         cache_results: bool = True,
         auth_token: str = "",
         db: Optional[Session] = None
@@ -202,7 +206,9 @@ class TopologyDiscoveryService:
             "ospf_routes": [],
             "bgp_routes": [],
             "mac_table": [],
-            "cdp_neighbors": []
+            "cdp_neighbors": [],
+            "arp_entries": [],
+            "interfaces": []
         }
 
         total_tasks = sum([
@@ -210,11 +216,45 @@ class TopologyDiscoveryService:
             include_ospf_routes,
             include_bgp_routes,
             include_mac_table,
-            include_cdp_neighbors
+            include_cdp_neighbors,
+            include_arp,
+            include_interfaces
         ])
         completed_tasks = 0
 
         try:
+            # Interfaces
+            if include_interfaces:
+                TopologyDiscoveryService.update_device_progress(
+                    job_id, device_id, "in_progress",
+                    int(completed_tasks / total_tasks * 100),
+                    "Discovering interfaces"
+                )
+                try:
+                    logger.info(f"📍 Calling API endpoint for interfaces on device {device_id}")
+                    result = await TopologyDiscoveryService._call_device_endpoint(
+                        device_id=device_id,
+                        endpoint="interfaces",
+                        auth_token=auth_token
+                    )
+                    logger.info(f"📍 Interfaces Result: success={result.get('success')}, output type={type(result.get('output'))}")
+
+                    if result.get("success") and isinstance(result.get("output"), list):
+                        device_data["interfaces"] = result["output"]
+                        logger.info(f"✅ Got {len(result['output'])} interfaces")
+
+                        # Cache if requested
+                        if cache_results and db:
+                            await TopologyDiscoveryService._cache_interfaces(
+                                db, device_id, result["output"]
+                            )
+                    else:
+                        logger.warning(f"⚠️ No interfaces data: success={result.get('success')}, output={result.get('output')}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to get interfaces for {device_id}: {e}", exc_info=True)
+
+                completed_tasks += 1
+
             # Static Routes
             if include_static_routes:
                 TopologyDiscoveryService.update_device_progress(
@@ -351,6 +391,38 @@ class TopologyDiscoveryService:
 
                 completed_tasks += 1
 
+            # ARP Entries
+            if include_arp:
+                TopologyDiscoveryService.update_device_progress(
+                    job_id, device_id, "in_progress",
+                    int(completed_tasks / total_tasks * 100),
+                    "Discovering ARP entries"
+                )
+                try:
+                    logger.info(f"📍 Calling API endpoint for ARP entries on device {device_id}")
+                    result = await TopologyDiscoveryService._call_device_endpoint(
+                        device_id=device_id,
+                        endpoint="ip-arp",
+                        auth_token=auth_token
+                    )
+                    logger.info(f"📍 ARP Result: success={result.get('success')}, output type={type(result.get('output'))}")
+
+                    if result.get("success") and isinstance(result.get("output"), list):
+                        device_data["arp_entries"] = result["output"]
+                        logger.info(f"✅ Got {len(result['output'])} ARP entries")
+
+                        # Cache if requested
+                        if cache_results and db:
+                            await TopologyDiscoveryService._cache_arp_entries(
+                                db, device_id, result["output"]
+                            )
+                    else:
+                        logger.warning(f"⚠️ No ARP data: success={result.get('success')}, output={result.get('output')}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to get ARP entries for {device_id}: {e}", exc_info=True)
+
+                completed_tasks += 1
+
             TopologyDiscoveryService.update_device_progress(
                 job_id, device_id, "completed", 100, "Discovery completed"
             )
@@ -376,6 +448,8 @@ class TopologyDiscoveryService:
         include_bgp_routes: bool = True,
         include_mac_table: bool = True,
         include_cdp_neighbors: bool = True,
+        include_arp: bool = True,
+        include_interfaces: bool = True,
         cache_results: bool = True,
         auth_token: str = ""
     ) -> Dict[str, Any]:
@@ -405,7 +479,9 @@ class TopologyDiscoveryService:
             "ospf_routes": [],
             "bgp_routes": [],
             "mac_table": [],
-            "cdp_neighbors": []
+            "cdp_neighbors": [],
+            "arp_entries": [],
+            "interfaces": []
         }
 
         total_tasks = sum([
@@ -413,7 +489,9 @@ class TopologyDiscoveryService:
             include_ospf_routes,
             include_bgp_routes,
             include_mac_table,
-            include_cdp_neighbors
+            include_cdp_neighbors,
+            include_arp,
+            include_interfaces
         ])
         completed_tasks = 0
 
@@ -564,6 +642,74 @@ class TopologyDiscoveryService:
 
                 completed_tasks += 1
 
+            # ARP Entries
+            if include_arp:
+                task.update_state(
+                    state='PROGRESS',
+                    meta={
+                        'progress': int(completed_tasks / total_tasks * 100),
+                        'current_task': 'Discovering ARP entries'
+                    }
+                )
+                try:
+                    logger.info(f"📍 Calling API endpoint for ARP entries on device {device_id}")
+                    result = TopologyDiscoveryService._call_device_endpoint_sync(
+                        device_id=device_id,
+                        endpoint="ip-arp",
+                        auth_token=auth_token
+                    )
+                    logger.info(f"📍 ARP Result: success={result.get('success')}, output type={type(result.get('output'))}")
+
+                    if result.get("success") and isinstance(result.get("output"), list):
+                        device_data["arp_entries"] = result["output"]
+                        logger.info(f"✅ Got {len(result['output'])} ARP entries")
+
+                        # Cache if requested
+                        if cache_results:
+                            TopologyDiscoveryService._cache_arp_entries_sync(
+                                db, device_id, result["output"]
+                            )
+                    else:
+                        logger.warning(f"⚠️ No ARP data: success={result.get('success')}, output={result.get('output')}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to get ARP entries for {device_id}: {e}", exc_info=True)
+
+                completed_tasks += 1
+
+            # Interfaces
+            if include_interfaces:
+                task.update_state(
+                    state='PROGRESS',
+                    meta={
+                        'progress': int(completed_tasks / total_tasks * 100),
+                        'current_task': 'Discovering interfaces'
+                    }
+                )
+                try:
+                    logger.info(f"📍 Calling API endpoint for interfaces on device {device_id}")
+                    result = TopologyDiscoveryService._call_device_endpoint_sync(
+                        device_id=device_id,
+                        endpoint="interfaces",
+                        auth_token=auth_token
+                    )
+                    logger.info(f"📍 Interfaces Result: success={result.get('success')}, output type={type(result.get('output'))}")
+
+                    if result.get("success") and isinstance(result.get("output"), list):
+                        device_data["interfaces"] = result["output"]
+                        logger.info(f"✅ Got {len(result['output'])} interfaces")
+
+                        # Cache if requested
+                        if cache_results:
+                            TopologyDiscoveryService._cache_interfaces_sync(
+                                db, device_id, result["output"]
+                            )
+                    else:
+                        logger.warning(f"⚠️ No interfaces data: success={result.get('success')}, output={result.get('output')}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to get interfaces for {device_id}: {e}", exc_info=True)
+
+                completed_tasks += 1
+
             task.update_state(
                 state='PROGRESS',
                 meta={
@@ -604,6 +750,16 @@ class TopologyDiscoveryService:
     @staticmethod
     async def _cache_cdp_neighbors(db: Session, device_id: str, neighbors: List[Dict[str, Any]]):
         """Cache CDP neighbors to database."""
+        pass
+
+    @staticmethod
+    async def _cache_arp_entries(db: Session, device_id: str, arp_entries: List[Dict[str, Any]]):
+        """Cache ARP entries to database."""
+        pass
+
+    @staticmethod
+    async def _cache_interfaces(db: Session, device_id: str, interfaces: List[Dict[str, Any]]):
+        """Cache interfaces to database."""
         pass
 
     # Synchronous cache methods for Celery workers
@@ -791,6 +947,121 @@ class TopologyDiscoveryService:
             logger.error(f"Failed to cache CDP neighbors for {device_id}: {e}")
 
     @staticmethod
+    def _cache_arp_entries_sync(db: Session, device_id: str, arp_entries: List[Dict[str, Any]]):
+        """Synchronous cache method for ARP entries."""
+        try:
+            cache_entries = []
+            for entry in arp_entries:
+                # Handle case-insensitive field names
+                protocol = entry.get("protocol") or entry.get("PROTOCOL") or "Internet"
+                address = entry.get("address") or entry.get("ADDRESS") or ""
+                age = entry.get("age") or entry.get("AGE") or ""
+                mac = entry.get("mac") or entry.get("MAC") or ""
+                interface = entry.get("interface") or entry.get("INTERFACE") or ""
+
+                # Handle list values (some parsers return lists)
+                if isinstance(protocol, list):
+                    protocol = protocol[0] if protocol else "Internet"
+                if isinstance(address, list):
+                    address = address[0] if address else ""
+                if isinstance(age, list):
+                    age = age[0] if age else ""
+                if isinstance(mac, list):
+                    mac = mac[0] if mac else ""
+                if isinstance(interface, list):
+                    interface = interface[0] if interface else ""
+
+                # Convert age to integer or None
+                age_int = None
+                if age and age.strip() and age.strip() != '-':
+                    try:
+                        age_int = int(age.strip())
+                    except ValueError:
+                        # If age can't be converted to int, leave it as None
+                        pass
+
+                cache_entry = ARPCacheCreate(
+                    device_id=device_id,
+                    ip_address=address.strip() if address else "",
+                    mac_address=mac.strip() if mac else "",
+                    interface_name=interface.strip() if interface else None,
+                    arp_type=protocol.strip() if protocol else None,
+                    age=age_int
+                )
+                cache_entries.append(cache_entry)
+
+            # Use bulk replace method
+            if cache_entries:
+                device_cache_service.bulk_replace_arp(db, device_id, cache_entries)
+                logger.debug(f"Cached {len(cache_entries)} ARP entries for device {device_id}")
+        except Exception as e:
+            logger.error(f"Failed to cache ARP entries for {device_id}: {e}")
+
+    @staticmethod
+    def _cache_interfaces_sync(db: Session, device_id: str, interfaces: List[Dict[str, Any]]):
+        """Synchronous cache method for interfaces."""
+        try:
+            interface_entries = []
+            ip_entries = []
+
+            for iface in interfaces:
+                # Determine status from link_status and protocol_status
+                link_status = iface.get("link_status", "").lower()
+                protocol_status = iface.get("protocol_status", "").lower()
+
+                # Combine statuses (e.g., "up/up", "down/down", "up/down")
+                status = None
+                if link_status or protocol_status:
+                    status = f"{link_status or 'unknown'}/{protocol_status or 'unknown'}"
+
+                # Create interface entry
+                interface_entry = InterfaceCacheCreate(
+                    device_id=device_id,
+                    interface_name=iface.get("name") or iface.get("interface", ""),
+                    description=iface.get("description"),
+                    mac_address=iface.get("mac_address") or iface.get("phys_address"),
+                    status=status,
+                    speed=iface.get("bandwidth"),
+                    duplex=iface.get("duplex"),
+                    vlan_id=None  # Parse from interface name if needed (e.g., Gi0/0.100)
+                )
+                interface_entries.append(interface_entry)
+
+                # Create IP address entries if present
+                ip_address = iface.get("ip_address")
+                if ip_address and ip_address != "unassigned":
+                    # Parse IP and subnet mask if in CIDR format (e.g., "10.0.0.1/24")
+                    subnet_mask = None
+                    if "/" in ip_address:
+                        ip_addr, prefix = ip_address.split("/")
+                        ip_address = ip_addr
+                        subnet_mask = prefix  # Can be converted to dotted decimal if needed
+
+                    ip_entry = IPAddressCacheCreate(
+                        device_id=device_id,
+                        interface_id=None,  # Will be set by bulk_replace
+                        interface_name=iface.get("name") or iface.get("interface", ""),
+                        ip_address=ip_address,
+                        subnet_mask=subnet_mask,
+                        ip_version=4 if "." in ip_address else 6,
+                        is_primary=False
+                    )
+                    ip_entries.append(ip_entry)
+
+            # Use upsert for interfaces (bulk methods don't exist yet)
+            if interface_entries:
+                for interface_entry in interface_entries:
+                    device_cache_service.upsert_interface(db, interface_entry)
+                logger.debug(f"Cached {len(interface_entries)} interfaces for device {device_id}")
+
+            # Note: IP address caching would need upsert_ip_address method
+            # Skipping IP address caching for now as bulk method doesn't exist
+            if ip_entries:
+                logger.debug(f"Skipping {len(ip_entries)} IP addresses (bulk method not implemented)")
+        except Exception as e:
+            logger.error(f"Failed to cache interfaces for {device_id}: {e}")
+
+    @staticmethod
     async def discover_topology(
         device_ids: List[str],
         include_static_routes: bool = True,
@@ -798,6 +1069,8 @@ class TopologyDiscoveryService:
         include_bgp_routes: bool = True,
         include_mac_table: bool = True,
         include_cdp_neighbors: bool = True,
+        include_arp: bool = True,
+        include_interfaces: bool = True,
         cache_results: bool = True,
         auth_token: str = "",
         db: Optional[Session] = None
@@ -818,7 +1091,7 @@ class TopologyDiscoveryService:
 
         logger.info(f"🚀 Starting topology discovery for {len(device_ids)} devices (job: {job_id})")
         logger.info(f"   Device IDs: {device_ids}")
-        logger.info(f"   Options: static={include_static_routes}, ospf={include_ospf_routes}, bgp={include_bgp_routes}, mac={include_mac_table}, cdp={include_cdp_neighbors}")
+        logger.info(f"   Options: static={include_static_routes}, ospf={include_ospf_routes}, bgp={include_bgp_routes}, mac={include_mac_table}, cdp={include_cdp_neighbors}, arp={include_arp}, interfaces={include_interfaces}")
 
         TopologyDiscoveryService.update_job_status(job_id, "in_progress")
 
@@ -837,6 +1110,8 @@ class TopologyDiscoveryService:
                     include_bgp_routes=include_bgp_routes,
                     include_mac_table=include_mac_table,
                     include_cdp_neighbors=include_cdp_neighbors,
+                    include_arp=include_arp,
+                    include_interfaces=include_interfaces,
                     cache_results=cache_results,
                     auth_token=auth_token,
                     db=db

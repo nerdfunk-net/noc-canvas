@@ -41,6 +41,7 @@ if CELERY_AVAILABLE and celery_app:
         task_soft_time_limit=25 * 60,  # 25 minutes
         worker_prefetch_multiplier=1,
         worker_max_tasks_per_child=1000,
+        result_extended=True,  # Store task name and other metadata in results
     )
 
 

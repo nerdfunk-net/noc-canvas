@@ -24,10 +24,13 @@ A Network Operation Center (NOC) canvas application for visualizing and managing
 
 ### Backend
 - **FastAPI** with Python
-- **SQLite** database
+- **PostgreSQL** database (SQLite for local development)
 - **SQLAlchemy** ORM
 - **JWT** authentication
 - **Pydantic** for data validation
+- **Celery** for background job processing
+- **Redis** for caching and job queue
+- **Netmiko** for device SSH connections
 
 ## Project Structure
 
@@ -57,9 +60,16 @@ A Network Operation Center (NOC) canvas application for visualizing and managing
 
 ### Prerequisites
 
+**For Local Development:**
 - Node.js 18+ and npm
-- Python 3.8+
+- Python 3.11+
+- Redis 6+ (for background jobs)
+- PostgreSQL 15+ (or SQLite for simple local dev)
 - Git
+
+**For Docker Deployment:**
+- Docker 20.10+
+- Docker Compose 2.0+
 
 ### Backend Setup
 
@@ -79,12 +89,27 @@ A Network Operation Center (NOC) canvas application for visualizing and managing
    pip install -r requirements.txt
    ```
 
-4. Start the development server:
+4. Configure environment variables (optional):
+   ```bash
+   # Create .env file or set environment variables
+   export INTERNAL_API_URL=http://localhost:8000
+   export NOC_REDIS_HOST=localhost
+   export NOC_REDIS_PORT=6379
+   ```
+
+5. Start the development server:
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
+6. Start the Celery worker (in a separate terminal):
+   ```bash
+   python start_worker.py
+   ```
+
 The backend API will be available at `http://localhost:8000`
+
+**Note:** For background jobs (topology discovery, etc.) to work, both the FastAPI server and Celery worker must be running, along with Redis.
 
 ### Frontend Setup
 
@@ -105,6 +130,33 @@ The backend API will be available at `http://localhost:8000`
 
 The frontend will be available at `http://localhost:3000`
 
+### Docker Deployment
+
+For production or containerized environments:
+
+1. Navigate to the docker directory:
+   ```bash
+   cd docker
+   ```
+
+2. Configure environment variables:
+   ```bash
+   cp .env.template .env
+   # Edit .env with your configuration
+   ```
+
+3. Start all services:
+   ```bash
+   docker-compose up -d
+   ```
+
+Services will be available at:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
+For detailed Docker documentation, see [docker/README.md](docker/README.md)
+
 ### Development Commands
 
 #### Frontend
@@ -115,8 +167,15 @@ The frontend will be available at `http://localhost:3000`
 - `npm run format` - Format code with Prettier
 
 #### Backend
-- `uvicorn app.main:app --reload` - Start development server
+- `uvicorn app.main:app --reload` - Start FastAPI development server
+- `python start_worker.py` - Start Celery worker for background jobs
 - `python -m pytest` - Run tests (when implemented)
+
+#### Docker
+- `docker-compose up -d` - Start all services in background
+- `docker-compose logs -f` - View logs
+- `docker-compose down` - Stop all services
+- `docker-compose ps` - View service status
 
 ## Usage
 
@@ -162,12 +221,46 @@ The application supports four main device types:
 
 Each device type has customizable properties and visual representation.
 
+## Background Jobs & Topology Discovery
+
+The application uses Celery for asynchronous background job processing:
+
+### Topology Discovery
+- **Automatic Discovery**: Discover network topology by SSH connection to devices
+- **Device Data Collection**: Interfaces, IP addresses, ARP tables, MAC tables, routing information
+- **CDP/LLDP Neighbors**: Automatic neighbor discovery
+- **Background Processing**: Non-blocking execution via Celery workers
+- **Progress Tracking**: Real-time job progress updates
+- **Caching**: Results cached to database for quick access
+
+### Worker Architecture
+
+In **local development**:
+- Celery worker calls `http://localhost:8000` to execute device commands
+- FastAPI backend connects to devices via SSH/Netmiko
+- Worker caches results to database
+
+In **Docker deployment**:
+- Celery worker calls `http://noc-backend:8000` (internal Docker network)
+- Same workflow, but using container service names
+- Configured via `INTERNAL_API_URL` environment variable
+
+### Supported Discovery Features
+- ✅ Network interfaces
+- ✅ IP addresses
+- ✅ ARP entries
+- ✅ Static routes
+- ✅ OSPF routes
+- ✅ BGP routes
+- ✅ MAC address tables
+- ✅ CDP neighbors
+
 ## Plugin System
 
-The application includes a mock plugin system for inventory sources:
+The application includes a plugin system for inventory sources:
 
-- **Nautobot Integration**: Mock connector for Nautobot DCIM
-- **CheckMK Integration**: Mock connector for CheckMK monitoring
+- **Nautobot Integration**: Connector for Nautobot DCIM
+- **CheckMK Integration**: Connector for CheckMK monitoring
 - **Manual Entry**: Direct device creation interface
 
 ## Contributing

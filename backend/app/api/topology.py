@@ -295,6 +295,8 @@ async def discover_topology_async(
                 "include_bgp_routes": request.include_bgp_routes,
                 "include_mac_table": request.include_mac_table,
                 "include_cdp_neighbors": request.include_cdp_neighbors,
+                "include_arp": request.include_arp,
+                "include_interfaces": request.include_interfaces,
                 "cache_results": request.cache_results,
                 "auth_token": credentials.credentials
             }
@@ -356,6 +358,8 @@ async def discover_topology_sync(
             include_bgp_routes=request.include_bgp_routes,
             include_mac_table=request.include_mac_table,
             include_cdp_neighbors=request.include_cdp_neighbors,
+            include_arp=request.include_arp,
+            include_interfaces=request.include_interfaces,
             cache_results=request.cache_results,
             auth_token=credentials.credentials,
             db=db
@@ -418,6 +422,8 @@ async def discover_topology(
                     include_bgp_routes=request.include_bgp_routes,
                     include_mac_table=request.include_mac_table,
                     include_cdp_neighbors=request.include_cdp_neighbors,
+                    include_arp=request.include_arp,
+                    include_interfaces=request.include_interfaces,
                     cache_results=request.cache_results,
                     auth_token=credentials.credentials,
                     db=db
@@ -443,6 +449,8 @@ async def discover_topology(
                 include_bgp_routes=request.include_bgp_routes,
                 include_mac_table=request.include_mac_table,
                 include_cdp_neighbors=request.include_cdp_neighbors,
+                include_arp=request.include_arp,
+                include_interfaces=request.include_interfaces,
                 cache_results=request.cache_results,
                 auth_token=credentials.credentials,
                 db=db

@@ -34,8 +34,24 @@ class DeviceCacheService:
 
     @staticmethod
     def get_device(db: Session, device_id: str) -> Optional[DeviceCache]:
-        """Get device cache by device ID."""
-        return db.query(DeviceCache).filter(DeviceCache.device_id == device_id).first()
+        """Get device cache by device ID with all related data eagerly loaded."""
+        from sqlalchemy.orm import joinedload
+
+        return (
+            db.query(DeviceCache)
+            .options(
+                joinedload(DeviceCache.interfaces).joinedload('ip_addresses'),
+                joinedload(DeviceCache.ip_addresses),
+                joinedload(DeviceCache.arp_entries),
+                joinedload(DeviceCache.static_routes),
+                joinedload(DeviceCache.ospf_routes),
+                joinedload(DeviceCache.bgp_routes),
+                joinedload(DeviceCache.mac_table_entries),
+                joinedload(DeviceCache.cdp_neighbors),
+            )
+            .filter(DeviceCache.device_id == device_id)
+            .first()
+        )
 
     @staticmethod
     def get_device_cache(db: Session, device_id: str) -> Optional[DeviceCache]:

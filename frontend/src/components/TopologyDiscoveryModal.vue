@@ -315,6 +315,8 @@ const includeOspfRoutes = ref(true)
 const includeBgpRoutes = ref(true)
 const includeMacTable = ref(true)
 const includeCdpNeighbors = ref(true)
+const includeArp = ref(true)
+const includeInterfaces = ref(true)
 const runInBackground = ref(false)
 const cacheResults = ref(true)
 const discovering = ref(false)
@@ -398,6 +400,8 @@ const startDiscovery = async () => {
         include_bgp_routes: includeBgpRoutes.value,
         include_mac_table: includeMacTable.value,
         include_cdp_neighbors: includeCdpNeighbors.value,
+        include_arp: includeArp.value,
+        include_interfaces: includeInterfaces.value,
         cache_results: cacheResults.value
       })
     })

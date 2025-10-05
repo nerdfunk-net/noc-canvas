@@ -99,6 +99,8 @@ class TopologyDiscoveryRequest(BaseModel):
     include_bgp_routes: bool = True
     include_mac_table: bool = True
     include_cdp_neighbors: bool = True
+    include_arp: bool = True
+    include_interfaces: bool = True
     run_in_background: bool = False
     cache_results: bool = True
 

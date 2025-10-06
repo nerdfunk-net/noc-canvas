@@ -13,7 +13,10 @@ from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..services.device_cache_service import device_cache_service
+from ..services.device_communication import DeviceCommunicationService
+from ..services.nautobot import nautobot_service
 from ..schemas.device_cache import (
+    DeviceCacheCreate,
     StaticRouteCacheCreate, OSPFRouteCacheCreate, BGPRouteCacheCreate,
     MACAddressTableCacheCreate, CDPNeighborCacheCreate, ARPCacheCreate,
     InterfaceCacheCreate, IPAddressCacheCreate
@@ -27,6 +30,22 @@ _discovery_jobs: Dict[str, Dict[str, Any]] = {}
 
 class TopologyDiscoveryService:
     """Service for discovering topology data from devices."""
+
+    # Command mapping for different endpoints
+    ENDPOINT_COMMANDS = {
+        "interfaces": "show interfaces",
+        "ip-arp": "show ip arp",
+        "cdp-neighbors": "show cdp neighbors",
+        "mac-address-table": "show mac address-table",
+        "ip-route/static": "show ip route static",
+        "ip-route/ospf": "show ip route ospf",
+        "ip-route/bgp": "show ip route bgp",
+    }
+
+    @staticmethod
+    def _get_device_command(endpoint: str) -> str:
+        """Get the device command for an endpoint."""
+        return TopologyDiscoveryService.ENDPOINT_COMMANDS.get(endpoint, f"show {endpoint}")
 
     @staticmethod
     async def _call_device_endpoint(device_id: str, endpoint: str, auth_token: str) -> Dict[str, Any]:
@@ -58,33 +77,85 @@ class TopologyDiscoveryService:
                 return {"success": False, "error": f"HTTP {response.status_code}"}
 
     @staticmethod
+    def _get_username_from_token(auth_token: str) -> str:
+        """Extract username from JWT token."""
+        try:
+            from jose import jwt
+            from ..core.config import settings
+
+            payload = jwt.decode(auth_token, settings.secret_key, algorithms=[settings.algorithm])
+            return payload.get("sub", "admin")  # Default to 'admin' if not found
+        except Exception as e:
+            logger.warning(f"Could not decode token: {e}, using default username 'admin'")
+            return "admin"
+
+    @staticmethod
     def _call_device_endpoint_sync(device_id: str, endpoint: str, auth_token: str) -> Dict[str, Any]:
         """
-        Synchronous version of device endpoint call for Celery workers.
+        Direct device command execution for Celery workers (no HTTP calls).
 
         Args:
             device_id: The device ID
             endpoint: The endpoint path (e.g., 'cdp-neighbors', 'ip-route/static')
-            auth_token: Authentication token for internal API call
+            auth_token: Authentication token (used to extract username)
 
         Returns:
-            API response as dict
+            Command execution result as dict
         """
-        base_url = settings.internal_api_url
-        url = f"{base_url}/api/devices/{device_id}/{endpoint}?use_textfsm=true"
+        try:
+            # Extract username from token
+            username = TopologyDiscoveryService._get_username_from_token(auth_token)
 
-        with httpx.Client() as client:
-            response = client.get(
-                url,
-                headers={"Authorization": f"Bearer {auth_token}"},
-                timeout=30.0
-            )
+            # Get the command for this endpoint
+            command = TopologyDiscoveryService._get_device_command(endpoint)
 
-            if response.status_code == 200:
-                return response.json()
-            else:
-                logger.error(f"API call failed: {response.status_code} - {response.text}")
-                return {"success": False, "error": f"HTTP {response.status_code}"}
+            # Define async function to get device info and execute command
+            async def execute_device_command():
+                # Get device info from Nautobot (returns raw GraphQL structure)
+                device_data = await nautobot_service.get_device(device_id, username)
+                if not device_data:
+                    logger.error(f"Device {device_id} not found in Nautobot")
+                    return {"success": False, "error": "Device not found"}
+
+                # Transform device data to match expected structure
+                # The GraphQL response has nested structure, but DeviceCommunicationService
+                # expects a flat structure with network_driver at top level
+                primary_ip4 = device_data.get("primary_ip4")
+                if not primary_ip4 or not primary_ip4.get("address"):
+                    logger.error(f"Device {device_id} does not have a primary IPv4 address")
+                    return {"success": False, "error": "Device does not have a primary IPv4 address"}
+
+                platform_info = device_data.get("platform")
+                if not platform_info or not platform_info.get("network_driver"):
+                    logger.error(f"Device {device_id} does not have a platform/network_driver configured")
+                    return {"success": False, "error": "Device platform or network_driver not configured"}
+
+                # Create transformed device info with flattened structure
+                device_info = {
+                    "device_id": device_id,
+                    "name": device_data.get("name", ""),
+                    "primary_ip": primary_ip4["address"].split("/")[0],  # Remove subnet mask
+                    "platform": platform_info.get("name", ""),
+                    "network_driver": platform_info["network_driver"]
+                }
+
+                # Execute command directly using DeviceCommunicationService
+                device_service = DeviceCommunicationService()
+                result = await device_service.execute_command(
+                    device_info=device_info,
+                    command=command,
+                    username=username,
+                    parser="TEXTFSM"
+                )
+                return result
+
+            # Use asyncio.run for sync context (Celery worker)
+            result = asyncio.run(execute_device_command())
+            return result
+
+        except Exception as e:
+            logger.error(f"Direct device call failed for {device_id}/{endpoint}: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
 
     @staticmethod
     def create_job(device_ids: List[str]) -> str:
@@ -496,6 +567,44 @@ class TopologyDiscoveryService:
         completed_tasks = 0
 
         try:
+            # Ensure device cache entry exists before caching any data
+            # This is required because all cache tables have foreign key constraints
+            # that reference the device_cache table
+            if cache_results:
+                try:
+                    # Extract username from token to get device info
+                    username = TopologyDiscoveryService._get_username_from_token(auth_token)
+                    
+                    # Get device info from Nautobot to populate device cache
+                    async def get_device_info():
+                        return await nautobot_service.get_device(device_id, username)
+                    
+                    device_info = asyncio.run(get_device_info())
+                    
+                    if device_info:
+                        # Extract primary IP
+                        primary_ip4 = device_info.get("primary_ip4")
+                        primary_ip = primary_ip4["address"].split("/")[0] if primary_ip4 and primary_ip4.get("address") else None
+                        
+                        # Extract platform
+                        platform_info = device_info.get("platform")
+                        platform = platform_info.get("name") if platform_info else None
+                        
+                        # Create or update device cache entry
+                        device_cache_data = DeviceCacheCreate(
+                            device_id=device_id,
+                            device_name=device_info.get("name", ""),
+                            primary_ip=primary_ip,
+                            platform=platform
+                        )
+                        device_cache_service.get_or_create_device_cache(db, device_cache_data)
+                        logger.info(f"✅ Device cache entry ensured for {device_id}")
+                    else:
+                        logger.warning(f"⚠️ Could not get device info from Nautobot for {device_id}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to create device cache entry for {device_id}: {e}")
+                    # Continue anyway - caching will fail but data will still be returned
+
             # Static Routes
             if include_static_routes:
                 task.update_state(
@@ -785,7 +894,8 @@ class TopologyDiscoveryService:
                 logger.debug(f"Cached {len(routes)} static routes for device {device_id}")
         except Exception as e:
             logger.error(f"Failed to cache static routes for {device_id}: {e}")
-            # Don't raise - caching is non-critical
+            # Rollback the session to recover from the error
+            db.rollback()
 
     @staticmethod
     def _cache_ospf_routes_sync(db: Session, device_id: str, routes: List[Dict[str, Any]]):
@@ -811,6 +921,7 @@ class TopologyDiscoveryService:
                 logger.debug(f"Cached {len(routes)} OSPF routes for device {device_id}")
         except Exception as e:
             logger.error(f"Failed to cache OSPF routes for {device_id}: {e}")
+            db.rollback()
 
     @staticmethod
     def _cache_bgp_routes_sync(db: Session, device_id: str, routes: List[Dict[str, Any]]):
@@ -835,6 +946,7 @@ class TopologyDiscoveryService:
                 logger.debug(f"Cached {len(routes)} BGP routes for device {device_id}")
         except Exception as e:
             logger.error(f"Failed to cache BGP routes for {device_id}: {e}")
+            db.rollback()
 
     @staticmethod
     def _cache_mac_table_sync(db: Session, device_id: str, mac_entries: List[Dict[str, Any]]):
@@ -857,6 +969,7 @@ class TopologyDiscoveryService:
                 logger.debug(f"Cached {len(mac_entries)} MAC entries for device {device_id}")
         except Exception as e:
             logger.error(f"Failed to cache MAC table for {device_id}: {e}")
+            db.rollback()
 
     @staticmethod
     def _cache_cdp_neighbors_sync(db: Session, device_id: str, neighbors: List[Dict[str, Any]]):
@@ -945,6 +1058,7 @@ class TopologyDiscoveryService:
                 logger.debug(f"Cached {len(cache_entries)} CDP neighbors for device {device_id}")
         except Exception as e:
             logger.error(f"Failed to cache CDP neighbors for {device_id}: {e}")
+            db.rollback()
 
     @staticmethod
     def _cache_arp_entries_sync(db: Session, device_id: str, arp_entries: List[Dict[str, Any]]):
@@ -996,6 +1110,7 @@ class TopologyDiscoveryService:
                 logger.debug(f"Cached {len(cache_entries)} ARP entries for device {device_id}")
         except Exception as e:
             logger.error(f"Failed to cache ARP entries for {device_id}: {e}")
+            db.rollback()
 
     @staticmethod
     def _cache_interfaces_sync(db: Session, device_id: str, interfaces: List[Dict[str, Any]]):
@@ -1060,6 +1175,7 @@ class TopologyDiscoveryService:
                 logger.debug(f"Skipping {len(ip_entries)} IP addresses (bulk method not implemented)")
         except Exception as e:
             logger.error(f"Failed to cache interfaces for {device_id}: {e}")
+            db.rollback()
 
     @staticmethod
     async def discover_topology(

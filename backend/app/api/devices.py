@@ -35,6 +35,7 @@ class DeviceCommandResponse(BaseModel):
     execution_time: Optional[float] = None
     parsed: Optional[bool] = None  # Indicates if output was parsed
     parser_used: Optional[str] = None  # Which parser was used
+    cached: Optional[bool] = None  # Indicates if output came from cache
 
 
 class DeviceConnectionInfo(BaseModel):
@@ -143,6 +144,7 @@ async def get_running_config(
             execution_time=result.get("execution_time"),
             parsed=result.get("parsed", False),
             parser_used=result.get("parser_used"),
+            cached=False,
         )
 
     except HTTPException:
@@ -186,6 +188,7 @@ async def get_startup_config(
             execution_time=result.get("execution_time"),
             parsed=result.get("parsed", False),
             parser_used=result.get("parser_used"),
+            cached=False,
         )
 
     except HTTPException:
@@ -1060,6 +1063,7 @@ async def get_access_lists(
 async def get_interfaces(
     device_id: str,
     use_textfsm: bool = False,
+    disable_cache: bool = False,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1068,6 +1072,7 @@ async def get_interfaces(
     Args:
         device_id: The ID of the device to query
         use_textfsm: If True, parse output using TextFSM and cache the results. Default is False.
+        disable_cache: If True, bypass cache and execute command directly. Cache will still be updated. Default is False.
         current_user: The authenticated user
         db: Database session
 
@@ -1084,10 +1089,10 @@ async def get_interfaces(
         # Get device connection information
         device_info = await get_device_connection_info(device_id, username)
 
-        # Check if we have valid cached data when TextFSM parsing is requested
+        # Check if we have valid cached data when TextFSM parsing is requested and cache is not disabled
         cached_output = None
         used_cache = False
-        if use_textfsm:
+        if use_textfsm and not disable_cache:
             try:
                 import json
                 from app.services.json_cache_service import JSONCacheService
@@ -1239,6 +1244,7 @@ async def get_interfaces(
             execution_time=result.get("execution_time"),
             parsed=result.get("parsed", False),
             parser_used=result.get("parser_used"),
+            cached=used_cache,
         )
 
     except HTTPException:
@@ -1302,6 +1308,7 @@ async def send_custom_command(
             execution_time=result.get("execution_time"),
             parsed=result.get("parsed", False),
             parser_used=result.get("parser_used"),
+            cached=False,
         )
 
     except HTTPException:

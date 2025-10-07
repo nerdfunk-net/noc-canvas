@@ -12,6 +12,12 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
           {{ deviceName }} - Interfaces
+          <span v-if="isCached" class="ml-2 px-3 py-1 text-sm font-medium bg-amber-400 text-amber-900 rounded-full flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Cached
+          </span>
         </h3>
         <button
           @click="close"
@@ -176,7 +182,20 @@
       </div>
 
       <!-- Footer -->
-      <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+      <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+        <div>
+          <button
+            v-if="isCached && !loading"
+            @click="reloadData"
+            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center gap-2"
+            type="button"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Reload Data
+          </button>
+        </div>
         <button
           @click="close"
           class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
@@ -223,6 +242,7 @@ const error = ref<string | null>(null)
 const interfaces = ref<InterfaceData[]>([])
 const selectedInterface = ref<InterfaceData | null>(null)
 const searchQuery = ref('')
+const isCached = ref(false)
 
 const filteredInterfaces = computed(() => {
   if (!searchQuery.value.trim()) {
@@ -319,21 +339,23 @@ const selectInterface = (iface: InterfaceData) => {
   selectedInterface.value = iface
 }
 
-const loadInterfaces = async () => {
+const loadInterfaces = async (disableCache: boolean = false) => {
   if (!props.deviceId) return
 
   loading.value = true
   error.value = null
   interfaces.value = []
   selectedInterface.value = null
+  isCached.value = false
 
   try {
-    console.log('🔄 Loading interfaces for device:', props.deviceId)
-    const response = await devicesApi.getInterfaces(props.deviceId, true) // true = use TextFSM
+    console.log('🔄 Loading interfaces for device:', props.deviceId, disableCache ? '(bypassing cache)' : '')
+    const response = await devicesApi.getInterfaces(props.deviceId, true, disableCache) // true = use TextFSM, disableCache parameter
 
     if (response.success && Array.isArray(response.output)) {
       interfaces.value = response.output
-      console.log('✅ Loaded', interfaces.value.length, 'interfaces')
+      isCached.value = response.cached === true
+      console.log('✅ Loaded', interfaces.value.length, 'interfaces', isCached.value ? '(from cache)' : '(fresh data)')
       
       // Auto-select first interface
       if (interfaces.value.length > 0) {
@@ -348,6 +370,10 @@ const loadInterfaces = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const reloadData = () => {
+  loadInterfaces(true) // Pass true to disable cache
 }
 
 const close = () => {

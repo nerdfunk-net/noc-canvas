@@ -576,16 +576,20 @@ export const topologyApi = {
 
 // Device communication API
 export const devicesApi = {
-  async getInterfaces(deviceId: string, useTextfsm: boolean = true): Promise<{
+  async getInterfaces(deviceId: string, useTextfsm: boolean = true, disableCache: boolean = false): Promise<{
     success: boolean
     output?: any
     error?: string
     parsed?: boolean
     parser_used?: string
+    cached?: boolean
   }> {
     const queryParams = new URLSearchParams()
     if (useTextfsm) {
       queryParams.append('use_textfsm', 'true')
+    }
+    if (disableCache) {
+      queryParams.append('disable_cache', 'true')
     }
     const endpoint = `/api/devices/${deviceId}/interfaces${queryParams.toString() ? '?' + queryParams.toString() : ''}`
     return apiClient.get(endpoint)

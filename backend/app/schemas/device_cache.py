@@ -266,3 +266,29 @@ class BulkCacheUpdate(BaseModel):
     interfaces: List[InterfaceCacheCreate] = []
     ip_addresses: List[IPAddressCacheCreate] = []
     arp_entries: List[ARPCacheCreate] = []
+
+
+# JSON Blob Cache Schemas
+class JSONBlobCacheBase(BaseModel):
+    device_id: str
+    command: str
+    json_data: str
+
+
+class JSONBlobCacheCreate(JSONBlobCacheBase):
+    """Schema for creating a new JSON cache entry."""
+    pass
+
+
+class JSONBlobCacheUpdate(BaseModel):
+    """Schema for updating an existing JSON cache entry."""
+    json_data: str
+
+
+class JSONBlobCacheResponse(JSONBlobCacheBase):
+    """Schema for JSON cache response."""
+    id: int
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

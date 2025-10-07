@@ -1084,19 +1084,69 @@ async def get_interfaces(
         # Get device connection information
         device_info = await get_device_connection_info(device_id, username)
 
-        # Execute command on device with optional TextFSM parsing
-        result = await device_communication_service.execute_command(
-            device_info=device_info,
-            command="show interfaces",
-            username=username,
-            parser="TEXTFSM" if use_textfsm else None,
-        )
+        # Check if we have valid cached data when TextFSM parsing is requested
+        cached_output = None
+        used_cache = False
+        if use_textfsm:
+            try:
+                import json
+                from app.services.json_cache_service import JSONCacheService
+                
+                valid_cache = JSONCacheService.get_valid_cache(
+                    db=db,
+                    device_id=device_id,
+                    command="show interfaces"
+                )
+                
+                if valid_cache:
+                    # Use cached data
+                    cached_output = json.loads(valid_cache.json_data)
+                    used_cache = True
+                    logger.info(f"Using cached data for device {device_id}, command: show interfaces")
+            except Exception as cache_error:
+                logger.warning(f"Failed to check cache, will execute command: {str(cache_error)}")
 
-        # If TextFSM was used and parsing succeeded, cache the interface data
-        if use_textfsm and result.get("parsed") and result.get("success"):
+        # Execute command only if we don't have valid cached data
+        if not used_cache:
+            # Execute command on device with optional TextFSM parsing
+            result = await device_communication_service.execute_command(
+                device_info=device_info,
+                command="show interfaces",
+                username=username,
+                parser="TEXTFSM" if use_textfsm else None,
+            )
+        else:
+            # Use cached data - simulate successful result
+            result = {
+                "success": True,
+                "output": cached_output,
+                "parsed": True,
+                "parser_used": "TEXTFSM (from cache)",
+                "execution_time": 0.0
+            }
+
+        # If TextFSM was used and parsing succeeded, cache/update the interface data
+        if use_textfsm and result.get("parsed") and result.get("success") and not used_cache:
             output = result.get("output")
             if isinstance(output, list):
                 logger.info(f"Caching {len(output)} interfaces for device {device_id}")
+
+                # Store the parsed JSON output in the JSON blob cache
+                try:
+                    import json
+                    from app.services.json_cache_service import JSONCacheService
+                    
+                    json_data = json.dumps(output)
+                    JSONCacheService.set_cache(
+                        db=db,
+                        device_id=device_id,
+                        command="show interfaces",
+                        json_data=json_data
+                    )
+                    logger.info(f"Successfully cached JSON output for device {device_id}, command: show interfaces")
+                except Exception as cache_error:
+                    logger.error(f"Failed to cache JSON output: {str(cache_error)}")
+                    # Continue processing even if JSON cache fails
 
                 # Ensure device exists in cache before adding interfaces
                 device_cache_data = DeviceCacheCreate(

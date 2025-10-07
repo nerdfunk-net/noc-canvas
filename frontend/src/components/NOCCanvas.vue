@@ -1627,7 +1627,7 @@ const contextMenuItems = computed(() => {
       ],
     },
     {
-      icon: '�',
+      icon: '🔌',
       label: 'Interfaces',
       submenu: [
         { icon: '📋', label: 'Brief', action: () => { hideContextMenu(); showDeviceInterfaces(contextMenu.target!, 'brief') } },
@@ -1636,7 +1636,7 @@ const contextMenuItems = computed(() => {
       ],
     },
     {
-      icon: '�💻',
+      icon: '💻',
       label: 'Commands',
       submenu: commandsSubmenu
     },

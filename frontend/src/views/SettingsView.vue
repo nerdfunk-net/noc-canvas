@@ -1184,6 +1184,26 @@
                   </label>
                 </div>
               </div>
+
+              <!-- JSON Blob Cache Subsection -->
+              <div class="mt-6 pt-6 border-t border-gray-200">
+                <h3 class="text-base font-semibold text-gray-900 mb-4">JSON Blob Cache</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                      Default TTL (minutes)
+                    </label>
+                    <input
+                      v-model.number="settings.cache.jsonBlobTtlMinutes"
+                      type="number"
+                      min="1"
+                      max="10080"
+                      class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                    />
+                    <p class="text-xs text-gray-500 mt-1">How long JSON blob cache entries remain valid (max: 7 days)</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- Cache Statistics -->
@@ -1242,6 +1262,10 @@
                   <div class="bg-pink-50 p-4 rounded-lg border border-pink-200">
                     <div class="text-2xl font-bold text-pink-700">{{ cacheStatistics.total.cdp_neighbors }}</div>
                     <div class="text-sm text-pink-600">CDP Neighbors</div>
+                  </div>
+                  <div class="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                    <div class="text-2xl font-bold text-amber-700">{{ cacheStatistics.total.json_blobs }}</div>
+                    <div class="text-sm text-amber-600">JSON Blobs</div>
                   </div>
                 </div>
 
@@ -1392,6 +1416,17 @@
                   ]"
                 >
                   CDP Neighbors
+                </button>
+                <button
+                  @click="selectedCacheView = 'json_blobs'; loadJSONBlobs()"
+                  :class="[
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    selectedCacheView === 'json_blobs'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ]"
+                >
+                  Json
                 </button>
               </div>
 
@@ -1632,6 +1667,38 @@
                 <div v-else class="text-center py-8 text-gray-500">
                   <i class="fas fa-inbox text-4xl mb-2"></i>
                   <p>No CDP neighbors cached</p>
+                </div>
+              </div>
+
+              <!-- JSON Blobs View -->
+              <div v-if="selectedCacheView === 'json_blobs'">
+                <div v-if="loadingJSONBlobs" class="text-center py-8 text-gray-500">
+                  <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                  <p>Loading JSON blobs...</p>
+                </div>
+                <div v-else-if="cachedJSONBlobs.length > 0" class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Device</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Command</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Updated</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      <tr v-for="blob in cachedJSONBlobs" :key="blob.id" class="hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm text-gray-900">{{ getDeviceName(blob.device_id) }}</td>
+                        <td class="px-4 py-3 text-sm font-mono text-gray-600">{{ blob.command }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ new Date(blob.updated_at).toLocaleString() }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ blob.json_data ? JSON.parse(blob.json_data).length : 0 }} items</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-else class="text-center py-8 text-gray-500">
+                  <i class="fas fa-inbox text-4xl mb-2"></i>
+                  <p>No JSON blobs cached</p>
                 </div>
               </div>
 
@@ -2736,6 +2803,7 @@ const settings = reactive({
     autoRefreshEnabled: false,
     autoRefreshIntervalMinutes: 30,
     cleanExpiredOnStartup: true,
+    jsonBlobTtlMinutes: 30, // 30 minutes default
   },
   database: {
     host: '',
@@ -2846,7 +2914,7 @@ const cacheStatistics = ref<any>(null)
 const loadingCacheStats = ref(false)
 const cachedDevices = ref<any[]>([])
 const loadingCachedDevices = ref(false)
-const selectedCacheView = ref<'overview' | 'devices' | 'static_routes' | 'ospf_routes' | 'bgp_routes' | 'mac_table' | 'cdp_neighbors'>('overview')
+const selectedCacheView = ref<'overview' | 'devices' | 'static_routes' | 'ospf_routes' | 'bgp_routes' | 'mac_table' | 'cdp_neighbors' | 'json_blobs'>('overview')
 const cacheError = ref<string | null>(null)
 const showDeviceDetailsModal = ref(false)
 const selectedDeviceDetails = ref<any>(null)
@@ -2867,6 +2935,10 @@ const loadingMACTable = ref(false)
 // CDP neighbors cache state
 const cdpNeighbors = ref<any[]>([])
 const loadingCDPNeighbors = ref(false)
+
+// JSON blobs cache state
+const cachedJSONBlobs = ref<any[]>([])
+const loadingJSONBlobs = ref(false)
 
 const isPasswordChangeValid = computed(() => {
   return (
@@ -3192,6 +3264,7 @@ onMounted(() => {
       settings.cache.autoRefreshEnabled = parsed.autoRefreshEnabled ?? false
       settings.cache.autoRefreshIntervalMinutes = parsed.autoRefreshIntervalMinutes ?? 30
       settings.cache.cleanExpiredOnStartup = parsed.cleanExpiredOnStartup ?? true
+      settings.cache.jsonBlobTtlMinutes = parsed.jsonBlobTtlMinutes ?? 30
     } catch (error) {
       console.error('Failed to load cache settings:', error)
     }
@@ -4058,6 +4131,26 @@ const loadCDPNeighbors = async () => {
   }
 }
 
+const loadJSONBlobs = async () => {
+  loadingJSONBlobs.value = true
+  try {
+    const response = await makeAuthenticatedRequest('/api/cache/json-blobs?limit=1000')
+    if (response.ok) {
+      const data = await response.json()
+      cachedJSONBlobs.value = data.results || []
+    }
+  } catch (error) {
+    console.error('Failed to load JSON blobs:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to load JSON blobs',
+      type: 'error',
+    })
+  } finally {
+    loadingJSONBlobs.value = false
+  }
+}
+
 const getDeviceName = (deviceId: string) => {
   const device = cachedDevices.value.find(d => d.device_id === deviceId)
   return device ? device.device_name : deviceId
@@ -4121,14 +4214,12 @@ const clearAllCache = async () => {
       await loadCacheStatistics()
       // Clear browser displays
       cachedDevices.value = []
-      cachedInterfaces.value = []
-      cachedIPs.value = []
-      cachedARPs.value = []
-      cachedStaticRoutes.value = []
-      cachedOSPFRoutes.value = []
-      cachedBGPRoutes.value = []
-      cachedMACTable.value = []
-      cachedCDPNeighbors.value = []
+      staticRoutes.value = []
+      ospfRoutes.value = []
+      bgpRoutes.value = []
+      macTableEntries.value = []
+      cdpNeighbors.value = []
+      cachedJSONBlobs.value = []
     } else {
       const errorText = await response.text()
       console.error('❌ Clear all cache failed:', response.status, errorText)
@@ -4151,6 +4242,7 @@ const saveCacheSettings = async () => {
       autoRefreshEnabled: settings.cache.autoRefreshEnabled,
       autoRefreshIntervalMinutes: settings.cache.autoRefreshIntervalMinutes,
       cleanExpiredOnStartup: settings.cache.cleanExpiredOnStartup,
+      jsonBlobTtlMinutes: settings.cache.jsonBlobTtlMinutes,
     }
 
     // Save to localStorage as backup

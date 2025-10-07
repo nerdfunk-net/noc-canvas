@@ -83,6 +83,10 @@ def get_cache_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
     total_bgp_routes = db.query(func.count(BGPRouteCache.id)).scalar()
     total_mac_table = db.query(func.count(MACAddressTableCache.id)).scalar()
     total_cdp_neighbors = db.query(func.count(CDPNeighborCache.id)).scalar()
+    
+    # JSON Blob Cache count
+    from app.models.device_cache import JSONBlobCache
+    total_json_blobs = db.query(func.count(JSONBlobCache.id)).scalar()
 
     # Valid vs expired cache entries (handle NULL values)
     valid_devices = db.query(func.count(DeviceCache.device_id)).filter(
@@ -140,6 +144,7 @@ def get_cache_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
             "bgp_routes": total_bgp_routes,
             "mac_table_entries": total_mac_table,
             "cdp_neighbors": total_cdp_neighbors,
+            "json_blobs": total_json_blobs,
         },
         "cache_status": {
             "valid": valid_devices,
@@ -555,4 +560,220 @@ def get_cdp_neighbors_cache(
         "count": total,
         "results": [CDPNeighborCacheResponse.model_validate(n) for n in neighbors]
     }
+
+
+@router.get("/json-blobs", response_model=Dict[str, Any])
+def get_json_blobs(
+    limit: int = 100,
+    offset: int = 0,
+    device_id: Optional[str] = None,
+    command: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Get JSON blob cache entries."""
+    from app.models.device_cache import JSONBlobCache
+    from app.schemas.device_cache import JSONBlobCacheResponse
+    
+    query = db.query(JSONBlobCache)
+
+    if device_id:
+        query = query.filter(JSONBlobCache.device_id == device_id)
+    
+    if command:
+        query = query.filter(JSONBlobCache.command == command)
+
+    total = query.count()
+    blobs = query.order_by(JSONBlobCache.updated_at.desc()).offset(offset).limit(limit).all()
+
+    return {
+        "count": total,
+        "results": [JSONBlobCacheResponse.model_validate(b) for b in blobs]
+    }
+
+
+# JSON Blob Cache Endpoints
+@router.post("/cache/json/{device_id}")
+def set_json_cache(
+    device_id: str,
+    command: str,
+    json_data: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """
+    Create or update a JSON cache entry for a device command.
+    
+    Args:
+        device_id: Device UUID
+        command: Command that was executed
+        json_data: JSON string data to cache
+        
+    Returns:
+        The created or updated cache entry
+    """
+    from app.services.json_cache_service import JSONCacheService
+    from app.schemas.device_cache import JSONBlobCacheResponse
+    
+    try:
+        cache_entry = JSONCacheService.set_cache(
+            db=db,
+            device_id=device_id,
+            command=command,
+            json_data=json_data
+        )
+        
+        return JSONBlobCacheResponse.model_validate(cache_entry)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to set cache: {str(e)}")
+
+
+@router.get("/cache/json/{device_id}")
+def get_json_cache(
+    device_id: str,
+    command: Optional[str] = Query(None, description="Specific command to retrieve cache for"),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """
+    Get cached JSON data for a device.
+    
+    Args:
+        device_id: Device UUID
+        command: Optional specific command. If not provided, returns all cache entries for the device.
+        
+    Returns:
+        Single entry or list of entries
+    """
+    from app.services.json_cache_service import JSONCacheService
+    from app.schemas.device_cache import JSONBlobCacheResponse
+    
+    try:
+        cache_data = JSONCacheService.get_cache(
+            db=db,
+            device_id=device_id,
+            command=command
+        )
+        
+        if command and cache_data is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No cache found for device {device_id} and command '{command}'"
+            )
+        
+        if not command and (cache_data is None or len(cache_data) == 0):
+            raise HTTPException(
+                status_code=404,
+                detail=f"No cache entries found for device {device_id}"
+            )
+        
+        # Return single item or list based on whether command was specified
+        if command:
+            return JSONBlobCacheResponse.model_validate(cache_data)
+        else:
+            return [JSONBlobCacheResponse.model_validate(entry) for entry in cache_data]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get cache: {str(e)}")
+
+
+@router.delete("/cache/json/{device_id}")
+def delete_json_cache(
+    device_id: str,
+    command: Optional[str] = Query(None, description="Specific command to delete cache for"),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """
+    Delete cached JSON data for a device.
+    
+    Args:
+        device_id: Device UUID
+        command: Optional specific command. If not provided, deletes all cache entries for the device.
+        
+    Returns:
+        Success message with count of deleted entries
+    """
+    from app.services.json_cache_service import JSONCacheService
+    
+    try:
+        deleted_count = JSONCacheService.delete_cache(
+            db=db,
+            device_id=device_id,
+            command=command
+        )
+        
+        if deleted_count == 0:
+            if command:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No cache found for device {device_id} and command '{command}'"
+                )
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No cache entries found for device {device_id}"
+                )
+        
+        return {
+            "success": True,
+            "message": f"Deleted {deleted_count} cache entry(ies)",
+            "deleted_count": deleted_count
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete cache: {str(e)}")
+
+
+@router.get("/cache/json/devices/list")
+def list_cached_devices(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """
+    Get list of all device IDs that have cached JSON data.
+    
+    Returns:
+        List of device UUIDs
+    """
+    from app.services.json_cache_service import JSONCacheService
+    
+    try:
+        device_ids = JSONCacheService.get_all_cached_devices(db)
+        return {"devices": device_ids}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list cached devices: {str(e)}")
+
+
+@router.get("/cache/json/{device_id}/commands")
+def list_cached_commands(
+    device_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """
+    Get list of all cached commands for a device.
+    
+    Args:
+        device_id: Device UUID
+        
+    Returns:
+        List of commands that have cached data
+    """
+    from app.services.json_cache_service import JSONCacheService
+    
+    try:
+        commands = JSONCacheService.get_cached_commands(db, device_id)
+        if not commands:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No cached commands found for device {device_id}"
+            )
+        return {"commands": commands}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list cached commands: {str(e)}")
+
 

@@ -245,3 +245,22 @@ class CDPNeighborCache(Base):
         Index('ix_cdp_device_neighbor', 'device_id', 'neighbor_name'),
         Index('ix_cdp_device_interface', 'device_id', 'local_interface'),
     )
+
+
+class JSONBlobCache(Base):
+    """
+    JSON blob cache table for storing parsed command outputs.
+    Stores raw JSON data from TextFSM parsed commands with metadata.
+    """
+    __tablename__ = "json_blob_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    device_id = Column(String, nullable=False, index=True)  # Nautobot device UUID
+    command = Column(String, nullable=False)  # Command that was executed (e.g., "show interfaces")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    json_data = Column(String, nullable=False)  # JSON serialized data
+
+    # Composite index for device_id + command lookups
+    __table_args__ = (
+        Index('ix_json_blob_device_command', 'device_id', 'command'),
+    )

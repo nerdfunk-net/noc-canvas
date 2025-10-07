@@ -66,6 +66,38 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
             # Define async function to get device info and execute command
             async def execute_device_command():
+                # Check cache first for interfaces command
+                if endpoint == "interfaces":
+                    try:
+                        import json
+                        from ...core.database import SessionLocal
+                        from ...services.json_cache_service import JSONCacheService
+                        
+                        db = SessionLocal()
+                        try:
+                            valid_cache = JSONCacheService.get_valid_cache(
+                                db=db,
+                                device_id=device_id,
+                                command="show interfaces"
+                            )
+                            
+                            if valid_cache:
+                                # Use cached data
+                                cached_output = json.loads(valid_cache.json_data)
+                                logger.info(f"✅ Using cached interfaces data for device {device_id} in sync topology discovery")
+                                return {
+                                    "success": True,
+                                    "output": cached_output,
+                                    "parsed": True,
+                                    "parser_used": "TEXTFSM (from cache)",
+                                    "execution_time": 0.0,
+                                    "cached": True
+                                }
+                        finally:
+                            db.close()
+                    except Exception as cache_error:
+                        logger.warning(f"Failed to check cache for device {device_id}, will execute command: {str(cache_error)}")
+
                 # Get device info from Nautobot (returns raw GraphQL structure)
                 device_data = await nautobot_service.get_device(device_id, username)
                 if not device_data:
@@ -114,6 +146,29 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     username=username,
                     parser="TEXTFSM",
                 )
+                
+                # Cache interfaces data after successful execution
+                if endpoint == "interfaces" and result.get("success") and result.get("parsed") and isinstance(result.get("output"), list):
+                    try:
+                        import json
+                        from ...core.database import SessionLocal
+                        from ...services.json_cache_service import JSONCacheService
+                        
+                        db = SessionLocal()
+                        try:
+                            json_data = json.dumps(result["output"])
+                            JSONCacheService.set_cache(
+                                db=db,
+                                device_id=device_id,
+                                command="show interfaces",
+                                json_data=json_data
+                            )
+                            logger.info(f"✅ Cached interfaces data for device {device_id} in sync topology discovery")
+                        finally:
+                            db.close()
+                    except Exception as cache_error:
+                        logger.error(f"Failed to cache interfaces data for device {device_id}: {str(cache_error)}")
+                
                 return result
 
             # Use asyncio.run for sync context (Celery worker)

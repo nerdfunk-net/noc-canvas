@@ -243,6 +243,23 @@ async def get_cdp_neighbors(
             if isinstance(output, list):
                 logger.info(f"Caching {len(output)} CDP neighbors for device {device_id}")
 
+                # Store the parsed JSON output in the JSON blob cache
+                try:
+                    import json
+                    from app.services.json_cache_service import JSONCacheService
+                    
+                    json_data = json.dumps(output)
+                    JSONCacheService.set_cache(
+                        db=db,
+                        device_id=device_id,
+                        command="show cdp neighbors",
+                        json_data=json_data
+                    )
+                    logger.info(f"Successfully cached JSON output for device {device_id}, command: show cdp neighbors")
+                except Exception as cache_error:
+                    logger.error(f"Failed to cache JSON output: {str(cache_error)}")
+                    # Continue processing even if JSON cache fails
+
                 # Ensure device exists in cache
                 device_cache_data = DeviceCacheCreate(
                     device_id=device_id,
@@ -504,6 +521,23 @@ async def get_static_routes(
             if isinstance(output, list):
                 logger.info(f"Caching {len(output)} static routes for device {device_id}")
 
+                # Store the parsed JSON output in the JSON blob cache
+                try:
+                    import json
+                    from app.services.json_cache_service import JSONCacheService
+                    
+                    json_data = json.dumps(output)
+                    JSONCacheService.set_cache(
+                        db=db,
+                        device_id=device_id,
+                        command="show ip route static",
+                        json_data=json_data
+                    )
+                    logger.info(f"Successfully cached JSON output for device {device_id}, command: show ip route static")
+                except Exception as cache_error:
+                    logger.error(f"Failed to cache JSON output: {str(cache_error)}")
+                    # Continue processing even if JSON cache fails
+
                 # Ensure device exists in cache
                 device_cache_data = DeviceCacheCreate(
                     device_id=device_id,
@@ -625,6 +659,23 @@ async def get_ospf_routes(
             if isinstance(output, list):
                 logger.info(f"Caching {len(output)} OSPF routes for device {device_id}")
 
+                # Store the parsed JSON output in the JSON blob cache
+                try:
+                    import json
+                    from app.services.json_cache_service import JSONCacheService
+                    
+                    json_data = json.dumps(output)
+                    JSONCacheService.set_cache(
+                        db=db,
+                        device_id=device_id,
+                        command="show ip route ospf",
+                        json_data=json_data
+                    )
+                    logger.info(f"Successfully cached JSON output for device {device_id}, command: show ip route ospf")
+                except Exception as cache_error:
+                    logger.error(f"Failed to cache JSON output: {str(cache_error)}")
+                    # Continue processing even if JSON cache fails
+
                 # Ensure device exists in cache
                 device_cache_data = DeviceCacheCreate(
                     device_id=device_id,
@@ -714,13 +765,15 @@ async def get_bgp_routes(
     device_id: str,
     use_textfsm: bool = False,
     current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Get BGP IP routes from a network device.
 
     Args:
         device_id: The ID of the device to query
-        use_textfsm: If True, parse output using TextFSM. Default is False.
+        use_textfsm: If True, parse output using TextFSM and cache the results. Default is False.
         current_user: The authenticated user
+        db: Database session
 
     Returns:
         DeviceCommandResponse with parsed or raw output
@@ -742,6 +795,29 @@ async def get_bgp_routes(
             username=username,
             parser="TEXTFSM" if use_textfsm else None,
         )
+
+        # If TextFSM was used and parsing succeeded, cache the BGP route data
+        if use_textfsm and result.get("parsed") and result.get("success"):
+            output = result.get("output")
+            if isinstance(output, list):
+                logger.info(f"Caching {len(output)} BGP routes for device {device_id}")
+
+                # Store the parsed JSON output in the JSON blob cache
+                try:
+                    import json
+                    from app.services.json_cache_service import JSONCacheService
+                    
+                    json_data = json.dumps(output)
+                    JSONCacheService.set_cache(
+                        db=db,
+                        device_id=device_id,
+                        command="show ip route bgp",
+                        json_data=json_data
+                    )
+                    logger.info(f"Successfully cached JSON output for device {device_id}, command: show ip route bgp")
+                except Exception as cache_error:
+                    logger.error(f"Failed to cache JSON output: {str(cache_error)}")
+                    # Continue processing even if JSON cache fails
 
         return DeviceCommandResponse(
             success=result["success"],
@@ -805,6 +881,23 @@ async def get_ip_arp(
             output = result.get("output")
             if isinstance(output, list):
                 logger.info(f"Caching {len(output)} ARP entries for device {device_id}")
+
+                # Store the parsed JSON output in the JSON blob cache
+                try:
+                    import json
+                    from app.services.json_cache_service import JSONCacheService
+                    
+                    json_data = json.dumps(output)
+                    JSONCacheService.set_cache(
+                        db=db,
+                        device_id=device_id,
+                        command="show ip arp",
+                        json_data=json_data
+                    )
+                    logger.info(f"Successfully cached JSON output for device {device_id}, command: show ip arp")
+                except Exception as cache_error:
+                    logger.error(f"Failed to cache JSON output: {str(cache_error)}")
+                    # Continue processing even if JSON cache fails
 
                 # Ensure device exists in cache
                 device_cache_data = DeviceCacheCreate(
@@ -921,6 +1014,23 @@ async def get_mac_address_table(
             output = result.get("output")
             if isinstance(output, list):
                 logger.info(f"Caching {len(output)} MAC address table entries for device {device_id}")
+
+                # Store the parsed JSON output in the JSON blob cache
+                try:
+                    import json
+                    from app.services.json_cache_service import JSONCacheService
+                    
+                    json_data = json.dumps(output)
+                    JSONCacheService.set_cache(
+                        db=db,
+                        device_id=device_id,
+                        command="show mac address-table",
+                        json_data=json_data
+                    )
+                    logger.info(f"Successfully cached JSON output for device {device_id}, command: show mac address-table")
+                except Exception as cache_error:
+                    logger.error(f"Failed to cache JSON output: {str(cache_error)}")
+                    # Continue processing even if JSON cache fails
 
                 # Ensure device exists in cache
                 device_cache_data = DeviceCacheCreate(

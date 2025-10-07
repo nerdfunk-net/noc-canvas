@@ -322,7 +322,7 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
                         # Cache if requested
                         if cache_results:
-                            SyncTopologyDiscoveryService._cache_static_routes_sync(
+                            SyncTopologyDiscoveryService._cache_static_routes(
                                 db, device_id, result["output"]
                             )
                     else:
@@ -358,7 +358,7 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
                         # Cache if requested
                         if cache_results:
-                            SyncTopologyDiscoveryService._cache_ospf_routes_sync(
+                            SyncTopologyDiscoveryService._cache_ospf_routes(
                                 db, device_id, result["output"]
                             )
                 except Exception as e:
@@ -384,7 +384,7 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
                         # Cache if requested
                         if cache_results:
-                            SyncTopologyDiscoveryService._cache_bgp_routes_sync(
+                            SyncTopologyDiscoveryService._cache_bgp_routes(
                                 db, device_id, result["output"]
                             )
                 except Exception as e:
@@ -412,7 +412,7 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
                         # Cache if requested
                         if cache_results:
-                            SyncTopologyDiscoveryService._cache_mac_table_sync(
+                            SyncTopologyDiscoveryService._cache_mac_table(
                                 db, device_id, result["output"]
                             )
                 except Exception as e:
@@ -440,7 +440,7 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
                         # Cache if requested
                         if cache_results:
-                            SyncTopologyDiscoveryService._cache_cdp_neighbors_sync(
+                            SyncTopologyDiscoveryService._cache_cdp_neighbors(
                                 db, device_id, result["output"]
                             )
                 except Exception as e:
@@ -475,7 +475,7 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
                         # Cache if requested
                         if cache_results:
-                            SyncTopologyDiscoveryService._cache_arp_entries_sync(
+                            SyncTopologyDiscoveryService._cache_arp_entries(
                                 db, device_id, result["output"]
                             )
                     else:
@@ -518,7 +518,7 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
                         # Cache if requested
                         if cache_results:
-                            SyncTopologyDiscoveryService._cache_interfaces_sync(
+                            SyncTopologyDiscoveryService._cache_interfaces(
                                 db, device_id, result["output"]
                             )
                     else:
@@ -549,69 +549,8 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
             )
             raise
 
-    # Synchronous cache methods for Celery workers
-
-    @staticmethod
-    def _cache_static_routes_sync(
-        db: Session, device_id: str, routes: List[Dict[str, Any]]
-    ) -> None:
-        """Synchronous cache method for static routes."""
-        try:
-            cache_entries = []
-            for route in routes:
-                cache_entry = StaticRouteCacheCreate(
-                    device_id=device_id,
-                    network=route.get("network", ""),
-                    nexthop_ip=route.get("nexthop_ip"),
-                    interface_name=route.get("nexthop_if"),
-                    distance=route.get("distance"),
-                    metric=route.get("metric"),
-                )
-                cache_entries.append(cache_entry)
-
-            # Use bulk replace method
-            if cache_entries:
-                device_cache_service.bulk_replace_static_routes(
-                    db, device_id, cache_entries
-                )
-                logger.debug(
-                    f"Cached {len(routes)} static routes for device {device_id}"
-                )
-        except Exception as e:
-            logger.error(f"Failed to cache static routes for {device_id}: {e}")
-            # Rollback the session to recover from the error
-            db.rollback()
-
-    @staticmethod
-    def _cache_ospf_routes_sync(
-        db: Session, device_id: str, routes: List[Dict[str, Any]]
-    ) -> None:
-        """Synchronous cache method for OSPF routes."""
-        try:
-            cache_entries = []
-            for route in routes:
-                cache_entry = OSPFRouteCacheCreate(
-                    device_id=device_id,
-                    network=route.get("network", ""),
-                    nexthop_ip=route.get("nexthop_ip"),
-                    interface_name=route.get("nexthop_if"),
-                    distance=route.get("distance"),
-                    metric=route.get("metric"),
-                    area=route.get("area"),
-                    route_type=route.get("route_type"),
-                )
-                cache_entries.append(cache_entry)
-
-            # Use bulk replace method
-            if cache_entries:
-                device_cache_service.bulk_replace_ospf_routes(
-                    db, device_id, cache_entries
-                )
-                logger.debug(f"Cached {len(routes)} OSPF routes for device {device_id}")
-        except Exception as e:
-            logger.error(f"Failed to cache OSPF routes for {device_id}: {e}")
-            db.rollback()
-
+    # Note: Cache methods have been moved to TopologyDiscoveryBase class
+    # and are now shared between sync and async implementations
     @staticmethod
     def _cache_bgp_routes_sync(
         db: Session, device_id: str, routes: List[Dict[str, Any]]

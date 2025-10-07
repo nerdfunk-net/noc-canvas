@@ -245,12 +245,6 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["interfaces"] = result["output"]
                         logger.info(f"✅ Got {len(result['output'])} interfaces")
-
-                        # Cache if requested
-                        if cache_results and db:
-                            AsyncTopologyDiscoveryService._cache_interfaces(
-                                db, device_id, result["output"]
-                            )
                     else:
                         logger.warning(
                             f"⚠️ No interfaces data: success={result.get('success')}, "
@@ -289,12 +283,6 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["static_routes"] = result["output"]
                         logger.info(f"✅ Got {len(result['output'])} static routes")
-                        
-                        # Cache if requested
-                        if cache_results and db:
-                            AsyncTopologyDiscoveryService._cache_static_routes(
-                                db, device_id, result["output"]
-                            )
                     else:
                         logger.warning(
                             f"⚠️ No static routes data: success={result.get('success')}, "
@@ -323,12 +311,6 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     )
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["ospf_routes"] = result["output"]
-                        
-                        # Cache if requested
-                        if cache_results and db:
-                            AsyncTopologyDiscoveryService._cache_ospf_routes(
-                                db, device_id, result["output"]
-                            )
                 except Exception as e:
                     logger.error(f"Failed to get OSPF routes for {device_id}: {e}")
 
@@ -349,12 +331,6 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     )
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["bgp_routes"] = result["output"]
-                        
-                        # Cache if requested
-                        if cache_results and db:
-                            AsyncTopologyDiscoveryService._cache_bgp_routes(
-                                db, device_id, result["output"]
-                            )
                 except Exception as e:
                     logger.error(f"Failed to get BGP routes for {device_id}: {e}")
 
@@ -377,12 +353,6 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     )
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["mac_table"] = result["output"]
-                        
-                        # Cache if requested
-                        if cache_results and db:
-                            AsyncTopologyDiscoveryService._cache_mac_table(
-                                db, device_id, result["output"]
-                            )
                 except Exception as e:
                     logger.error(f"Failed to get MAC table for {device_id}: {e}")
 
@@ -405,12 +375,6 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     )
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["cdp_neighbors"] = result["output"]
-                        
-                        # Cache if requested
-                        if cache_results and db:
-                            AsyncTopologyDiscoveryService._cache_cdp_neighbors(
-                                db, device_id, result["output"]
-                            )
                 except Exception as e:
                     logger.error(f"Failed to get CDP neighbors for {device_id}: {e}")
 
@@ -440,12 +404,6 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["arp_entries"] = result["output"]
                         logger.info(f"✅ Got {len(result['output'])} ARP entries")
-                        
-                        # Cache if requested
-                        if cache_results and db:
-                            AsyncTopologyDiscoveryService._cache_arp_entries(
-                                db, device_id, result["output"]
-                            )
                     else:
                         logger.warning(
                             f"⚠️ No ARP data: success={result.get('success')}, "

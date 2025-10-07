@@ -921,9 +921,11 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     f"Cached {len(interface_entries)} interfaces for device {device_id}"
                 )
 
+            # Cache IP addresses using bulk upsert
             if ip_entries:
+                device_cache_service.bulk_upsert_ips(db, device_id, ip_entries)
                 logger.debug(
-                    f"Skipping {len(ip_entries)} IP addresses (bulk method not implemented)"
+                    f"Cached {len(ip_entries)} IP addresses for device {device_id}"
                 )
         except Exception as e:
             logger.error(f"Failed to cache interfaces for {device_id}: {e}")

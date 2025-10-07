@@ -893,7 +893,7 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     )
                     ip_entries.append(ip_entry)
 
-            # Use upsert for interfaces (bulk methods don't exist yet)
+            # Use upsert for interfaces
             if interface_entries:
                 for interface_entry in interface_entries:
                     device_cache_service.upsert_interface(db, interface_entry)
@@ -901,11 +901,11 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     f"Cached {len(interface_entries)} interfaces for device {device_id}"
                 )
 
-            # Note: IP address caching would need upsert_ip_address method
-            # Skipping IP address caching for now as bulk method doesn't exist
+            # Cache IP addresses using bulk upsert
             if ip_entries:
+                device_cache_service.bulk_upsert_ips(db, device_id, ip_entries)
                 logger.debug(
-                    f"Skipping {len(ip_entries)} IP addresses (bulk method not implemented)"
+                    f"Cached {len(ip_entries)} IP addresses for device {device_id}"
                 )
         except Exception as e:
             logger.error(f"Failed to cache interfaces for {device_id}: {e}")

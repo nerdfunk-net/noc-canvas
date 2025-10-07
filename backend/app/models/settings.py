@@ -107,11 +107,23 @@ class CheckMKTestRequest(BaseModel):
     verify_ssl: bool = True
 
 
+class NetmikoSettings(BaseModel):
+    """Netmiko configuration settings."""
+
+    read_timeout: int = 10
+    last_read: Optional[int] = None
+    conn_timeout: int = 10
+    auth_timeout: Optional[int] = None
+    banner_timeout: int = 15
+    blocking_timeout: int = 20
+    timeout: int = 100
+    session_timeout: int = 60
+
+
 class UnifiedSettings(BaseModel):
     """Unified settings model for frontend."""
 
     nautobot: dict = {
-        "enabled": False,
         "url": "",
         "token": "",
         "verifyTls": True,
@@ -124,6 +136,16 @@ class UnifiedSettings(BaseModel):
         "username": "",
         "password": "",
         "verifyTls": True,
+    }
+    netmiko: dict = {
+        "readTimeout": 10,
+        "lastRead": None,
+        "connTimeout": 10,
+        "authTimeout": None,
+        "bannerTimeout": 15,
+        "blockingTimeout": 20,
+        "timeout": 100,
+        "sessionTimeout": 60,
     }
     canvas: dict = {"autoSaveInterval": 60, "gridEnabled": True}
     database: dict = {

@@ -350,12 +350,10 @@ debouncedFilterValue.value = filterValue.value
 // Computed property to check if Nautobot is properly configured
 const isNautobotConfigured = computed(() => {
   const isConfigured = !!(
-    settingsStore.settings.nautobot.enabled &&
     settingsStore.settings.nautobot.url &&
     settingsStore.settings.nautobot.token
   )
   console.log('🔧 isNautobotConfigured check:', {
-    enabled: settingsStore.settings.nautobot.enabled,
     hasUrl: !!settingsStore.settings.nautobot.url,
     hasToken: !!settingsStore.settings.nautobot.token,
     result: isConfigured,
@@ -671,6 +669,8 @@ const addToCanvas = async (device: NautobotDevice) => {
         device_model: device.device_type?.model,
         last_backup: device.cf_last_backup,
         platform: device.platform?.network_driver,
+        platform_id: device.platform?.id,
+        device_type_model: device.device_type?.model,
       }),
     })
 
@@ -745,6 +745,8 @@ const addLocationToCanvas = async (locationName: string, devices: NautobotDevice
           device_model: device.device_type?.model,
           last_backup: device.cf_last_backup,
           platform: device.platform?.network_driver,
+          platform_id: device.platform?.id,
+          device_type_model: device.device_type?.model,
         }),
       })
 

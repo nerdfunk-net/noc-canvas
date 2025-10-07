@@ -20,7 +20,7 @@ from app.schemas.topology import (
     TopologyDiscoveryResult
 )
 from app.services.topology_builder_service import TopologyBuilderService
-from app.services.topology_discovery_service import TopologyDiscoveryService
+from app.services.topology_discovery.async_discovery import AsyncTopologyDiscoveryService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/topology", tags=["topology"])
@@ -351,7 +351,7 @@ async def discover_topology_sync(
         logger.info(f"📡 Starting sync topology discovery for {len(request.device_ids)} devices")
         
         # Run discovery directly (async version)
-        result = await TopologyDiscoveryService.discover_topology(
+        result = await AsyncTopologyDiscoveryService.discover_topology(
             device_ids=request.device_ids,
             include_static_routes=request.include_static_routes,
             include_ospf_routes=request.include_ospf_routes,
@@ -410,12 +410,12 @@ async def discover_topology(
         if request.run_in_background:
             # For now, just create a job and return immediately
             # TODO: Implement with Celery for true background execution
-            job_id = TopologyDiscoveryService.create_job(request.device_ids)
+            job_id = AsyncTopologyDiscoveryService.create_job(request.device_ids)
 
             # Start discovery in background (placeholder - will use Celery)
             import asyncio
             asyncio.create_task(
-                TopologyDiscoveryService.discover_topology(
+                AsyncTopologyDiscoveryService.discover_topology(
                     device_ids=request.device_ids,
                     include_static_routes=request.include_static_routes,
                     include_ospf_routes=request.include_ospf_routes,
@@ -442,7 +442,7 @@ async def discover_topology(
             }
         else:
             # Run in foreground (blocking)
-            result = await TopologyDiscoveryService.discover_topology(
+            result = await AsyncTopologyDiscoveryService.discover_topology(
                 device_ids=request.device_ids,
                 include_static_routes=request.include_static_routes,
                 include_ospf_routes=request.include_ospf_routes,
@@ -699,7 +699,7 @@ async def get_discovery_progress_old(
         Discovery progress with device-level details
     """
     try:
-        progress = TopologyDiscoveryService.get_job_progress(job_id)
+        progress = AsyncTopologyDiscoveryService.get_job_progress(job_id)
 
         if not progress:
             raise HTTPException(status_code=404, detail=f"Discovery job {job_id} not found")
@@ -731,7 +731,7 @@ async def get_discovery_result(
         Complete discovery result with all device data
     """
     try:
-        job = TopologyDiscoveryService.get_job_progress(job_id)
+        job = AsyncTopologyDiscoveryService.get_job_progress(job_id)
 
         if not job:
             raise HTTPException(status_code=404, detail=f"Discovery job {job_id} not found")

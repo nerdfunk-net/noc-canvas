@@ -3,7 +3,6 @@ import { ref, reactive } from 'vue'
 import { makeAuthenticatedRequest } from '@/services/api'
 
 export interface NautobotSettings {
-  enabled: boolean
   url: string
   token: string
   verifyTls: boolean
@@ -45,7 +44,6 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const settings = reactive<Settings>({
     nautobot: {
-      enabled: false,
       url: '',
       token: '',
       verifyTls: true,

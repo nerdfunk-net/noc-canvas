@@ -78,7 +78,6 @@ def build_nautobot_settings(db: Session) -> Dict[str, Any]:
     stored_settings = {s.key: s.value for s in db.query(AppSettings).all()}
 
     return {
-        "enabled": stored_settings.get("nautobot_enabled", "false").lower() == "true",
         "url": stored_settings.get("nautobot_url") or app_settings.nautobot_url or "",
         "token": stored_settings.get("nautobot_token") or app_settings.nautobot_token or "",
         "verifyTls": stored_settings.get(
@@ -111,6 +110,22 @@ def build_checkmk_settings(db: Session) -> Dict[str, Any]:
             "checkmk_verify_tls", str(app_settings.checkmk_verify_ssl)
         ).lower()
         == "true",
+    }
+
+
+def build_netmiko_settings(db: Session) -> Dict[str, Any]:
+    """Build Netmiko settings dict from database."""
+    stored_settings = {s.key: s.value for s in db.query(AppSettings).all()}
+
+    return {
+        "readTimeout": int(stored_settings.get("netmiko_read_timeout", "10")),
+        "lastRead": int(stored_settings.get("netmiko_last_read")) if stored_settings.get("netmiko_last_read") else None,
+        "connTimeout": int(stored_settings.get("netmiko_conn_timeout", "10")),
+        "authTimeout": int(stored_settings.get("netmiko_auth_timeout")) if stored_settings.get("netmiko_auth_timeout") else None,
+        "bannerTimeout": int(stored_settings.get("netmiko_banner_timeout", "15")),
+        "blockingTimeout": int(stored_settings.get("netmiko_blocking_timeout", "20")),
+        "timeout": int(stored_settings.get("netmiko_timeout", "100")),
+        "sessionTimeout": int(stored_settings.get("netmiko_session_timeout", "60")),
     }
 
 
@@ -189,8 +204,10 @@ async def get_unified_settings(
     unified = UnifiedSettings()
     unified.nautobot = build_nautobot_settings(db)
     unified.checkmk = build_checkmk_settings(db)
+    unified.netmiko = build_netmiko_settings(db)
     unified.canvas = build_canvas_settings(db)
     unified.database = build_database_settings()
+    return unified
     return unified
 
 
@@ -952,7 +969,6 @@ async def save_unified_settings(
 
         # Collect all settings to save
         settings_to_save = [
-            ("nautobot_enabled", str(settings_data.nautobot.get("enabled", False))),
             ("checkmk_enabled", str(settings_data.checkmk.get("enabled", False))),
             (
                 "canvas_autosave_interval",
@@ -987,6 +1003,22 @@ async def save_unified_settings(
                     ("checkmk_username", checkmk_config.get("username", "")),
                     ("checkmk_password", checkmk_config.get("password", "")),
                     ("checkmk_verify_tls", str(checkmk_config.get("verifyTls", True))),
+                ]
+            )
+
+        # Add Netmiko settings
+        if hasattr(settings_data, "netmiko") and settings_data.netmiko:
+            netmiko_config = settings_data.netmiko
+            settings_to_save.extend(
+                [
+                    ("netmiko_read_timeout", str(netmiko_config.get("readTimeout", 10))),
+                    ("netmiko_last_read", str(netmiko_config.get("lastRead")) if netmiko_config.get("lastRead") is not None else ""),
+                    ("netmiko_conn_timeout", str(netmiko_config.get("connTimeout", 10))),
+                    ("netmiko_auth_timeout", str(netmiko_config.get("authTimeout")) if netmiko_config.get("authTimeout") is not None else ""),
+                    ("netmiko_banner_timeout", str(netmiko_config.get("bannerTimeout", 15))),
+                    ("netmiko_blocking_timeout", str(netmiko_config.get("blockingTimeout", 20))),
+                    ("netmiko_timeout", str(netmiko_config.get("timeout", 100))),
+                    ("netmiko_session_timeout", str(netmiko_config.get("sessionTimeout", 60))),
                 ]
             )
 

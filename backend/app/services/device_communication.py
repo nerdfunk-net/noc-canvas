@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..core.database import get_db
 from ..models.credential import UserCredential, CredentialPurpose, decrypt_password
+from ..models.settings import AppSettings
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +23,55 @@ class DeviceCommunicationService:
     """Service for communicating with network devices using netmiko."""
 
     def __init__(self):
+        # Default timeout values (will be overridden by database settings)
         self.timeout = 30
         self.global_delay_factor = 1
         self.max_loops = 150
+        
+        # Netmiko-specific timeout settings (loaded from database)
+        self.read_timeout = 10
+        self.last_read = None
+        self.conn_timeout = 10
+        self.auth_timeout = None
+        self.banner_timeout = 15
+        self.blocking_timeout = 20
+        self.session_timeout = 60
+        
+        # Load settings from database on initialization
+        self._load_netmiko_settings()
+
+    def _load_netmiko_settings(self) -> None:
+        """Load Netmiko timeout settings from database."""
+        try:
+            db: Session = next(get_db())
+            stored_settings = {s.key: s.value for s in db.query(AppSettings).all()}
+            
+            # Load each setting with fallback to defaults
+            self.read_timeout = int(stored_settings.get("netmiko_read_timeout", "10"))
+            self.conn_timeout = int(stored_settings.get("netmiko_conn_timeout", "10"))
+            self.banner_timeout = int(stored_settings.get("netmiko_banner_timeout", "15"))
+            self.blocking_timeout = int(stored_settings.get("netmiko_blocking_timeout", "20"))
+            self.timeout = int(stored_settings.get("netmiko_timeout", "100"))
+            self.session_timeout = int(stored_settings.get("netmiko_session_timeout", "60"))
+            
+            # Optional settings (can be None)
+            last_read_val = stored_settings.get("netmiko_last_read")
+            self.last_read = int(last_read_val) if last_read_val and last_read_val.strip() else None
+            
+            auth_timeout_val = stored_settings.get("netmiko_auth_timeout")
+            self.auth_timeout = int(auth_timeout_val) if auth_timeout_val and auth_timeout_val.strip() else None
+            
+            logger.info(
+                f"Loaded Netmiko settings from database: "
+                f"timeout={self.timeout}s, conn_timeout={self.conn_timeout}s, "
+                f"read_timeout={self.read_timeout}s, session_timeout={self.session_timeout}s"
+            )
+            
+        except Exception as e:
+            logger.warning(f"Failed to load Netmiko settings from database: {e}. Using defaults.")
+        finally:
+            if "db" in locals():
+                db.close()
 
     async def execute_command(
         self,
@@ -165,7 +212,21 @@ class DeviceCommunicationService:
             "password": credential["password"],
             "timeout": self.timeout,
             "global_delay_factor": self.global_delay_factor,
+            # Netmiko timeout settings from database
+            "conn_timeout": self.conn_timeout,
+            "session_timeout": self.session_timeout,
+            "banner_timeout": self.banner_timeout,
+            "blocking_timeout": self.blocking_timeout,
+            "read_timeout_override": self.read_timeout,
         }
+        
+        # Add optional timeout settings (only if configured)
+        if self.auth_timeout is not None:
+            device_config["auth_timeout"] = self.auth_timeout
+        
+        if self.last_read is not None:
+            device_config["fast_cli"] = False  # Required for last_read to work
+            # Note: last_read is used internally by netmiko in read_channel method
 
         # Add optional SSH key if configured
         if hasattr(settings, "device_ssh_key_file") and settings.device_ssh_key_file:

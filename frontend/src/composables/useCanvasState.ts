@@ -225,6 +225,13 @@ export function useCanvasState() {
       device_type: device.device_type as Device['device_type'],
     }))
 
+    console.log('🔍 DEBUG: Devices being loaded from canvas:', devicesWithCorrectTypes.map(d => ({
+      id: d.id,
+      name: d.name,
+      properties: d.properties,
+      parsedProperties: d.properties ? JSON.parse(d.properties) : null
+    })))
+
     deviceStore.loadDevicesFromCanvasData(devicesWithCorrectTypes, canvas.canvas_data.connections)
 
     // Load shapes if they exist in the canvas data

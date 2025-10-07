@@ -1,90 +1,46 @@
-""""""
-
-Topology Discovery Service (DEPRECATED).Topology discovery service for collecting device data.
-
+"""
+Topology discovery service for collecting device data.
 Discovers topology by calling device endpoints and caching results.
+"""
 
-This module is deprecated and maintained only for backward compatibility."""
-
-Please use the new modular structure:
-
-- app.services.topology_discovery.async_discovery.AsyncTopologyDiscoveryService (API/foreground)import logging
-
-- app.services.topology_discovery.sync_discovery.SyncTopologyDiscoveryService (Celery/background)import asyncio
-
-- app.services.topology_discovery.base.TopologyDiscoveryBase (shared utilities)import uuid
-
+import logging
+import asyncio
+import uuid
 import httpx
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Optional
+from sqlalchemy.orm import Session
 
-Migration Guide:from datetime import datetime, timezone
-
-    # Old (deprecated):from typing import List, Dict, Any, Optional
-
-    from app.services.topology_discovery_service import TopologyDiscoveryServicefrom sqlalchemy.orm import Session
-
-    
-
-    # New (recommended):from ..core.config import settings
-
-    from app.services.topology_discovery.async_discovery import AsyncTopologyDiscoveryServicefrom ..services.device_cache_service import device_cache_service
-
-    # ORfrom ..services.device_communication import DeviceCommunicationService
-
-    from app.services.topology_discovery.sync_discovery import SyncTopologyDiscoveryServicefrom ..services.nautobot import nautobot_service
-
-"""from ..schemas.device_cache import (
-
+from ..core.config import settings
+from ..services.device_cache_service import device_cache_service
+from ..services.device_communication import DeviceCommunicationService
+from ..services.nautobot import nautobot_service
+from ..schemas.device_cache import (
     DeviceCacheCreate,
-
-import warnings    StaticRouteCacheCreate, OSPFRouteCacheCreate, BGPRouteCacheCreate,
-
+    StaticRouteCacheCreate, OSPFRouteCacheCreate, BGPRouteCacheCreate,
     MACAddressTableCacheCreate, CDPNeighborCacheCreate, ARPCacheCreate,
+    InterfaceCacheCreate, IPAddressCacheCreate
+)
 
-# Re-export new classes for backward compatibility    InterfaceCacheCreate, IPAddressCacheCreate
+logger = logging.getLogger(__name__)
 
-from .topology_discovery.async_discovery import AsyncTopologyDiscoveryService)
-
-from .topology_discovery.base import TopologyDiscoveryBase
-
-from .topology_discovery.sync_discovery import SyncTopologyDiscoveryServicelogger = logging.getLogger(__name__)
-
+# In-memory storage for job progress (will be replaced with Redis/Celery later)
+_discovery_jobs: Dict[str, Dict[str, Any]] = {}
 
 
-# Main class alias for backward compatibility (defaults to async version)# In-memory storage for job progress (will be replaced with Redis/Celery later)
+class TopologyDiscoveryService:
+    """Service for discovering topology data from devices."""
 
-TopologyDiscoveryService = AsyncTopologyDiscoveryService_discovery_jobs: Dict[str, Dict[str, Any]] = {}
-
-
-
-# Issue deprecation warning when this module is imported
-
-warnings.warn(class TopologyDiscoveryService:
-
-    "Importing from 'app.services.topology_discovery_service' is deprecated. "    """Service for discovering topology data from devices."""
-
-    "Use 'app.services.topology_discovery.async_discovery.AsyncTopologyDiscoveryService' "
-
-    "or 'app.services.topology_discovery.sync_discovery.SyncTopologyDiscoveryService' instead.",    # Command mapping for different endpoints
-
-    DeprecationWarning,    ENDPOINT_COMMANDS = {
-
-    stacklevel=2,        "interfaces": "show interfaces",
-
-)        "ip-arp": "show ip arp",
-
+    # Command mapping for different endpoints
+    ENDPOINT_COMMANDS = {
+        "interfaces": "show interfaces",
+        "ip-arp": "show ip arp",
         "cdp-neighbors": "show cdp neighbors",
-
-__all__ = [        "mac-address-table": "show mac address-table",
-
-    "TopologyDiscoveryService",  # Backward compatibility (→ AsyncTopologyDiscoveryService)        "ip-route/static": "show ip route static",
-
-    "AsyncTopologyDiscoveryService",        "ip-route/ospf": "show ip route ospf",
-
-    "SyncTopologyDiscoveryService",        "ip-route/bgp": "show ip route bgp",
-
-    "TopologyDiscoveryBase",    }
-
-]
+        "mac-address-table": "show mac address-table",
+        "ip-route/static": "show ip route static",
+        "ip-route/ospf": "show ip route ospf",
+        "ip-route/bgp": "show ip route bgp",
+    }
 
     @staticmethod
     def _get_device_command(endpoint: str) -> str:

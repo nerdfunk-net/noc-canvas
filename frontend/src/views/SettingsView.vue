@@ -279,17 +279,11 @@
           <div v-if="activeTab === 'plugins'" class="space-y-6">
             <!-- Nautobot Plugin -->
             <div class="card p-6">
-              <div class="flex items-center justify-between mb-4">
+              <div class="mb-4">
                 <h2 class="text-lg font-semibold text-gray-900">Nautobot Integration</h2>
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <input v-model="settings.nautobot.enabled" type="checkbox" class="sr-only peer" />
-                  <div
-                    class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"
-                  ></div>
-                  <span class="ml-3 text-sm font-medium text-gray-700">Enable Plugin</span>
-                </label>
+                <p class="text-sm text-gray-600 mt-1">Configure connection to your Nautobot instance</p>
               </div>
-              <div :class="{ 'opacity-50 pointer-events-none': !settings.nautobot.enabled }">
+              <div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -458,6 +452,135 @@
                     >
                       {{ connectionStatus.checkmk.message }}
                     </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Netmiko Plugin -->
+            <div class="card p-6">
+              <div class="mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Netmiko Integration</h2>
+                <p class="text-sm text-gray-600 mt-1">Configure SSH connection timeout settings for network devices</p>
+              </div>
+              <div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Read Timeout (seconds)
+                    </label>
+                    <input
+                      v-model.number="settings.netmiko.readTimeout"
+                      type="number"
+                      min="1"
+                      max="300"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <p class="mt-1 text-xs text-gray-500">Default: 10 seconds</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Last Read (seconds)
+                    </label>
+                    <input
+                      v-model.number="settings.netmiko.lastRead"
+                      type="number"
+                      min="1"
+                      max="300"
+                      placeholder="None (optional)"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <p class="mt-1 text-xs text-gray-500">Optional timeout for last read</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Connection Timeout (seconds)
+                    </label>
+                    <input
+                      v-model.number="settings.netmiko.connTimeout"
+                      type="number"
+                      min="1"
+                      max="300"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <p class="mt-1 text-xs text-gray-500">Default: 10 seconds</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Auth Timeout (seconds)
+                    </label>
+                    <input
+                      v-model.number="settings.netmiko.authTimeout"
+                      type="number"
+                      min="1"
+                      max="300"
+                      placeholder="None (optional)"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <p class="mt-1 text-xs text-gray-500">Optional timeout for authentication</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Banner Timeout (seconds)
+                    </label>
+                    <input
+                      v-model.number="settings.netmiko.bannerTimeout"
+                      type="number"
+                      min="1"
+                      max="300"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <p class="mt-1 text-xs text-gray-500">Default: 15 seconds</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Blocking Timeout (seconds)
+                    </label>
+                    <input
+                      v-model.number="settings.netmiko.blockingTimeout"
+                      type="number"
+                      min="1"
+                      max="300"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <p class="mt-1 text-xs text-gray-500">Default: 20 seconds</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Timeout (seconds)
+                    </label>
+                    <input
+                      v-model.number="settings.netmiko.timeout"
+                      type="number"
+                      min="1"
+                      max="600"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <p class="mt-1 text-xs text-gray-500">Default: 100 seconds</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Session Timeout (seconds)
+                    </label>
+                    <input
+                      v-model.number="settings.netmiko.sessionTimeout"
+                      type="number"
+                      min="1"
+                      max="600"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <p class="mt-1 text-xs text-gray-500">Default: 60 seconds</p>
+                  </div>
+                </div>
+                <div class="mt-4 bg-blue-50 border border-blue-200 rounded-md p-4">
+                  <div class="flex">
+                    <i class="fas fa-info-circle text-blue-400 mt-0.5 mr-3"></i>
+                    <div class="text-sm text-blue-700">
+                      <p class="font-medium">Netmiko Connection Settings</p>
+                      <p>
+                        Configure timeout settings for SSH connections to network devices. These settings affect how long Netmiko waits for various operations before timing out.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2581,7 +2704,6 @@ const tabs = [
 
 const settings = reactive({
   nautobot: {
-    enabled: false,
     url: '',
     token: '',
     verifyTls: true,
@@ -2594,6 +2716,16 @@ const settings = reactive({
     username: '',
     password: '',
     verifyTls: true,
+  },
+  netmiko: {
+    readTimeout: 10,
+    lastRead: null as number | null,
+    connTimeout: 10,
+    authTimeout: null as number | null,
+    bannerTimeout: 15,
+    blockingTimeout: 20,
+    timeout: 100,
+    sessionTimeout: 60,
   },
   canvas: {
     autoSaveInterval: 60,
@@ -3674,6 +3806,7 @@ const saveSettings = async () => {
       body: JSON.stringify({
         nautobot: settings.nautobot,
         checkmk: settings.checkmk,
+        netmiko: settings.netmiko,
         canvas: settings.canvas,
         database: settings.database,
       }),

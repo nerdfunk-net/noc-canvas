@@ -80,7 +80,7 @@ def discover_single_device_task(
     
     try:
         # Import here to avoid circular imports
-        from app.services.topology_discovery_service import TopologyDiscoveryService
+        from app.services.topology_discovery.sync_discovery import SyncTopologyDiscoveryService
         
         # Update progress
         self.update_state(
@@ -94,7 +94,7 @@ def discover_single_device_task(
         )
         
         # Call synchronous discovery service
-        device_data = TopologyDiscoveryService.discover_device_data_sync(
+        device_data = SyncTopologyDiscoveryService.discover_device_data_sync(
             db=db,
             device_id=device_id,
             task=self,  # Pass task for progress updates

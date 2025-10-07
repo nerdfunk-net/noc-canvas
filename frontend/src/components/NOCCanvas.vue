@@ -834,28 +834,43 @@ const loadDeviceIconFromTemplate = async (device: Device) => {
       allKeys: Object.keys(props)
     })
 
-    // Try to get icon from template service
-    const templateIcon = await templateService.getDeviceIcon(platformId, deviceTypeModel)
-    if (templateIcon) {
-      console.log('✅ Using template icon for device:', device.name)
-      // Create new Map to trigger reactivity
-      deviceIconMap.value = new Map(deviceIconMap.value).set(device.id, templateIcon)
-      console.log('🔄 Icon map updated, map size:', deviceIconMap.value.size)
-      return
+    // If we have platform or device type info, try to get icon from template service
+    if (platformId || deviceTypeModel) {
+      const templateIcon = await templateService.getDeviceIcon(platformId, deviceTypeModel)
+      if (templateIcon) {
+        console.log('✅ Using template icon for device:', device.name, 'from platform:', platformId, 'or model:', deviceTypeModel)
+        // Create new Map to trigger reactivity
+        deviceIconMap.value = new Map(deviceIconMap.value).set(device.id, templateIcon)
+        console.log('🔄 Icon map updated, map size:', deviceIconMap.value.size)
+        return
+      } else {
+        console.log('⚠️ No template icon found for device:', device.name, 'platform:', platformId, 'model:', deviceTypeModel)
+      }
+    } else {
+      console.log('⚠️ No platform_id or device_type_model in device properties for:', device.name)
     }
 
     // Use hardcoded icon as fallback
+    console.log('🔄 Using fallback hardcoded icon for device:', device.name, 'type:', device.device_type)
     const fallbackIcon = getHardcodedIcon(device.device_type)
     if (fallbackIcon) {
       deviceIconMap.value = new Map(deviceIconMap.value).set(device.id, fallbackIcon)
     }
   } catch (error) {
-    console.error('Error loading device icon:', error)
+    console.error('❌ Error loading device icon for', device.name, ':', error)
   }
 }
 
 // Watch for device changes and load template icons
 watch(() => deviceStore.devices, async (devices) => {
+  // If devices array is empty, clear the icon map
+  if (devices.length === 0) {
+    console.log('🧹 Clearing device icon map (devices cleared)')
+    deviceIconMap.value = new Map()
+    return
+  }
+
+  // Load icons for new devices
   for (const device of devices) {
     if (!deviceIconMap.value.has(device.id)) {
       await loadDeviceIconFromTemplate(device)

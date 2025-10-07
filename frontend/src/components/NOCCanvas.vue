@@ -657,6 +657,14 @@ cd<template>
       @import="handleTopologyImport"
     />
 
+    <!-- Device Interfaces Modal -->
+    <DeviceInterfacesModal
+      :show="showInterfacesModal"
+      :device-id="interfacesDeviceId"
+      :device-name="interfacesDeviceName"
+      @close="closeInterfacesModal"
+    />
+
     <!-- Unsaved Changes Warning Dialog -->
     <ConfirmDialog
       :show="showUnsavedChangesDialog"
@@ -789,6 +797,7 @@ import NeighborDiscoveryResultModal from './NeighborDiscoveryResultModal.vue'
 import CodeBlock from './CodeBlock.vue'
 import TopologyBuilderModal from './TopologyBuilderModal.vue'
 import TopologyDiscoveryModal from './TopologyDiscoveryModal.vue'
+import DeviceInterfacesModal from './DeviceInterfacesModal.vue'
 import type { TopologyGraph } from '@/services/api'
 
 // Constants
@@ -1184,6 +1193,11 @@ const showTopologyDiscoveryModal = ref(false)
 
 // Topology Builder Modal state
 const showTopologyBuilderModal = ref(false)
+
+// Device Interfaces Modal state
+const showInterfacesModal = ref(false)
+const interfacesDeviceId = ref('')
+const interfacesDeviceName = ref('')
 
 // Device Search state
 const showDeviceSearch = ref(false)
@@ -1613,7 +1627,16 @@ const contextMenuItems = computed(() => {
       ],
     },
     {
-      icon: '💻',
+      icon: '�',
+      label: 'Interfaces',
+      submenu: [
+        { icon: '📋', label: 'Brief', action: () => { hideContextMenu(); showDeviceInterfaces(contextMenu.target!, 'brief') } },
+        { icon: '📄', label: 'Full', action: () => { hideContextMenu(); showDeviceInterfaces(contextMenu.target!, 'full') } },
+        { icon: '⚠️', label: 'Errors', action: () => { hideContextMenu(); showDeviceInterfaces(contextMenu.target!, 'errors') } },
+      ],
+    },
+    {
+      icon: '�💻',
       label: 'Commands',
       submenu: commandsSubmenu
     },
@@ -2084,6 +2107,29 @@ const showCommandExecution = async (device: Device, command: any) => {
 }
 
 const showDeviceChanges = (device: Device) => {
+}
+
+const showDeviceInterfaces = (device: Device, _mode: 'brief' | 'full' | 'errors') => {
+  // Get the device's Nautobot ID from properties
+  const props = device.properties ? JSON.parse(device.properties) : {}
+  const nautobotId = props.nautobot_id
+
+  if (!nautobotId) {
+    console.error('Device does not have a Nautobot ID')
+    return
+  }
+
+  // For now, we'll only support "full" mode which uses the TextFSM parser
+  // Brief and Errors modes could be added later with different commands or filtering
+  interfacesDeviceId.value = nautobotId
+  interfacesDeviceName.value = device.name
+  showInterfacesModal.value = true
+}
+
+const closeInterfacesModal = () => {
+  showInterfacesModal.value = false
+  interfacesDeviceId.value = ''
+  interfacesDeviceName.value = ''
 }
 
 const showDeviceCommands = (device: Device) => {

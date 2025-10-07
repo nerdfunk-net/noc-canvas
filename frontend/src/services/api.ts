@@ -573,3 +573,22 @@ export const topologyApi = {
     return apiClient.get<TopologyStatistics>(endpoint)
   }
 }
+
+// Device communication API
+export const devicesApi = {
+  async getInterfaces(deviceId: string, useTextfsm: boolean = true): Promise<{
+    success: boolean
+    output?: any
+    error?: string
+    parsed?: boolean
+    parser_used?: string
+  }> {
+    const queryParams = new URLSearchParams()
+    if (useTextfsm) {
+      queryParams.append('use_textfsm', 'true')
+    }
+    const endpoint = `/api/devices/${deviceId}/interfaces${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+    return apiClient.get(endpoint)
+  }
+}
+

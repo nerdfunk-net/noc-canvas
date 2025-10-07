@@ -1718,6 +1718,13 @@
                 Clean Expired Cache
               </button>
               <button
+                @click="clearJSONCache"
+                class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center"
+              >
+                <i class="fas fa-trash-alt mr-2"></i>
+                Clear JSON Cache
+              </button>
+              <button
                 @click="clearAllCache"
                 class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center"
               >
@@ -4230,6 +4237,89 @@ const clearAllCache = async () => {
     notificationStore.addNotification({
       title: 'Clear Failed',
       message: error instanceof Error ? error.message : 'Failed to clear all cache',
+      type: 'error',
+    })
+  }
+}
+
+const clearJSONCache = async () => {
+  // Confirm before clearing JSON cache
+  if (!confirm('⚠️ This will delete ALL JSON blob cache data (parsed command outputs). Are you sure?')) {
+    return
+  }
+
+  try {
+    console.log('🗑️  Clearing JSON blob cache...')
+    
+    // Get all JSON blobs to find unique device IDs
+    const response = await makeAuthenticatedRequest('/api/cache/json-blobs?limit=10000')
+    if (!response.ok) {
+      throw new Error('Failed to fetch JSON blobs')
+    }
+    
+    const data = await response.json()
+    const jsonBlobs = data.results || []
+    
+    // Extract unique device IDs
+    const deviceIds = [...new Set(jsonBlobs.map((blob: any) => blob.device_id))]
+    console.log(`📋 Found ${deviceIds.length} devices with JSON cache`)
+    
+    if (deviceIds.length === 0) {
+      notificationStore.addNotification({
+        title: 'No JSON Cache',
+        message: 'No JSON blob cache to clear',
+        type: 'info',
+      })
+      return
+    }
+    
+    // Delete JSON cache for each device
+    let successCount = 0
+    let failCount = 0
+    
+    for (const deviceId of deviceIds) {
+      try {
+        const deleteResponse = await makeAuthenticatedRequest(`/api/cache/json/${deviceId}`, {
+          method: 'DELETE'
+        })
+        
+        if (deleteResponse.ok) {
+          successCount++
+          console.log(`✅ Cleared JSON cache for device ${deviceId}`)
+        } else {
+          failCount++
+          console.error(`❌ Failed to clear JSON cache for device ${deviceId}`)
+        }
+      } catch (error) {
+        failCount++
+        console.error(`❌ Error clearing JSON cache for device ${deviceId}:`, error)
+      }
+    }
+    
+    // Show result notification
+    if (failCount === 0) {
+      notificationStore.addNotification({
+        title: 'JSON Cache Cleared',
+        message: `Successfully cleared JSON cache for ${successCount} device(s)`,
+        type: 'success',
+      })
+    } else {
+      notificationStore.addNotification({
+        title: 'JSON Cache Partially Cleared',
+        message: `Cleared ${successCount} device(s), failed ${failCount}`,
+        type: 'warning',
+      })
+    }
+    
+    // Reload statistics and JSON blobs
+    await loadCacheStatistics()
+    await loadJSONBlobs()
+    
+  } catch (error) {
+    console.error('❌ Failed to clear JSON cache:', error)
+    notificationStore.addNotification({
+      title: 'Clear Failed',
+      message: error instanceof Error ? error.message : 'Failed to clear JSON cache',
       type: 'error',
     })
   }

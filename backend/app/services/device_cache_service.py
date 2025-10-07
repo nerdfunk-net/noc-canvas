@@ -40,7 +40,7 @@ class DeviceCacheService:
         return (
             db.query(DeviceCache)
             .options(
-                joinedload(DeviceCache.interfaces).joinedload('ip_addresses'),
+                joinedload(DeviceCache.interfaces).joinedload(InterfaceCache.ip_addresses),
                 joinedload(DeviceCache.ip_addresses),
                 joinedload(DeviceCache.arp_entries),
                 joinedload(DeviceCache.static_routes),

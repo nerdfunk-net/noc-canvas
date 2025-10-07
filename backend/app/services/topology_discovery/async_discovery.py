@@ -16,6 +16,17 @@ import httpx
 from sqlalchemy.orm import Session
 
 from ...core.config import settings
+from ...schemas.device_cache import (
+    ARPCacheCreate,
+    BGPRouteCacheCreate,
+    CDPNeighborCacheCreate,
+    InterfaceCacheCreate,
+    IPAddressCacheCreate,
+    MACAddressTableCacheCreate,
+    OSPFRouteCacheCreate,
+    StaticRouteCacheCreate,
+)
+from ...services.device_cache_service import device_cache_service
 from .base import TopologyDiscoveryBase
 
 logger = logging.getLogger(__name__)
@@ -33,6 +44,9 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
         This method is used in the async/API path to make internal HTTP calls
         to device endpoints. It reuses the existing device API infrastructure.
+        
+        Before making the HTTP call, checks the JSON blob cache for existing data.
+        If valid cached data exists, returns it immediately without making the API call.
 
         Args:
             device_id: The device ID
@@ -42,6 +56,41 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
         Returns:
             API response as dict with 'success' and 'output' keys
         """
+        # Check JSON blob cache first
+        try:
+            import json
+            from ...core.database import SessionLocal
+            from ...services.json_cache_service import JSONCacheService
+            
+            # Get the command for this endpoint
+            command = AsyncTopologyDiscoveryService._get_device_command(endpoint)
+            
+            db = SessionLocal()
+            try:
+                valid_cache = JSONCacheService.get_valid_cache(
+                    db=db,
+                    device_id=device_id,
+                    command=command
+                )
+                
+                if valid_cache:
+                    # Use cached data
+                    cached_output = json.loads(valid_cache.json_data)
+                    logger.info(f"✅ Using cached data for device {device_id}, command '{command}' (endpoint: {endpoint}) in async discovery")
+                    return {
+                        "success": True,
+                        "output": cached_output,
+                        "parsed": True,
+                        "parser_used": "TEXTFSM (from cache)",
+                        "execution_time": 0.0,
+                        "cached": True
+                    }
+            finally:
+                db.close()
+        except Exception as cache_error:
+            logger.warning(f"Failed to check cache for device {device_id}, endpoint '{endpoint}', will call API: {str(cache_error)}")
+        
+        # No cache or cache check failed, proceed with HTTP call
         base_url = settings.internal_api_url
         url = f"{base_url}/api/devices/{device_id}/{endpoint}?use_textfsm=true"
 
@@ -121,6 +170,57 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
         completed_tasks = 0
 
         try:
+            # Ensure device cache entry exists before caching any data
+            # This is required because all cache tables have foreign key constraints
+            if cache_results and db:
+                try:
+                    from ...services.nautobot import nautobot_service
+                    from ...schemas.device_cache import DeviceCacheCreate
+                    
+                    # Extract username from token
+                    username = AsyncTopologyDiscoveryService._get_username_from_token(
+                        auth_token
+                    )
+
+                    # Get device info from Nautobot to populate device cache
+                    device_info = await nautobot_service.get_device(device_id, username)
+
+                    if device_info:
+                        # Extract primary IP
+                        primary_ip4 = device_info.get("primary_ip4")
+                        primary_ip = (
+                            primary_ip4["address"].split("/")[0]
+                            if primary_ip4 and primary_ip4.get("address")
+                            else None
+                        )
+
+                        # Extract platform
+                        platform_info = device_info.get("platform")
+                        platform = (
+                            platform_info.get("name") if platform_info else None
+                        )
+
+                        # Create or update device cache entry
+                        device_cache_data = DeviceCacheCreate(
+                            device_id=device_id,
+                            device_name=device_info.get("name", ""),
+                            primary_ip=primary_ip,
+                            platform=platform,
+                        )
+                        device_cache_service.get_or_create_device_cache(
+                            db, device_cache_data
+                        )
+                        logger.info(f"✅ Device cache entry ensured for {device_id}")
+                    else:
+                        logger.warning(
+                            f"⚠️ Could not get device info from Nautobot for {device_id}"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"❌ Failed to create device cache entry for {device_id}: {e}"
+                    )
+                    # Continue anyway - caching will fail but data will still be returned
+
             # Interfaces
             if include_interfaces:
                 AsyncTopologyDiscoveryService.update_device_progress(
@@ -146,12 +246,11 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                         device_data["interfaces"] = result["output"]
                         logger.info(f"✅ Got {len(result['output'])} interfaces")
 
-                        # Cache if requested (async cache methods would go here)
+                        # Cache if requested
                         if cache_results and db:
-                            # await AsyncTopologyDiscoveryService._cache_interfaces(
-                            #     db, device_id, result["output"]
-                            # )
-                            pass  # Cache methods not yet implemented
+                            AsyncTopologyDiscoveryService._cache_interfaces_async(
+                                db, device_id, result["output"]
+                            )
                     else:
                         logger.warning(
                             f"⚠️ No interfaces data: success={result.get('success')}, "
@@ -190,6 +289,12 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["static_routes"] = result["output"]
                         logger.info(f"✅ Got {len(result['output'])} static routes")
+                        
+                        # Cache if requested
+                        if cache_results and db:
+                            AsyncTopologyDiscoveryService._cache_static_routes_async(
+                                db, device_id, result["output"]
+                            )
                     else:
                         logger.warning(
                             f"⚠️ No static routes data: success={result.get('success')}, "
@@ -218,6 +323,12 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     )
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["ospf_routes"] = result["output"]
+                        
+                        # Cache if requested
+                        if cache_results and db:
+                            AsyncTopologyDiscoveryService._cache_ospf_routes_async(
+                                db, device_id, result["output"]
+                            )
                 except Exception as e:
                     logger.error(f"Failed to get OSPF routes for {device_id}: {e}")
 
@@ -238,6 +349,12 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     )
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["bgp_routes"] = result["output"]
+                        
+                        # Cache if requested
+                        if cache_results and db:
+                            AsyncTopologyDiscoveryService._cache_bgp_routes_async(
+                                db, device_id, result["output"]
+                            )
                 except Exception as e:
                     logger.error(f"Failed to get BGP routes for {device_id}: {e}")
 
@@ -260,6 +377,12 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     )
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["mac_table"] = result["output"]
+                        
+                        # Cache if requested
+                        if cache_results and db:
+                            AsyncTopologyDiscoveryService._cache_mac_table_async(
+                                db, device_id, result["output"]
+                            )
                 except Exception as e:
                     logger.error(f"Failed to get MAC table for {device_id}: {e}")
 
@@ -282,6 +405,12 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     )
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["cdp_neighbors"] = result["output"]
+                        
+                        # Cache if requested
+                        if cache_results and db:
+                            AsyncTopologyDiscoveryService._cache_cdp_neighbors_async(
+                                db, device_id, result["output"]
+                            )
                 except Exception as e:
                     logger.error(f"Failed to get CDP neighbors for {device_id}: {e}")
 
@@ -311,6 +440,12 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["arp_entries"] = result["output"]
                         logger.info(f"✅ Got {len(result['output'])} ARP entries")
+                        
+                        # Cache if requested
+                        if cache_results and db:
+                            AsyncTopologyDiscoveryService._cache_arp_entries_async(
+                                db, device_id, result["output"]
+                            )
                     else:
                         logger.warning(
                             f"⚠️ No ARP data: success={result.get('success')}, "
@@ -441,3 +576,355 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
             "errors": errors,
             "duration_seconds": duration,
         }
+
+    # Async cache methods for API requests
+    # These are essentially the same as sync versions but called from async context
+
+    @staticmethod
+    def _cache_static_routes_async(
+        db: Session, device_id: str, routes: List[Dict[str, Any]]
+    ) -> None:
+        """Cache method for static routes (async context)."""
+        try:
+            cache_entries = []
+            for route in routes:
+                cache_entry = StaticRouteCacheCreate(
+                    device_id=device_id,
+                    network=route.get("network", ""),
+                    nexthop_ip=route.get("nexthop_ip"),
+                    interface_name=route.get("nexthop_if"),
+                    distance=route.get("distance"),
+                    metric=route.get("metric"),
+                )
+                cache_entries.append(cache_entry)
+
+            if cache_entries:
+                device_cache_service.bulk_replace_static_routes(
+                    db, device_id, cache_entries
+                )
+                logger.debug(
+                    f"Cached {len(routes)} static routes for device {device_id}"
+                )
+        except Exception as e:
+            logger.error(f"Failed to cache static routes for {device_id}: {e}")
+            db.rollback()
+
+    @staticmethod
+    def _cache_ospf_routes_async(
+        db: Session, device_id: str, routes: List[Dict[str, Any]]
+    ) -> None:
+        """Cache method for OSPF routes (async context)."""
+        try:
+            cache_entries = []
+            for route in routes:
+                cache_entry = OSPFRouteCacheCreate(
+                    device_id=device_id,
+                    network=route.get("network", ""),
+                    nexthop_ip=route.get("nexthop_ip"),
+                    interface_name=route.get("nexthop_if"),
+                    distance=route.get("distance"),
+                    metric=route.get("metric"),
+                    area=route.get("area"),
+                    route_type=route.get("route_type"),
+                )
+                cache_entries.append(cache_entry)
+
+            if cache_entries:
+                device_cache_service.bulk_replace_ospf_routes(
+                    db, device_id, cache_entries
+                )
+                logger.debug(f"Cached {len(routes)} OSPF routes for device {device_id}")
+        except Exception as e:
+            logger.error(f"Failed to cache OSPF routes for {device_id}: {e}")
+            db.rollback()
+
+    @staticmethod
+    def _cache_bgp_routes_async(
+        db: Session, device_id: str, routes: List[Dict[str, Any]]
+    ) -> None:
+        """Cache method for BGP routes (async context)."""
+        try:
+            cache_entries = []
+            for route in routes:
+                cache_entry = BGPRouteCacheCreate(
+                    device_id=device_id,
+                    network=route.get("network", ""),
+                    nexthop_ip=route.get("nexthop_ip"),
+                    as_path=route.get("as_path"),
+                    local_pref=route.get("local_pref"),
+                    metric=route.get("metric"),
+                    weight=route.get("weight"),
+                )
+                cache_entries.append(cache_entry)
+
+            if cache_entries:
+                device_cache_service.bulk_replace_bgp_routes(db, device_id, cache_entries)
+                logger.debug(f"Cached {len(routes)} BGP routes for device {device_id}")
+        except Exception as e:
+            logger.error(f"Failed to cache BGP routes for {device_id}: {e}")
+            db.rollback()
+
+    @staticmethod
+    def _cache_mac_table_async(
+        db: Session, device_id: str, mac_entries: List[Dict[str, Any]]
+    ) -> None:
+        """Cache method for MAC address table (async context)."""
+        try:
+            cache_entries = []
+            for entry in mac_entries:
+                cache_entry = MACAddressTableCacheCreate(
+                    device_id=device_id,
+                    vlan=entry.get("vlan", ""),
+                    mac_address=entry.get("destination_address", ""),
+                    interface=entry.get("destination_port", ""),
+                    type=entry.get("type", ""),
+                )
+                cache_entries.append(cache_entry)
+
+            if cache_entries:
+                device_cache_service.bulk_replace_mac_table(db, device_id, cache_entries)
+                logger.debug(
+                    f"Cached {len(mac_entries)} MAC entries for device {device_id}"
+                )
+        except Exception as e:
+            logger.error(f"Failed to cache MAC table for {device_id}: {e}")
+            db.rollback()
+
+    @staticmethod
+    def _cache_cdp_neighbors_async(
+        db: Session, device_id: str, neighbors: List[Dict[str, Any]]
+    ) -> None:
+        """Cache method for CDP neighbors (async context)."""
+        try:
+            cache_entries = []
+            for neighbor in neighbors:
+                # Extract fields with case-insensitive fallback
+                neighbor_name_raw = (
+                    neighbor.get("NEIGHBOR")
+                    or neighbor.get("neighbor")
+                    or neighbor.get("NEIGHBOR_NAME")
+                    or neighbor.get("neighbor_name")
+                    or neighbor.get("DESTINATION_HOST")
+                    or neighbor.get("destination_host")
+                    or ""
+                )
+                local_interface_raw = (
+                    neighbor.get("LOCAL_INTERFACE")
+                    or neighbor.get("local_interface")
+                    or neighbor.get("LOCAL_PORT")
+                    or neighbor.get("local_port")
+                    or ""
+                )
+                neighbor_ip_raw = (
+                    neighbor.get("MANAGEMENT_IP")
+                    or neighbor.get("management_ip")
+                    or neighbor.get("NEIGHBOR_IP")
+                    or neighbor.get("neighbor_ip")
+                    or ""
+                )
+                neighbor_interface_raw = (
+                    neighbor.get("NEIGHBOR_INTERFACE")
+                    or neighbor.get("neighbor_interface")
+                    or neighbor.get("NEIGHBOR_PORT")
+                    or neighbor.get("neighbor_port")
+                    or ""
+                )
+                platform_raw = neighbor.get("PLATFORM") or neighbor.get("platform") or ""
+                capabilities_raw = (
+                    neighbor.get("CAPABILITIES") or neighbor.get("capabilities") or ""
+                )
+
+                # Handle if fields are lists
+                if isinstance(neighbor_name_raw, list):
+                    neighbor_name = neighbor_name_raw[0] if neighbor_name_raw else ""
+                else:
+                    neighbor_name = neighbor_name_raw
+                neighbor_name = neighbor_name.strip() if neighbor_name else ""
+
+                if isinstance(local_interface_raw, list):
+                    local_interface = (
+                        local_interface_raw[0] if local_interface_raw else ""
+                    )
+                else:
+                    local_interface = local_interface_raw
+                local_interface = local_interface.strip() if local_interface else ""
+
+                # Skip entries without neighbor name or local interface
+                if not neighbor_name or not local_interface:
+                    logger.warning(
+                        f"Skipping CDP neighbor with missing name or interface: {neighbor}"
+                    )
+                    continue
+
+                # Handle other fields
+                if isinstance(neighbor_ip_raw, list):
+                    neighbor_ip = neighbor_ip_raw[0] if neighbor_ip_raw else ""
+                else:
+                    neighbor_ip = neighbor_ip_raw
+                neighbor_ip = neighbor_ip.strip() if neighbor_ip else ""
+
+                if isinstance(neighbor_interface_raw, list):
+                    neighbor_interface = (
+                        neighbor_interface_raw[0] if neighbor_interface_raw else ""
+                    )
+                else:
+                    neighbor_interface = neighbor_interface_raw
+                neighbor_interface = (
+                    neighbor_interface.strip() if neighbor_interface else ""
+                )
+
+                if isinstance(platform_raw, list):
+                    platform = platform_raw[0] if platform_raw else ""
+                else:
+                    platform = platform_raw
+                platform = platform.strip() if platform else ""
+
+                if isinstance(capabilities_raw, list):
+                    capabilities = ", ".join(capabilities_raw) if capabilities_raw else ""
+                else:
+                    capabilities = capabilities_raw
+                capabilities = capabilities.strip() if capabilities else ""
+
+                cache_entry = CDPNeighborCacheCreate(
+                    device_id=device_id,
+                    local_interface=local_interface,
+                    neighbor_name=neighbor_name,
+                    neighbor_interface=neighbor_interface if neighbor_interface else None,
+                    neighbor_ip=neighbor_ip if neighbor_ip else None,
+                    platform=platform if platform else None,
+                    capabilities=capabilities if capabilities else None,
+                )
+                cache_entries.append(cache_entry)
+
+            if cache_entries:
+                device_cache_service.bulk_replace_cdp_neighbors(
+                    db, device_id, cache_entries
+                )
+                logger.debug(
+                    f"Cached {len(cache_entries)} CDP neighbors for device {device_id}"
+                )
+        except Exception as e:
+            logger.error(f"Failed to cache CDP neighbors for {device_id}: {e}")
+            db.rollback()
+
+    @staticmethod
+    def _cache_arp_entries_async(
+        db: Session, device_id: str, arp_entries: List[Dict[str, Any]]
+    ) -> None:
+        """Cache method for ARP entries (async context)."""
+        try:
+            cache_entries = []
+            for entry in arp_entries:
+                # Handle case-insensitive field names
+                protocol = entry.get("protocol") or entry.get("PROTOCOL") or "Internet"
+                address = entry.get("address") or entry.get("ADDRESS") or ""
+                age = entry.get("age") or entry.get("AGE") or ""
+                mac = entry.get("mac") or entry.get("MAC") or ""
+                interface = entry.get("interface") or entry.get("INTERFACE") or ""
+
+                # Handle list values
+                if isinstance(protocol, list):
+                    protocol = protocol[0] if protocol else "Internet"
+                if isinstance(address, list):
+                    address = address[0] if address else ""
+                if isinstance(age, list):
+                    age = age[0] if age else ""
+                if isinstance(mac, list):
+                    mac = mac[0] if mac else ""
+                if isinstance(interface, list):
+                    interface = interface[0] if interface else ""
+
+                # Convert age to integer or None
+                age_int = None
+                if age and age.strip() and age.strip() != "-":
+                    try:
+                        age_int = int(age.strip())
+                    except ValueError:
+                        pass
+
+                cache_entry = ARPCacheCreate(
+                    device_id=device_id,
+                    ip_address=address.strip() if address else "",
+                    mac_address=mac.strip() if mac else "",
+                    interface_name=interface.strip() if interface else None,
+                    arp_type=protocol.strip() if protocol else None,
+                    age=age_int,
+                )
+                cache_entries.append(cache_entry)
+
+            if cache_entries:
+                device_cache_service.bulk_replace_arp(db, device_id, cache_entries)
+                logger.debug(
+                    f"Cached {len(cache_entries)} ARP entries for device {device_id}"
+                )
+        except Exception as e:
+            logger.error(f"Failed to cache ARP entries for {device_id}: {e}")
+            db.rollback()
+
+    @staticmethod
+    def _cache_interfaces_async(
+        db: Session, device_id: str, interfaces: List[Dict[str, Any]]
+    ) -> None:
+        """Cache method for interfaces (async context)."""
+        try:
+            interface_entries = []
+            ip_entries = []
+
+            for iface in interfaces:
+                # Determine status from link_status and protocol_status
+                link_status = iface.get("link_status", "").lower()
+                protocol_status = iface.get("protocol_status", "").lower()
+
+                # Combine statuses
+                status = None
+                if link_status or protocol_status:
+                    status = f"{link_status or 'unknown'}/{protocol_status or 'unknown'}"
+
+                # Create interface entry
+                interface_entry = InterfaceCacheCreate(
+                    device_id=device_id,
+                    interface_name=iface.get("name") or iface.get("interface", ""),
+                    description=iface.get("description"),
+                    mac_address=iface.get("mac_address") or iface.get("phys_address"),
+                    status=status,
+                    speed=iface.get("bandwidth"),
+                    duplex=iface.get("duplex"),
+                    vlan_id=None,
+                )
+                interface_entries.append(interface_entry)
+
+                # Create IP address entries if present
+                ip_address = iface.get("ip_address")
+                if ip_address and ip_address != "unassigned":
+                    subnet_mask = None
+                    if "/" in ip_address:
+                        ip_addr, prefix = ip_address.split("/")
+                        ip_address = ip_addr
+                        subnet_mask = prefix
+
+                    ip_entry = IPAddressCacheCreate(
+                        device_id=device_id,
+                        interface_id=None,
+                        interface_name=iface.get("name") or iface.get("interface", ""),
+                        ip_address=ip_address,
+                        subnet_mask=subnet_mask,
+                        ip_version=4 if "." in ip_address else 6,
+                        is_primary=False,
+                    )
+                    ip_entries.append(ip_entry)
+
+            # Use upsert for interfaces
+            if interface_entries:
+                for interface_entry in interface_entries:
+                    device_cache_service.upsert_interface(db, interface_entry)
+                logger.debug(
+                    f"Cached {len(interface_entries)} interfaces for device {device_id}"
+                )
+
+            if ip_entries:
+                logger.debug(
+                    f"Skipping {len(ip_entries)} IP addresses (bulk method not implemented)"
+                )
+        except Exception as e:
+            logger.error(f"Failed to cache interfaces for {device_id}: {e}")
+            db.rollback()

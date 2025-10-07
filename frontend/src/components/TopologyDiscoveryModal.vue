@@ -50,6 +50,14 @@
             <div class="mb-6">
               <h3 class="text-sm font-medium text-gray-700 mb-3">Data to Discover</h3>
               <div class="grid grid-cols-2 gap-3">
+                <label class="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-50" :class="{ 'bg-indigo-50 border-indigo-300': includeInterfaces }">
+                  <input type="checkbox" v-model="includeInterfaces" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" />
+                  <span class="text-sm text-gray-700">Device Interfaces</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-50" :class="{ 'bg-indigo-50 border-indigo-300': includeArp }">
+                  <input type="checkbox" v-model="includeArp" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" />
+                  <span class="text-sm text-gray-700">ARP Entries</span>
+                </label>
                 <label class="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-50" :class="{ 'bg-indigo-50 border-indigo-300': includeStaticRoutes }">
                   <input type="checkbox" v-model="includeStaticRoutes" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" />
                   <span class="text-sm text-gray-700">Static Routes</span>
@@ -352,8 +360,9 @@ const canvasDevices = computed(() => {
 })
 
 const hasDataSelected = computed(() => {
-  return includeStaticRoutes.value || includeOspfRoutes.value || includeBgpRoutes.value ||
-         includeMacTable.value || includeCdpNeighbors.value
+  return includeInterfaces.value || includeArp.value || includeStaticRoutes.value || 
+         includeOspfRoutes.value || includeBgpRoutes.value || includeMacTable.value || 
+         includeCdpNeighbors.value
 })
 
 // Methods

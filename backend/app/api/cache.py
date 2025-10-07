@@ -627,7 +627,7 @@ def set_json_cache(
         raise HTTPException(status_code=500, detail=f"Failed to set cache: {str(e)}")
 
 
-@router.get("/cache/json/{device_id}")
+@router.get("/json/{device_id}")
 def get_json_cache(
     device_id: str,
     command: Optional[str] = Query(None, description="Specific command to retrieve cache for"),
@@ -677,7 +677,7 @@ def get_json_cache(
         raise HTTPException(status_code=500, detail=f"Failed to get cache: {str(e)}")
 
 
-@router.delete("/cache/json/{device_id}")
+@router.delete("/json/{device_id}")
 def delete_json_cache(
     device_id: str,
     command: Optional[str] = Query(None, description="Specific command to delete cache for"),
@@ -726,7 +726,7 @@ def delete_json_cache(
         raise HTTPException(status_code=500, detail=f"Failed to delete cache: {str(e)}")
 
 
-@router.get("/cache/json/devices/list")
+@router.get("/json/devices/list")
 def list_cached_devices(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
@@ -746,7 +746,7 @@ def list_cached_devices(
         raise HTTPException(status_code=500, detail=f"Failed to list cached devices: {str(e)}")
 
 
-@router.get("/cache/json/{device_id}/commands")
+@router.get("/json/{device_id}/commands")
 def list_cached_commands(
     device_id: str,
     db: Session = Depends(get_db),

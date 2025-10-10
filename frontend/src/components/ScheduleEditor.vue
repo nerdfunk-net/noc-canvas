@@ -63,6 +63,30 @@
           </p>
         </div>
 
+        <!-- Inventory Selection (only for tasks that support it) -->
+        <div v-if="selectedTask && selectedTask.supports_inventory" class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div class="flex items-start space-x-2 mb-3">
+            <i class="fas fa-list text-blue-500 mt-0.5"></i>
+            <div class="flex-1">
+              <label class="block text-sm font-semibold text-gray-900 mb-2">
+                Use Inventory (Optional)
+              </label>
+              <p class="text-xs text-gray-600 mb-3">
+                Select an inventory to run this task on a predefined set of devices. Leave empty to use all devices or specify device_ids in arguments.
+              </p>
+              <select
+                v-model="selectedInventoryId"
+                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option :value="null">-- No Inventory (use all devices or specify manually) --</option>
+                <option v-for="inventory in availableInventories" :key="inventory.id" :value="inventory.id">
+                  {{ inventory.name }}{{ inventory.description ? ` - ${inventory.description}` : '' }}
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <!-- Schedule Type -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -279,7 +303,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
+import { makeAuthenticatedRequest } from '@/services/api'
 
 interface Props {
   show: boolean
@@ -318,9 +343,26 @@ const form = ref({
 const argsJson = ref('{}')
 const hasExpiry = ref(false)
 const expiryDate = ref('')
+const selectedInventoryId = ref<number | null>(null)
+const availableInventories = ref<Array<{id: number, name: string, description: string}>>([])
 
 const selectedTask = computed(() => {
   return props.availableTasks.find(t => t.task === form.value.task)
+})
+
+const loadInventories = async () => {
+  try {
+    const response = await makeAuthenticatedRequest('/api/scheduler/inventories')
+    if (response.ok) {
+      availableInventories.value = await response.json()
+    }
+  } catch (error) {
+    console.error('Error loading inventories:', error)
+  }
+}
+
+onMounted(() => {
+  loadInventories()
 })
 
 const cronPresets = [
@@ -348,6 +390,14 @@ watch(() => props.show, (newVal) => {
         one_off: props.schedule.one_off,
         expires: props.schedule.expires || null
       }
+      
+      // Extract inventory_id from kwargs if present
+      if (props.schedule.kwargs && props.schedule.kwargs.inventory_id) {
+        selectedInventoryId.value = props.schedule.kwargs.inventory_id
+      } else {
+        selectedInventoryId.value = null
+      }
+      
       argsJson.value = JSON.stringify(props.schedule.kwargs || {}, null, 2)
 
       if (props.schedule.expires) {
@@ -389,12 +439,14 @@ const resetForm = () => {
   argsJson.value = '{}'
   hasExpiry.value = false
   expiryDate.value = ''
+  selectedInventoryId.value = null
 }
 
 const onTaskChange = () => {
-  // Reset args when task changes
+  // Reset args and inventory selection when task changes
   argsJson.value = '{}'
   form.value.kwargs = {}
+  selectedInventoryId.value = null
 }
 
 const applyCronPreset = (preset: any) => {
@@ -414,6 +466,11 @@ const handleSave = () => {
   } catch (e) {
     alert('Invalid JSON in task arguments')
     return
+  }
+
+  // Add inventory_id to kwargs if selected
+  if (selectedInventoryId.value !== null && selectedTask.value?.supports_inventory) {
+    form.value.kwargs = { ...form.value.kwargs, inventory_id: selectedInventoryId.value }
   }
 
   // Handle expiry

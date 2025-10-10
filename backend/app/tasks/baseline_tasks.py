@@ -25,6 +25,7 @@ def register_tasks(celery_app):
     def create_baseline(
         self,
         device_ids: Optional[List[str]] = None,
+        inventory_id: Optional[int] = None,
         commands: Optional[List[str]] = None,
         notes: Optional[str] = None,
         auth_token: str = ""
@@ -47,6 +48,7 @@ def register_tasks(celery_app):
         
         Args:
             device_ids: List of device IDs to baseline. If None, baselines all devices.
+            inventory_id: ID of inventory to use for device selection. Takes precedence over device_ids.
             commands: List of specific commands to execute. If None, runs all default commands.
             notes: Optional notes to store with baseline (e.g., "Pre-upgrade baseline")
             auth_token: Authentication token for device access
@@ -62,8 +64,10 @@ def register_tasks(celery_app):
         """
         from ..core.database import SessionLocal
         from ..models.device_cache import BaselineCache
+        from ..models.inventory import Inventory
         from ..services.nautobot import nautobot_service
         from ..services.device_communication import DeviceCommunicationService
+        from ..services.inventory import preview_inventory
         
         logger.info(f"Starting baseline creation task")
         
@@ -92,6 +96,42 @@ def register_tasks(celery_app):
             
             try:
                 # Get devices to baseline
+                # Priority: inventory_id > device_ids > all devices
+                if inventory_id:
+                    # Resolve inventory to device IDs
+                    self.update_state(
+                        state="PROGRESS",
+                        meta={"current": 3, "total": 100, "status": f"Resolving inventory {inventory_id} to devices"}
+                    )
+                    
+                    inventory = db.query(Inventory).filter(Inventory.id == inventory_id).first()
+                    if not inventory:
+                        raise ValueError(f"Inventory {inventory_id} not found")
+                    
+                    # Use inventory service to preview devices
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        devices_result = loop.run_until_complete(
+                            preview_inventory(db, inventory.id, username)
+                        )
+                        device_ids = [d['id'] for d in devices_result.get('devices', [])]
+                        logger.info(f"Resolved inventory '{inventory.name}' to {len(device_ids)} devices")
+                    finally:
+                        loop.close()
+                    
+                    if not device_ids:
+                        logger.warning(f"Inventory '{inventory.name}' resolved to zero devices")
+                        return {
+                            "status": "completed",
+                            "devices_processed": 0,
+                            "total_devices": 0,
+                            "total_commands": 0,
+                            "baseline_ids": [],
+                            "errors": [],
+                            "message": f"Inventory '{inventory.name}' contains no devices"
+                        }
+                
                 if not device_ids:
                     # Get all devices from Nautobot if none specified
                     self.update_state(

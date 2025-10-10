@@ -655,7 +655,8 @@ async def get_available_tasks(
         {
             "name": "sync_nautobot_devices",
             "task": "app.tasks.nautobot_tasks.sync_nautobot_devices",
-            "description": "Sync devices from Nautobot",
+            "description": "Synchronize devices from Nautobot",
+            "supports_inventory": False,
             "args_schema": {},
             "kwargs_schema": {
                 "limit": "int (optional)",
@@ -667,7 +668,8 @@ async def get_available_tasks(
         {
             "name": "sync_checkmk_hosts",
             "task": "app.tasks.checkmk_tasks.sync_checkmk_hosts",
-            "description": "Sync hosts from CheckMK",
+            "description": "Synchronize hosts from CheckMK",
+            "supports_inventory": False,
             "args_schema": {},
             "kwargs_schema": {
                 "effective_attributes": "boolean (optional)",
@@ -678,17 +680,20 @@ async def get_available_tasks(
         {
             "name": "cache_warm_up",
             "task": "app.tasks.cache_tasks.cache_warm_up",
-            "description": "Warm up caches with frequently accessed data",
+            "description": "Pre-load frequently accessed data into cache",
+            "supports_inventory": False,
             "args_schema": {},
             "kwargs_schema": {}
         },
         {
             "name": "discover_topology",
             "task": "app.tasks.topology_tasks.discover_topology_task",
-            "description": "Discover network topology from seed devices",
+            "description": "Discover and map network topology",
+            "supports_inventory": True,
             "args_schema": {},
             "kwargs_schema": {
-                "seed_devices": "array of device IDs (required)",
+                "seed_devices": "array of device IDs (optional) - If not provided and inventory_id is set, uses inventory devices",
+                "inventory_id": "int (optional) - Use devices from this inventory",
                 "max_depth": "int (optional, default: 3)",
                 "discover_neighbors": "boolean (optional, default: true)",
             }
@@ -696,7 +701,8 @@ async def get_available_tasks(
         {
             "name": "cleanup_old_data",
             "task": "app.tasks.cleanup_tasks.cleanup_old_data",
-            "description": "Clean up old data including expired tasks, completed one-off tasks, and stale results",
+            "description": "Remove old tasks and stale data",
+            "supports_inventory": False,
             "args_schema": {},
             "kwargs_schema": {
                 "days_to_keep": "int (optional, default: 7) - Number of days to keep historical data",
@@ -705,10 +711,12 @@ async def get_available_tasks(
         {
             "name": "create_baseline",
             "task": "app.tasks.baseline_tasks.create_baseline",
-            "description": "Create or update baseline configurations for devices by executing all topology-related commands (interfaces, routing, CDP, ARP, MAC table) and storing output for future comparison",
+            "description": "Create baseline configuration snapshots for devices",
+            "supports_inventory": True,
             "args_schema": {},
             "kwargs_schema": {
-                "device_ids": "array of device IDs (optional) - If not provided, baselines all devices",
+                "device_ids": "array of device IDs (optional) - If not provided and inventory_id is set, uses inventory devices",
+                "inventory_id": "int (optional) - Use devices from this inventory",
                 "commands": "array of commands (optional) - Specific commands to execute. If not provided, runs all default commands",
                 "notes": "string (optional) - Notes about this baseline (e.g., 'Pre-upgrade baseline')",
             }
@@ -716,7 +724,8 @@ async def get_available_tasks(
         {
             "name": "test_job",
             "task": "app.tasks.test_tasks.test_background_task",
-            "description": "Test background task for verification",
+            "description": "Test task for system verification",
+            "supports_inventory": False,
             "args_schema": {},
             "kwargs_schema": {
                 "message": "string (optional)",
@@ -726,3 +735,23 @@ async def get_available_tasks(
     ]
 
     return available_tasks
+
+
+@router.get("/inventories")
+async def get_inventories_for_scheduler(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get list of available inventories for task scheduling."""
+    from ..models.inventory import Inventory
+    
+    inventories = db.query(Inventory).order_by(Inventory.name).all()
+    
+    return [
+        {
+            "id": inv.id,
+            "name": inv.name,
+            "description": inv.description or "",
+        }
+        for inv in inventories
+    ]

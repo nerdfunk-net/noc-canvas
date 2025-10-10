@@ -21,3 +21,4 @@ psycopg2-binary>=2.9.0
 PyYAML>=6.0.0
 netmiko>=4.6.0
 textfsm>=2.1.0
+paramiko>=3.3.0

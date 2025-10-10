@@ -78,3 +78,25 @@ async def verify_token_dependency(
 ) -> dict:
     """Token verification dependency for routes."""
     return await get_current_user(credentials)
+
+
+async def get_current_user_ws(token: str) -> dict:
+    """
+    Get current authenticated user from WebSocket token.
+
+    Args:
+        token: JWT token from query parameter
+
+    Returns:
+        User data dict
+
+    Raises:
+        HTTPException: If token is invalid
+    """
+    user_data = verify_token(token)
+    if user_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+        )
+    return user_data

@@ -673,6 +673,14 @@ cd<template>
       @close="closeInterfacesModal"
     />
 
+    <!-- SSH Terminal Modal -->
+    <SSHTerminalModal
+      :show="showSSHTerminalModal"
+      :device-id="sshTerminalDeviceId"
+      :device-name="sshTerminalDeviceName"
+      @close="closeSSHTerminalModal"
+    />
+
     <!-- Unsaved Changes Warning Dialog -->
     <ConfirmDialog
       :show="showUnsavedChangesDialog"
@@ -806,6 +814,7 @@ import CodeBlock from './CodeBlock.vue'
 import TopologyBuilderModal from './TopologyBuilderModal.vue'
 import TopologyDiscoveryModal from './TopologyDiscoveryModal.vue'
 import DeviceInterfacesModal from './DeviceInterfacesModal.vue'
+import SSHTerminalModal from './SSHTerminalModal.vue'
 import type { TopologyGraph } from '@/services/api'
 
 // Constants
@@ -1229,6 +1238,11 @@ const showInterfacesModal = ref(false)
 const interfacesDeviceId = ref('')
 const interfacesDeviceName = ref('')
 
+// SSH Terminal Modal state
+const showSSHTerminalModal = ref(false)
+const sshTerminalDeviceId = ref('')
+const sshTerminalDeviceName = ref('')
+
 // Device Search state
 const showDeviceSearch = ref(false)
 const deviceSearchQuery = ref('')
@@ -1641,6 +1655,7 @@ const contextMenuItems = computed(() => {
   
   const items = [
     { icon: '📊', label: 'Overview', action: () => { hideContextMenu(); showDeviceOverview(contextMenu.target!) } },
+    { icon: '💻', label: 'SSH Terminal', action: () => { hideContextMenu(); showSSHTerminal(contextMenu.target!) } },
     {
       icon: '⚙️',
       label: 'Config',
@@ -2160,6 +2175,27 @@ const closeInterfacesModal = () => {
   showInterfacesModal.value = false
   interfacesDeviceId.value = ''
   interfacesDeviceName.value = ''
+}
+
+const showSSHTerminal = (device: Device) => {
+  // Get the device's Nautobot ID from properties
+  const props = device.properties ? JSON.parse(device.properties) : {}
+  const nautobotId = props.nautobot_id
+
+  if (!nautobotId) {
+    console.error('Device does not have a Nautobot ID')
+    return
+  }
+
+  sshTerminalDeviceId.value = nautobotId
+  sshTerminalDeviceName.value = device.name
+  showSSHTerminalModal.value = true
+}
+
+const closeSSHTerminalModal = () => {
+  showSSHTerminalModal.value = false
+  sshTerminalDeviceId.value = ''
+  sshTerminalDeviceName.value = ''
 }
 
 const showDeviceCommands = (device: Device) => {
@@ -3754,6 +3790,13 @@ const handleGlobalClick = (event: MouseEvent) => {
 
   // Don't handle right-clicks - they should show context menus, not hide them
   if (event.button === 2) {
+    return
+  }
+
+  // Don't interfere with clicks inside modals
+  const clickedElement = event.target as HTMLElement
+  const clickedInsideModal = clickedElement.closest('[data-modal="true"]')
+  if (clickedInsideModal) {
     return
   }
 

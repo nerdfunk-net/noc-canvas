@@ -132,11 +132,11 @@ def build_netmiko_settings(db: Session) -> Dict[str, Any]:
 def build_canvas_settings(db: Session) -> Dict[str, Any]:
     """Build canvas settings dict from database."""
     return {
+        "autoSaveEnabled": get_setting_value(db, "canvas_autosave_enabled", "false").lower()
+        == "true",
         "autoSaveInterval": int(
             get_setting_value(db, "canvas_autosave_interval", "60")
         ),
-        "gridEnabled": get_setting_value(db, "canvas_grid_enabled", "true").lower()
-        == "true",
     }
 
 
@@ -971,10 +971,13 @@ async def save_unified_settings(
         settings_to_save = [
             ("checkmk_enabled", str(settings_data.checkmk.get("enabled", False))),
             (
+                "canvas_autosave_enabled",
+                str(settings_data.canvas.get("autoSaveEnabled", False)),
+            ),
+            (
                 "canvas_autosave_interval",
                 str(settings_data.canvas.get("autoSaveInterval", 60)),
             ),
-            ("canvas_grid_enabled", str(settings_data.canvas.get("gridEnabled", True))),
         ]
 
         # Add Nautobot settings

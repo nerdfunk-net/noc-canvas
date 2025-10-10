@@ -86,15 +86,15 @@
             <div class="card p-6">
               <h2 class="text-lg font-semibold text-gray-900 mb-4">Canvas Settings</h2>
               <div class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                   <div>
-                    <label class="flex items-center mb-4">
+                    <label class="flex items-center">
                       <input
-                        v-model="settings.canvas.gridEnabled"
+                        v-model="settings.canvas.autoSaveEnabled"
                         type="checkbox"
                         class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                       />
-                      <span class="ml-2 text-sm text-gray-700">Enable Grid Snap</span>
+                      <span class="ml-2 text-sm text-gray-700">Enable Autosave</span>
                     </label>
                   </div>
                   <div>
@@ -106,20 +106,9 @@
                       type="number"
                       min="30"
                       step="10"
-                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                      :disabled="!settings.canvas.autoSaveEnabled"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
-                  </div>
-                </div>
-                <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
-                  <div class="flex">
-                    <i class="fas fa-info-circle text-blue-400 mt-0.5 mr-3"></i>
-                    <div class="text-sm text-blue-700">
-                      <p class="font-medium">Canvas Size</p>
-                      <p>
-                        The canvas size is unlimited and will automatically adjust based on your
-                        content.
-                      </p>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -2802,8 +2791,8 @@ const settings = reactive({
     sessionTimeout: 60,
   },
   canvas: {
+    autoSaveEnabled: false,
     autoSaveInterval: 60,
-    gridEnabled: true,
   },
   cache: {
     defaultTtlMinutes: 60,
@@ -4533,12 +4522,51 @@ const loadSettings = async () => {
 
     if (response.ok) {
       const data = await response.json()
-      Object.assign(settings, data)
+      // Merge data with existing settings to preserve defaults for missing fields
+      if (data.canvas) {
+        Object.assign(settings.canvas, data.canvas)
+      }
+      if (data.nautobot) {
+        Object.assign(settings.nautobot, data.nautobot)
+      }
+      if (data.checkmk) {
+        Object.assign(settings.checkmk, data.checkmk)
+      }
+      if (data.netmiko) {
+        Object.assign(settings.netmiko, data.netmiko)
+      }
+      if (data.cache) {
+        Object.assign(settings.cache, data.cache)
+      }
+      if (data.database) {
+        Object.assign(settings.database, data.database)
+      }
+      if (data.credentials) {
+        settings.credentials = data.credentials
+      }
     } else {
       // Fallback to localStorage
       const saved = localStorage.getItem('noc-canvas-settings')
       if (saved) {
-        Object.assign(settings, JSON.parse(saved))
+        const savedData = JSON.parse(saved)
+        if (savedData.canvas) {
+          Object.assign(settings.canvas, savedData.canvas)
+        }
+        if (savedData.nautobot) {
+          Object.assign(settings.nautobot, savedData.nautobot)
+        }
+        if (savedData.checkmk) {
+          Object.assign(settings.checkmk, savedData.checkmk)
+        }
+        if (savedData.netmiko) {
+          Object.assign(settings.netmiko, savedData.netmiko)
+        }
+        if (savedData.cache) {
+          Object.assign(settings.cache, savedData.cache)
+        }
+        if (savedData.database) {
+          Object.assign(settings.database, savedData.database)
+        }
       }
     }
   } catch (error) {
@@ -4546,7 +4574,25 @@ const loadSettings = async () => {
     // Fallback to localStorage
     const saved = localStorage.getItem('noc-canvas-settings')
     if (saved) {
-      Object.assign(settings, JSON.parse(saved))
+      const savedData = JSON.parse(saved)
+      if (savedData.canvas) {
+        Object.assign(settings.canvas, savedData.canvas)
+      }
+      if (savedData.nautobot) {
+        Object.assign(settings.nautobot, savedData.nautobot)
+      }
+      if (savedData.checkmk) {
+        Object.assign(settings.checkmk, savedData.checkmk)
+      }
+      if (savedData.netmiko) {
+        Object.assign(settings.netmiko, savedData.netmiko)
+      }
+      if (savedData.cache) {
+        Object.assign(settings.cache, savedData.cache)
+      }
+      if (savedData.database) {
+        Object.assign(settings.database, savedData.database)
+      }
     }
   }
 

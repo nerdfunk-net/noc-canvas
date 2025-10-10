@@ -699,6 +699,17 @@ cd<template>
       @cancel="handleUnsavedChangesDiscard"
     />
 
+    <!-- Auto-save Restore Dialog -->
+    <ConfirmDialog
+      :show="showAutosaveRestoreDialog"
+      title="Restore Auto-saved Canvas"
+      message="An auto-saved canvas was found from your previous session. Would you like to restore it?"
+      confirm-text="Restore"
+      cancel-text="Start Fresh"
+      @confirm="handleAutosaveRestore"
+      @cancel="handleAutosaveDiscard"
+    />
+
     <!-- Delete Device Confirmation Dialog -->
     <ConfirmDialog
       :show="showDeleteConfirmDialog"
@@ -799,6 +810,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from
 import { useDevicesStore, type Device } from '@/stores/devices'
 import { useCanvasStore } from '@/stores/canvas'
 import { useShapesStore } from '@/stores/shapes'
+import { useAuthStore } from '@/stores/auth'
 import { type NautobotDevice, canvasApi, nautobotApi, makeAuthenticatedRequest } from '@/services/api'
 import { useDeviceIcons } from '@/composables/useDeviceIcons'
 import { templateService } from '@/services/templateService'
@@ -858,6 +870,7 @@ const snapToGridCoordinates = (x: number, y: number): { x: number; y: number } =
 const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
 const shapesStore = useShapesStore()
+const authStore = useAuthStore()
 const { loadDeviceIcons, getDeviceIcon: getHardcodedIcon } = useDeviceIcons()
 
 // Map to store device-specific icons
@@ -1061,6 +1074,96 @@ const {
   loadCanvasById: composableLoadCanvasById,
 } = canvasStateComposable
 
+// Auto-save functionality
+const autoSaveTimer = ref<number | null>(null)
+const autoSaveSettings = ref<{ enabled: boolean; interval: number }>({ enabled: false, interval: 60 })
+
+// Function to perform auto-save
+const performAutoSave = async () => {
+  console.log('⏰ Auto-save triggered')
+  console.log('  - Enabled:', autoSaveSettings.value.enabled)
+  console.log('  - User:', authStore.user?.username)
+  console.log('  - Has unsaved changes:', composableHasUnsavedChanges.value)
+
+  if (!autoSaveSettings.value.enabled) {
+    console.log('⏰ Auto-save skipped: Not enabled')
+    return
+  }
+
+  if (!authStore.user?.username) {
+    console.log('⏰ Auto-save skipped: No user logged in')
+    return
+  }
+
+  // Only auto-save if there are unsaved changes
+  if (!composableHasUnsavedChanges.value) {
+    console.log('⏰ Auto-save skipped: No unsaved changes')
+    return
+  }
+
+  const autoSaveName = `${authStore.user.username}_autosave`
+
+  try {
+    console.log(`⏰ Auto-save starting: ${autoSaveName}`)
+    // Check if an autosave canvas already exists
+    let autosaveCanvasId: number | null = null
+
+    // Try to find existing autosave canvas
+    const canvasList = await canvasApi.getCanvases()
+    const existingAutosave = canvasList.find((c: any) => c.name === autoSaveName)
+
+    if (existingAutosave) {
+      autosaveCanvasId = existingAutosave.id
+      console.log(`⏰ Found existing autosave canvas with ID: ${autosaveCanvasId}`)
+    } else {
+      console.log('⏰ Creating new autosave canvas')
+    }
+
+    await saveCanvasData({
+      name: autoSaveName,
+      sharable: false,
+      canvasId: autosaveCanvasId || undefined,
+    })
+
+    console.log(`⏰ Auto-save completed: ${autoSaveName}`)
+  } catch (error) {
+    console.error('❌ Auto-save failed:', error)
+  }
+}
+
+// Function to start auto-save timer
+const startAutoSaveTimer = () => {
+  if (autoSaveTimer.value) {
+    clearInterval(autoSaveTimer.value)
+  }
+
+  if (autoSaveSettings.value.enabled && autoSaveSettings.value.interval > 0) {
+    autoSaveTimer.value = window.setInterval(
+      performAutoSave,
+      autoSaveSettings.value.interval * 1000
+    )
+    console.log(`⏰ Auto-save enabled: every ${autoSaveSettings.value.interval} seconds`)
+  }
+}
+
+// Function to stop auto-save timer
+const stopAutoSaveTimer = () => {
+  if (autoSaveTimer.value) {
+    clearInterval(autoSaveTimer.value)
+    autoSaveTimer.value = null
+    console.log('⏰ Auto-save disabled')
+  }
+}
+
+// Watch for auto-save settings changes
+watch(autoSaveSettings, (newSettings) => {
+  if (newSettings.enabled) {
+    startAutoSaveTimer()
+  } else {
+    stopAutoSaveTimer()
+  }
+}, { deep: true })
+
 const canvasContainer = ref<HTMLElement>()
 const stage = ref()
 
@@ -1220,6 +1323,10 @@ const saveModalRef = ref()
 // Load Canvas Confirmation state
 const showLoadConfirmDialog = ref(false)
 const pendingCanvasId = ref<number | null>(null)
+
+// Auto-save restore dialog state
+const showAutosaveRestoreDialog = ref(false)
+const autosaveCanvasId = ref<number | null>(null)
 
 // Duplicate Device Modal state
 const showDuplicateDialog = ref(false)
@@ -1577,11 +1684,6 @@ const contextMenuItems = computed(() => {
     const selectedCount = selectedDevices.value.size
     const items = [
       {
-        icon: '📊',
-        label: `Overview (${selectedCount} devices)`,
-        action: () => { hideContextMenu(); showMultiDeviceOverview() }
-      },
-      {
         icon: '⚙️',
         label: 'Config',
         submenu: [
@@ -1589,7 +1691,6 @@ const contextMenuItems = computed(() => {
           { icon: '📝', label: 'Show All Changes', action: () => { hideContextMenu(); showMultiDeviceChanges() } },
         ],
       },
-      { icon: '💻', label: 'Commands', action: () => { hideContextMenu(); showMultiDeviceCommands() } },
       {
         icon: '🔗',
         label: 'Neighbors',
@@ -3984,6 +4085,52 @@ const handleUnsavedChangesDiscard = () => {
   }
 }
 
+// Handlers for autosave restore dialog
+const handleAutosaveRestore = async () => {
+  showAutosaveRestoreDialog.value = false
+  if (autosaveCanvasId.value) {
+    await loadCanvasById(autosaveCanvasId.value)
+    autosaveCanvasId.value = null
+  }
+}
+
+const handleAutosaveDiscard = async () => {
+  showAutosaveRestoreDialog.value = false
+
+  // Delete the autosave canvas
+  if (autosaveCanvasId.value && authStore.user?.username) {
+    try {
+      await canvasApi.deleteCanvas(autosaveCanvasId.value)
+      console.log('🗑️ Auto-save canvas deleted')
+    } catch (error) {
+      console.error('❌ Failed to delete auto-save canvas:', error)
+    }
+    autosaveCanvasId.value = null
+  }
+}
+
+// Function to check for autosave on startup
+const checkForAutosave = async () => {
+  if (!authStore.user?.username) {
+    return
+  }
+
+  const autoSaveName = `${authStore.user.username}_autosave`
+
+  try {
+    const canvasList = await canvasApi.getCanvases()
+    const existingAutosave = canvasList.find((c: any) => c.name === autoSaveName)
+
+    if (existingAutosave) {
+      autosaveCanvasId.value = existingAutosave.id
+      showAutosaveRestoreDialog.value = true
+      console.log('💾 Auto-save found:', autoSaveName)
+    }
+  } catch (error) {
+    console.error('❌ Failed to check for auto-save:', error)
+  }
+}
+
 onMounted(async () => {
   await nextTick()
 
@@ -3993,6 +4140,31 @@ onMounted(async () => {
     loadDeviceIcons(),
     templateService.fetchTemplates()
   ])
+
+  // Load auto-save settings from backend
+  try {
+    const response = await makeAuthenticatedRequest('/api/settings/unified')
+    if (response.ok) {
+      const data = await response.json()
+      if (data.canvas) {
+        autoSaveSettings.value = {
+          enabled: data.canvas.autoSaveEnabled || false,
+          interval: data.canvas.autoSaveInterval || 60,
+        }
+        console.log('⏰ Auto-save settings loaded:', autoSaveSettings.value)
+
+        // Start auto-save timer if enabled
+        if (autoSaveSettings.value.enabled) {
+          startAutoSaveTimer()
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load auto-save settings:', error)
+  }
+
+  // Check for existing autosave
+  await checkForAutosave()
 
   // Debug: Check device count
 
@@ -4019,6 +4191,9 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  // Clean up auto-save timer
+  stopAutoSaveTimer()
+
   window.removeEventListener('resize', handleResize)
   window.removeEventListener('beforeunload', handleBeforeUnload)
   document.removeEventListener('click', handleGlobalClick)

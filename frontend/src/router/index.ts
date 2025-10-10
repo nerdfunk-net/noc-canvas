@@ -4,6 +4,7 @@ import LoginView from '@/views/LoginView.vue'
 import DashboardView from '@/views/DashboardView.vue'
 import SettingsView from '@/views/SettingsView.vue'
 import InventoryView from '@/views/InventoryView.vue'
+import TerminalWindow from '@/views/TerminalWindow.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -34,6 +35,12 @@ const router = createRouter({
       path: '/inventory',
       name: 'inventory',
       component: InventoryView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/terminal',
+      name: 'terminal',
+      component: TerminalWindow,
       meta: { requiresAuth: true },
     },
   ],

@@ -836,6 +836,7 @@ import DeviceInterfacesModal from './DeviceInterfacesModal.vue'
 import SSHTerminalModal from './SSHTerminalModal.vue'
 import DeviceOverviewModal from './DeviceOverviewModal.vue'
 import type { TopologyGraph } from '@/services/api'
+import { openTerminalWindow, canOpenPopup } from '@/utils/terminalWindow'
 
 // Constants
 const DEVICE_SIZE = 60
@@ -1769,7 +1770,14 @@ const contextMenuItems = computed(() => {
   
   const items = [
     { icon: '📊', label: 'Overview', action: () => { hideContextMenu(); showDeviceOverview(contextMenu.target!) } },
-    { icon: '💻', label: 'SSH Terminal', action: () => { hideContextMenu(); showSSHTerminal(contextMenu.target!) } },
+    {
+      icon: '💻',
+      label: 'SSH Terminal',
+      submenu: [
+        { icon: '🪟', label: 'Open in Modal', action: () => { hideContextMenu(); showSSHTerminal(contextMenu.target!) } },
+        { icon: '🚀', label: 'Open in New Window', action: () => { hideContextMenu(); openSSHTerminalInWindow(contextMenu.target!) } },
+      ]
+    },
     {
       icon: '⚙️',
       label: 'Config',
@@ -2320,6 +2328,30 @@ const showSSHTerminal = (device: Device) => {
   sshTerminalDeviceId.value = nautobotId
   sshTerminalDeviceName.value = device.name
   showSSHTerminalModal.value = true
+}
+
+const openSSHTerminalInWindow = (device: Device) => {
+  // Get the device's Nautobot ID from properties
+  const props = device.properties ? JSON.parse(device.properties) : {}
+  const nautobotId = props.nautobot_id
+
+  if (!nautobotId) {
+    console.error('Device does not have a Nautobot ID')
+    alert('Device does not have a Nautobot ID configured')
+    return
+  }
+
+  // Open terminal in new window
+  const terminalWindow = openTerminalWindow({
+    deviceId: nautobotId,
+    deviceName: device.name,
+    width: 1200,
+    height: 800,
+  })
+
+  if (!terminalWindow) {
+    alert('Could not open terminal window. Please allow popups for this site.')
+  }
 }
 
 const closeSSHTerminalModal = () => {

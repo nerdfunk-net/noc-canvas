@@ -73,21 +73,32 @@
               class="px-4 py-3 cursor-pointer transition-colors border-b border-gray-200"
               :class="{
                 'bg-blue-100 border-l-4 border-l-blue-600': selectedInterface?.interface === iface.interface,
-                'hover:bg-gray-100': selectedInterface?.interface !== iface.interface
+                'hover:bg-gray-100': selectedInterface?.interface !== iface.interface && !getInterfaceBackgroundClass(iface),
+                ...getInterfaceBackgroundClass(iface)
               }"
               @click="selectInterface(iface)"
             >
               <div class="flex items-center justify-between">
                 <span class="font-mono text-sm font-medium text-gray-900">{{ iface.interface }}</span>
-                <span 
-                  class="px-2 py-0.5 text-xs rounded-full"
-                  :class="getStatusBadgeClass(iface.status)"
-                >
-                  {{ iface.status }}
-                </span>
+                <div class="flex items-center gap-2">
+                  <span 
+                    v-if="hasInterfaceErrors(iface)"
+                    class="w-2 h-2 bg-red-500 rounded-full"
+                    title="Interface has errors"
+                  ></span>
+                  <span 
+                    class="px-2 py-0.5 text-xs rounded-full"
+                    :class="getStatusBadgeClass(iface.link_status)"
+                  >
+                    {{ iface.link_status }}
+                  </span>
+                </div>
               </div>
               <div class="mt-1 text-xs text-gray-600" v-if="iface.description">
                 {{ iface.description }}
+              </div>
+              <div class="mt-1 text-xs text-gray-700 font-mono" v-if="iface.ip_address">
+                {{ iface.ip_address }}
               </div>
             </div>
           </div>
@@ -99,12 +110,22 @@
             <!-- Header -->
             <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
               <div class="flex items-center justify-between">
-                <h4 class="text-lg font-semibold text-gray-900">{{ selectedInterface.interface }}</h4>
+                <div class="flex items-center gap-2">
+                  <h4 class="text-lg font-semibold text-gray-900">{{ selectedInterface.interface }}</h4>
+                  <span 
+                    v-if="hasInterfaceErrors(selectedInterface)"
+                    class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 bg-red-100 rounded-full"
+                    title="Interface has errors"
+                  >
+                    <span class="w-2 h-2 bg-red-500 rounded-full"></span>
+                    Errors Detected
+                  </span>
+                </div>
                 <span 
                   class="px-3 py-1 text-sm font-medium rounded-full"
-                  :class="getStatusBadgeClass(selectedInterface.status)"
+                  :class="getStatusBadgeClass(selectedInterface.link_status)"
                 >
-                  {{ selectedInterface.status }}
+                  {{ selectedInterface.link_status }}
                 </span>
               </div>
             </div>
@@ -220,8 +241,8 @@ interface Props {
 
 interface InterfaceData {
   interface: string
-  status: string
-  protocol?: string
+  link_status: string
+  protocol_status: string
   description?: string
   ip_address?: string
   mtu?: string
@@ -267,6 +288,50 @@ const getStatusBadgeClass = (status: string) => {
   return 'bg-gray-100 text-gray-800'
 }
 
+const getInterfaceBackgroundClass = (iface: InterfaceData) => {
+  // Don't apply background color if interface is selected (it has its own blue background)
+  if (selectedInterface.value?.interface === iface.interface) {
+    return {}
+  }
+
+  // Use link_status and protocol_status fields
+  const linkStatus = iface.link_status?.toLowerCase() || ''
+  const protocolStatus = iface.protocol_status?.toLowerCase() || ''
+
+  // Debug logging
+  console.log(`🔍 Interface: ${iface.interface}, link_status: "${iface.link_status}" (${linkStatus}), protocol_status: "${iface.protocol_status}" (${protocolStatus})`)
+
+  // Both link_status and protocol_status are up -> light green
+  if (linkStatus.includes('up') && protocolStatus.includes('up')) {
+    console.log(`✅ GREEN: ${iface.interface}`)
+    return {
+      'bg-green-50': true,
+      'hover:bg-green-100': true
+    }
+  }
+  
+  // Link status is up but protocol status is down -> light red
+  if (linkStatus.includes('up') && protocolStatus.includes('down')) {
+    console.log(`❌ RED: ${iface.interface}`)
+    return {
+      'bg-red-50': true,
+      'hover:bg-red-100': true
+    }
+  }
+
+  console.log(`⚪ NO COLOR: ${iface.interface}`)
+  return {}
+}
+
+const hasInterfaceErrors = (iface: InterfaceData): boolean => {
+  // Check if any error counter is greater than 0
+  const inputErrors = parseInt(iface.input_errors || '0', 10)
+  const outputErrors = parseInt(iface.output_errors || '0', 10)
+  const crc = parseInt(iface.crc || '0', 10)
+  
+  return inputErrors > 0 || outputErrors > 0 || crc > 0
+}
+
 const formatFieldName = (key: string): string => {
   return key
     .split('_')
@@ -275,7 +340,7 @@ const formatFieldName = (key: string): string => {
 }
 
 // Define field categories
-const STATUS_FIELDS = ['status', 'protocol', 'link_status', 'line_protocol']
+const STATUS_FIELDS = ['link_status', 'protocol_status', 'line_protocol']
 const CONFIG_FIELDS = ['description', 'ip_address', 'mtu', 'speed', 'duplex', 'vlan', 'bandwidth', 'encapsulation', 'hardware_type']
 const TRAFFIC_FIELDS = ['input_packets', 'output_packets', 'input_errors', 'output_errors', 'input_rate', 'output_rate', 'crc', 'collisions']
 
@@ -356,6 +421,11 @@ const loadInterfaces = async (disableCache: boolean = false) => {
       interfaces.value = response.output
       isCached.value = response.cached === true
       console.log('✅ Loaded', interfaces.value.length, 'interfaces', isCached.value ? '(from cache)' : '(fresh data)')
+      
+      // Debug: Log first interface to see data structure
+      if (interfaces.value.length > 0) {
+        console.log('🔍 Sample interface data:', JSON.stringify(interfaces.value[0], null, 2))
+      }
       
       // Auto-select first interface
       if (interfaces.value.length > 0) {

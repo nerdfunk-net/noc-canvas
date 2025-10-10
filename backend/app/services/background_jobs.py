@@ -26,6 +26,7 @@ try:
             "app.tasks.cache_tasks",
             "app.tasks.cleanup_tasks",
             "app.tasks.test_tasks",
+            "app.tasks.baseline_tasks",
         ],
     )
 except ImportError:
@@ -140,6 +141,7 @@ if CELERY_AVAILABLE and celery_app:
     from ..tasks import cache_tasks
     from ..tasks import cleanup_tasks
     from ..tasks import test_tasks
+    from ..tasks import baseline_tasks
     
     # Register tasks with the Celery app
     nautobot_tasks.register_tasks(celery_app)
@@ -147,6 +149,7 @@ if CELERY_AVAILABLE and celery_app:
     cache_tasks.register_tasks(celery_app)
     cleanup_tasks.register_tasks(celery_app)
     test_tasks.register_tasks(celery_app)
+    baseline_tasks.register_tasks(celery_app)
 
 
 # Global service instance

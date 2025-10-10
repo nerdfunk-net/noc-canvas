@@ -13,3 +13,4 @@ class User(Base):
 
     # Relationships
     canvases = relationship("Canvas", back_populates="owner", lazy="dynamic")
+    inventories = relationship("Inventory", back_populates="owner", lazy="dynamic")

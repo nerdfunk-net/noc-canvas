@@ -975,6 +975,364 @@
             </div>
           </div>
 
+          <!-- Inventory Tab -->
+          <div v-if="activeTab === 'inventory'" class="space-y-6">
+            <!-- Saved Inventories List -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div class="bg-gradient-to-r from-primary-50 to-primary-100 px-6 py-4 border-b border-primary-200">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
+                      <i class="fas fa-list text-white"></i>
+                    </div>
+                    <div>
+                      <h2 class="text-lg font-bold text-gray-900">Device Inventories</h2>
+                      <p class="text-sm text-gray-600">Manage and organize your device collections</p>
+                    </div>
+                  </div>
+                  <button 
+                    @click="startNewInventory" 
+                    class="inline-flex items-center px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5"
+                  >
+                    <i class="fas fa-plus mr-2"></i>
+                    New Inventory
+                  </button>
+                </div>
+              </div>
+
+              <div class="p-6">
+                <div v-if="loadingInventories" class="text-center py-12">
+                  <div class="inline-block">
+                    <div class="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+                  </div>
+                  <p class="text-gray-500 mt-4 font-medium">Loading inventories...</p>
+                </div>
+
+                <div v-else-if="inventoriesError" class="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div class="flex items-center">
+                    <i class="fas fa-exclamation-circle text-red-500 text-xl mr-3"></i>
+                    <span class="text-red-700">{{ inventoriesError }}</span>
+                  </div>
+                </div>
+
+                <div v-else-if="inventories.length === 0" class="text-center py-16">
+                  <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-list text-4xl text-gray-300"></i>
+                  </div>
+                  <h3 class="text-lg font-semibold text-gray-900 mb-2">No inventories yet</h3>
+                  <p class="text-gray-500 mb-6">Create your first inventory to organize your devices</p>
+                  <button 
+                    @click="startNewInventory" 
+                    class="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg shadow-sm transition-all duration-200"
+                  >
+                    <i class="fas fa-plus mr-2"></i>
+                    Create Inventory
+                  </button>
+                </div>
+
+                <div v-else class="grid gap-4">
+                  <div
+                    v-for="inventory in inventories"
+                    :key="inventory.id"
+                    class="group bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-xl p-5 hover:border-primary-300 hover:shadow-md transition-all duration-200"
+                  >
+                    <div class="flex items-start justify-between">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center space-x-3 mb-2">
+                          <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <i class="fas fa-server text-white"></i>
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <h3 class="text-lg font-bold text-gray-900 truncate">{{ inventory.name }}</h3>
+                            <p v-if="inventory.description" class="text-sm text-gray-600 line-clamp-2 mt-0.5">
+                              {{ inventory.description }}
+                            </p>
+                          </div>
+                        </div>
+                        <div class="flex items-center space-x-4 mt-3 text-xs text-gray-500">
+                          <div class="flex items-center">
+                            <i class="fas fa-calendar-alt mr-1.5"></i>
+                            <span>{{ new Date(inventory.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }}</span>
+                          </div>
+                          <div class="flex items-center">
+                            <i class="fas fa-clock mr-1.5"></i>
+                            <span>{{ new Date(inventory.updated_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="flex space-x-2 ml-4 flex-shrink-0">
+                        <button
+                          @click="editInventory(inventory.id)"
+                          class="p-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors duration-200 group-hover:shadow-sm"
+                          title="Edit inventory"
+                        >
+                          <i class="fas fa-edit"></i>
+                        </button>
+                        <button
+                          @click="previewInventoryById(inventory.id)"
+                          class="p-2.5 bg-green-50 hover:bg-green-100 text-green-600 rounded-lg transition-colors duration-200 group-hover:shadow-sm"
+                          title="Preview devices"
+                        >
+                          <i class="fas fa-eye"></i>
+                        </button>
+                        <button
+                          @click="deleteInventory(inventory.id)"
+                          class="p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors duration-200 group-hover:shadow-sm"
+                          title="Delete inventory"
+                        >
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Inventory Editor (shown when creating/editing) -->
+            <div v-if="showInventoryEditor" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div class="bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-4 border-b border-indigo-200">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
+                      <i class="fas fa-wrench text-white"></i>
+                    </div>
+                    <div>
+                      <h2 class="text-lg font-bold text-gray-900">
+                        {{ editingInventoryId ? 'Edit Inventory' : 'Create New Inventory' }}
+                      </h2>
+                      <p class="text-sm text-gray-600">Build a device inventory using logical conditions</p>
+                    </div>
+                  </div>
+                  <button @click="cancelInventoryEdit" class="p-2 hover:bg-white/50 rounded-lg transition-colors">
+                    <i class="fas fa-times text-gray-500"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="p-6 space-y-6">
+                <!-- Name and Description -->
+                <div class="bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
+                  <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide flex items-center">
+                    <i class="fas fa-info-circle text-primary-500 mr-2"></i>
+                    Basic Information
+                  </h3>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                      Inventory Name <span class="text-red-500">*</span>
+                    </label>
+                    <input
+                      v-model="inventoryForm.name"
+                      type="text"
+                      class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all shadow-sm"
+                      placeholder="e.g., Production Routers"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                    <textarea
+                      v-model="inventoryForm.description"
+                      class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all resize-none shadow-sm"
+                      rows="3"
+                      placeholder="Describe the purpose of this inventory..."
+                    ></textarea>
+                  </div>
+                </div>
+
+              <!-- Logical Operations Builder -->
+              <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-5 shadow-sm space-y-4">
+                <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide flex items-center">
+                  <i class="fas fa-filter text-blue-500 mr-2"></i>
+                  Device Filters & Conditions
+                </h3>
+                
+                <!-- Current Conditions -->
+                <div v-if="inventoryConditions.length > 0" class="space-y-2">
+                  <div
+                    v-for="(condition, index) in inventoryConditions"
+                    :key="index"
+                    class="flex items-center space-x-3 bg-white border border-gray-200 p-4 rounded-lg hover:border-blue-300 transition-all shadow-sm"
+                  >
+                    <span v-if="index > 0" class="px-3 py-1 rounded-full text-xs font-bold shadow-sm" :class="{
+                      'bg-blue-500 text-white': condition.logic === 'AND',
+                      'bg-purple-500 text-white': condition.logic === 'OR',
+                      'bg-red-500 text-white': condition.logic === 'NOT'
+                    }">
+                      {{ condition.logic }}
+                    </span>
+                    <span class="text-sm font-bold text-gray-900">{{ getFieldLabel(condition.field) }}</span>
+                    <span class="text-sm text-gray-500 font-medium">{{ condition.operator }}</span>
+                    <span class="text-sm font-bold text-primary-600 flex-1">{{ condition.value }}</span>
+                    <button
+                      @click="removeInventoryCondition(index)"
+                      class="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors shadow-sm flex-shrink-0"
+                      title="Remove condition"
+                    >
+                      <i class="fas fa-trash text-xs"></i>
+                    </button>
+                  </div>
+                </div>
+                
+                <div v-else class="text-center py-8 bg-white rounded-lg border border-dashed border-gray-300">
+                  <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <i class="fas fa-filter text-2xl text-gray-300"></i>
+                  </div>
+                  <p class="text-gray-500 font-medium">No conditions added yet</p>
+                  <p class="text-sm text-gray-400 mt-1">Add your first condition below to start building your inventory</p>
+                </div>
+
+                <!-- Add Condition Form -->
+                <div class="bg-white rounded-xl border-2 border-blue-200 p-5 shadow-sm">
+                  <h4 class="text-sm font-bold text-gray-900 mb-4 flex items-center">
+                    <i class="fas fa-plus-circle text-green-500 mr-2"></i>
+                    Add New Condition
+                  </h4>
+                  <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                    <div v-if="inventoryConditions.length > 0">
+                      <label class="block text-sm font-semibold text-gray-700 mb-2">Logic Operator</label>
+                      <select v-model="currentInventoryLogic" class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-medium shadow-sm">
+                        <option value="AND">AND</option>
+                        <option value="OR">OR</option>
+                        <option value="NOT">NOT</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-semibold text-gray-700 mb-2">Field</label>
+                      <select
+                        v-model="currentInventoryField"
+                        @change="onInventoryFieldChange"
+                        class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm"
+                      >
+                        <option value="">Select field...</option>
+                        <option v-for="field in inventoryFieldOptions" :key="field.value" :value="field.value">
+                          {{ field.label }}
+                        </option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-semibold text-gray-700 mb-2">Operator</label>
+                      <select v-model="currentInventoryOperator" class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm">
+                        <option v-for="op in inventoryOperatorOptions" :key="op.value" :value="op.value">
+                          {{ op.label }}
+                        </option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-semibold text-gray-700 mb-2">Value</label>
+                      <select
+                        v-if="inventoryFieldValues.length > 0"
+                        v-model="currentInventoryValue"
+                        class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm"
+                      >
+                        <option value="">Select value...</option>
+                        <option v-for="val in inventoryFieldValues" :key="val.value" :value="val.value">
+                          {{ val.label }}
+                        </option>
+                      </select>
+                      <input
+                        v-else
+                        v-model="currentInventoryValue"
+                        type="text"
+                        class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm"
+                        placeholder="Enter value..."
+                      />
+                    </div>
+                    <button
+                      @click="addInventoryCondition"
+                      :disabled="!currentInventoryField || !currentInventoryValue"
+                      class="px-6 py-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-300 disabled:to-gray-400 text-white font-medium rounded-lg shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5 disabled:transform-none flex items-center justify-center"
+                    >
+                      <i class="fas fa-plus mr-2"></i>
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="flex items-center justify-between pt-4 border-t border-gray-200">
+                <button
+                  @click="cancelInventoryEdit"
+                  :disabled="savingInventory"
+                  class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 text-gray-700 disabled:text-gray-400 font-medium rounded-lg transition-colors"
+                >
+                  <i class="fas fa-times mr-2"></i>
+                  Cancel
+                </button>
+                <div class="flex gap-3">
+                  <button
+                    @click="previewCurrentInventory"
+                    :disabled="inventoryConditions.length === 0 || loadingInventoryPreview"
+                    class="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-300 disabled:to-gray-400 text-white font-medium rounded-lg shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5 disabled:transform-none flex items-center"
+                  >
+                    <i :class="['mr-2', loadingInventoryPreview ? 'fas fa-spinner fa-spin' : 'fas fa-eye']"></i>
+                    {{ loadingInventoryPreview ? 'Previewing...' : 'Preview Devices' }}
+                  </button>
+                  <button
+                    @click="saveCurrentInventory"
+                    :disabled="!inventoryForm.name || inventoryConditions.length === 0 || savingInventory"
+                    class="px-6 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 disabled:from-gray-300 disabled:to-gray-400 text-white font-medium rounded-lg shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5 disabled:transform-none flex items-center"
+                  >
+                    <i :class="['mr-2', savingInventory ? 'fas fa-spinner fa-spin' : 'fas fa-save']"></i>
+                    {{ savingInventory ? 'Saving...' : 'Save Inventory' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+            <!-- Preview Results -->
+            <div v-if="showInventoryPreview && inventoryPreviewDevices.length > 0" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div class="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-green-200">
+                <div class="flex items-center space-x-3">
+                  <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-sm">
+                    <i class="fas fa-eye text-white"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-bold text-gray-900">Preview Results</h3>
+                    <p class="text-sm text-gray-600">{{ inventoryPreviewDevices.length }} devices match your conditions</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="p-6">
+                <div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gradient-to-r from-gray-50 to-gray-100">
+                      <tr>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Name</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Location</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Role</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">IP Address</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      <tr v-for="device in inventoryPreviewDevices.slice(0, 20)" :key="device.id" class="hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ device.name }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-600">{{ device.location || 'N/A' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-600">{{ device.role || 'N/A' }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-600 font-mono">{{ device.primary_ip4 || 'N/A' }}</td>
+                        <td class="px-4 py-3 text-sm">
+                          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold shadow-sm" :class="{
+                            'bg-green-100 text-green-700': device.status?.toLowerCase() === 'active',
+                            'bg-gray-100 text-gray-700': device.status?.toLowerCase() !== 'active'
+                          }">
+                            {{ device.status || 'N/A' }}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-if="inventoryPreviewDevices.length > 20" class="mt-4 flex items-center justify-center bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+                  <span class="text-sm text-blue-700 font-medium">Showing first 20 of {{ inventoryPreviewDevices.length }} matching devices</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Scheduler Tab -->
           <div v-if="activeTab === 'scheduler'" class="space-y-6">
             <SchedulerManagement />
@@ -1873,8 +2231,8 @@
             </div>
           </div>
 
-          <!-- Save Button (for General and Plugins tabs) -->
-          <div v-if="activeTab !== 'profile' && activeTab !== 'canvas' && activeTab !== 'commands' && activeTab !== 'cache' && activeTab !== 'jobs' && activeTab !== 'scheduler'" class="flex justify-end">
+          <!-- Save Button (for General and Plugins tabs only, NOT for inventory) -->
+          <div v-if="activeTab !== 'profile' && activeTab !== 'canvas' && activeTab !== 'commands' && activeTab !== 'cache' && activeTab !== 'jobs' && activeTab !== 'scheduler' && activeTab !== 'inventory'" class="flex justify-end">
             <button @click="saveSettings" class="btn-primary" :disabled="saving">
               <i class="fas fa-save mr-2"></i>
               {{ saving ? 'Saving...' : 'Save Settings' }}
@@ -2693,6 +3051,7 @@ import { canvasApi, type CanvasListItem, makeAuthenticatedRequest } from '@/serv
 import { useDevicesStore } from '@/stores/devices'
 import secureStorage from '@/services/secureStorage'
 import { useCommands } from '@/composables/useCommands'
+import inventoryService, { type LogicalOperation, type LogicalCondition } from '@/services/inventoryService'
 
 const notificationStore = useNotificationStore()
 const router = useRouter()
@@ -2766,6 +3125,7 @@ const tabs = [
   { id: 'canvas', name: 'Canvas', icon: 'fas fa-layer-group' },
   { id: 'templates', name: 'Templates', icon: 'fas fa-shapes' },
   { id: 'commands', name: 'Commands', icon: 'fas fa-terminal' },
+  { id: 'inventory', name: 'Inventory', icon: 'fas fa-list' },
   { id: 'scheduler', name: 'Scheduler', icon: 'fas fa-clock' },
   { id: 'jobs', name: 'Jobs', icon: 'fas fa-tasks' },
   { id: 'cache', name: 'Cache', icon: 'fas fa-database' },
@@ -2911,6 +3271,29 @@ const parsers = [
   { value: 'TTP', label: 'TTP' },
   { value: 'Scrapli', label: 'Scrapli' }
 ]
+
+// Inventory management state
+const inventories = ref<any[]>([])
+const loadingInventories = ref(false)
+const inventoriesError = ref<string | null>(null)
+const showInventoryEditor = ref(false)
+const editingInventoryId = ref<number | null>(null)
+const inventoryForm = reactive({
+  name: '',
+  description: ''
+})
+const inventoryConditions = ref<Array<{field: string, operator: string, value: string, logic: string}>>([])
+const currentInventoryField = ref('')
+const currentInventoryOperator = ref('equals')
+const currentInventoryValue = ref('')
+const currentInventoryLogic = ref('AND')
+const inventoryFieldOptions = ref<Array<{value: string, label: string}>>([])
+const inventoryOperatorOptions = ref<Array<{value: string, label: string}>>([])
+const inventoryFieldValues = ref<Array<{value: string, label: string}>>([])
+const loadingInventoryPreview = ref(false)
+const savingInventory = ref(false)
+const showInventoryPreview = ref(false)
+const inventoryPreviewDevices = ref<any[]>([])
 
 // Cache management state
 const cacheStatistics = ref<any>(null)
@@ -3226,6 +3609,16 @@ const loadCommandsIfNeeded = async () => {
 watch(activeTab, loadCanvasesIfNeeded)
 watch(activeTab, loadCommandsIfNeeded)
 
+// Auto-fetch inventories and field options when Inventory tab is selected
+watch(activeTab, async (newTab) => {
+  if (newTab === 'inventory') {
+    await Promise.all([
+      loadInventories(),
+      loadInventoryFieldOptions()
+    ])
+  }
+})
+
 // Auto-fetch templates and platforms when Templates tab is selected
 watch(activeTab, async (newTab) => {
   if (newTab === 'templates') {
@@ -3236,13 +3629,21 @@ watch(activeTab, async (newTab) => {
   }
 })
 
-// Also fetch on mount if templates tab is already active (from sessionStorage)
+// Also fetch on mount if tabs are already active (from sessionStorage)
 onMounted(() => {
   if (activeTab.value === 'templates') {
     console.log('🔄 Templates tab active on mount, fetching templates...')
     Promise.all([
       fetchTemplates(),
       fetchPlatforms()
+    ])
+  }
+
+  if (activeTab.value === 'inventory') {
+    console.log('🔄 Inventory tab active on mount, fetching inventories...')
+    Promise.all([
+      loadInventories(),
+      loadInventoryFieldOptions()
     ])
   }
 
@@ -3441,6 +3842,297 @@ const deleteCommand = async (command: any) => {
       })
     }
   }
+}
+
+// Inventory Functions
+
+const loadInventories = async () => {
+  loadingInventories.value = true
+  inventoriesError.value = null
+  try {
+    const items = await inventoryService.getAll()
+    inventories.value = items
+  } catch (error) {
+    console.error('Error loading inventories:', error)
+    inventoriesError.value = error instanceof Error ? error.message : 'Failed to load inventories'
+  } finally {
+    loadingInventories.value = false
+  }
+}
+
+const loadInventoryFieldOptions = async () => {
+  try {
+    const options = await inventoryService.getFieldOptions()
+    inventoryFieldOptions.value = options.fields
+    inventoryOperatorOptions.value = options.operators
+  } catch (error) {
+    console.error('Error loading field options:', error)
+  }
+}
+
+const startNewInventory = () => {
+  showInventoryEditor.value = true
+  editingInventoryId.value = null
+  inventoryForm.name = ''
+  inventoryForm.description = ''
+  inventoryConditions.value = []
+  currentInventoryField.value = ''
+  currentInventoryValue.value = ''
+  currentInventoryLogic.value = 'AND'
+  inventoryFieldValues.value = []
+  showInventoryPreview.value = false
+  inventoryPreviewDevices.value = []
+}
+
+const editInventory = async (id: number) => {
+  try {
+    const inventory = await inventoryService.get(id)
+    showInventoryEditor.value = true
+    editingInventoryId.value = id
+    inventoryForm.name = inventory.name
+    inventoryForm.description = inventory.description || ''
+    
+    // Convert operations to conditions for UI
+    inventoryConditions.value = []
+    for (const operation of inventory.operations) {
+      for (const condition of operation.conditions) {
+        inventoryConditions.value.push({
+          field: condition.field,
+          operator: condition.operator,
+          value: condition.value,
+          logic: operation.operation_type
+        })
+      }
+    }
+  } catch (error) {
+    console.error('Error loading inventory:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to load inventory',
+      type: 'error',
+    })
+  }
+}
+
+const deleteInventory = async (id: number) => {
+  if (confirm('Are you sure you want to delete this inventory?')) {
+    try {
+      await inventoryService.delete(id)
+      notificationStore.addNotification({
+        title: 'Success',
+        message: 'Inventory deleted successfully',
+        type: 'success',
+      })
+      await loadInventories()
+    } catch (error) {
+      console.error('Error deleting inventory:', error)
+      notificationStore.addNotification({
+        title: 'Error',
+        message: 'Failed to delete inventory',
+        type: 'error',
+      })
+    }
+  }
+}
+
+const onInventoryFieldChange = async () => {
+  currentInventoryValue.value = ''
+  inventoryFieldValues.value = []
+  
+  if (currentInventoryField.value && currentInventoryField.value !== 'custom_fields') {
+    try {
+      const result = await inventoryService.getFieldValues(currentInventoryField.value)
+      inventoryFieldValues.value = result.values
+    } catch (error) {
+      console.error('Error loading field values:', error)
+    }
+  }
+}
+
+const getFieldLabel = (fieldValue: string): string => {
+  const field = inventoryFieldOptions.value.find(f => f.value === fieldValue)
+  return field?.label || fieldValue
+}
+
+const addInventoryCondition = () => {
+  if (!currentInventoryField.value || !currentInventoryValue.value) return
+  
+  inventoryConditions.value.push({
+    field: currentInventoryField.value,
+    operator: currentInventoryOperator.value,
+    value: currentInventoryValue.value,
+    logic: inventoryConditions.value.length > 0 ? currentInventoryLogic.value : 'AND'
+  })
+  
+  // Reset form
+  currentInventoryField.value = ''
+  currentInventoryOperator.value = 'equals'
+  currentInventoryValue.value = ''
+  currentInventoryLogic.value = 'AND'
+  inventoryFieldValues.value = []
+}
+
+const removeInventoryCondition = (index: number) => {
+  inventoryConditions.value.splice(index, 1)
+}
+
+const buildOperationsFromConditions = (): LogicalOperation[] => {
+  if (inventoryConditions.value.length === 0) return []
+
+  if (inventoryConditions.value.length === 1) {
+    return [{
+      operation_type: 'AND',
+      conditions: [{
+        field: inventoryConditions.value[0].field,
+        operator: inventoryConditions.value[0].operator,
+        value: inventoryConditions.value[0].value
+      }],
+      nested_operations: []
+    }]
+  }
+
+  // Group conditions by logic operator
+  const andConditions: LogicalCondition[] = []
+  const orConditions: LogicalCondition[] = []
+  const notConditions: LogicalCondition[] = []
+
+  inventoryConditions.value.forEach((condition, index) => {
+    const logicType = index === 0 ? 'AND' : condition.logic
+    const cond: LogicalCondition = {
+      field: condition.field,
+      operator: condition.operator,
+      value: condition.value
+    }
+
+    if (logicType === 'NOT') {
+      notConditions.push(cond)
+    } else if (logicType === 'OR') {
+      orConditions.push(cond)
+    } else {
+      andConditions.push(cond)
+    }
+  })
+
+  const operations: LogicalOperation[] = []
+
+  if (orConditions.length > 0) {
+    operations.push({
+      operation_type: 'OR',
+      conditions: orConditions,
+      nested_operations: []
+    })
+  } else if (andConditions.length > 0) {
+    operations.push({
+      operation_type: 'AND',
+      conditions: andConditions,
+      nested_operations: []
+    })
+  }
+
+  notConditions.forEach(condition => {
+    operations.push({
+      operation_type: 'NOT',
+      conditions: [condition],
+      nested_operations: []
+    })
+  })
+
+  return operations
+}
+
+const previewCurrentInventory = async () => {
+  if (inventoryConditions.value.length === 0) return
+
+  loadingInventoryPreview.value = true
+  try {
+    const operations = buildOperationsFromConditions()
+    const result = await inventoryService.preview(operations)
+    inventoryPreviewDevices.value = result.devices
+    showInventoryPreview.value = true
+  } catch (error) {
+    console.error('Error previewing inventory:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to preview inventory',
+      type: 'error',
+    })
+  } finally {
+    loadingInventoryPreview.value = false
+  }
+}
+
+const previewInventoryById = async (id: number) => {
+  try {
+    const inventory = await inventoryService.get(id)
+    loadingInventoryPreview.value = true
+    const result = await inventoryService.preview(inventory.operations)
+    inventoryPreviewDevices.value = result.devices
+    showInventoryPreview.value = true
+  } catch (error) {
+    console.error('Error previewing inventory:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to preview inventory',
+      type: 'error',
+    })
+  } finally {
+    loadingInventoryPreview.value = false
+  }
+}
+
+const saveCurrentInventory = async () => {
+  if (!inventoryForm.name || inventoryConditions.value.length === 0) return
+
+  savingInventory.value = true
+  try {
+    const operations = buildOperationsFromConditions()
+    
+    if (editingInventoryId.value) {
+      await inventoryService.update(editingInventoryId.value, {
+        name: inventoryForm.name,
+        description: inventoryForm.description || undefined,
+        operations
+      })
+      notificationStore.addNotification({
+        title: 'Success',
+        message: 'Inventory updated successfully',
+        type: 'success',
+      })
+    } else {
+      await inventoryService.create({
+        name: inventoryForm.name,
+        description: inventoryForm.description || undefined,
+        operations
+      })
+      notificationStore.addNotification({
+        title: 'Success',
+        message: 'Inventory created successfully',
+        type: 'success',
+      })
+    }
+
+    showInventoryEditor.value = false
+    await loadInventories()
+  } catch (error) {
+    console.error('Error saving inventory:', error)
+    notificationStore.addNotification({
+      title: 'Error',
+      message: 'Failed to save inventory',
+      type: 'error',
+    })
+  } finally {
+    savingInventory.value = false
+  }
+}
+
+const cancelInventoryEdit = () => {
+  showInventoryEditor.value = false
+  editingInventoryId.value = null
+  inventoryForm.name = ''
+  inventoryForm.description = ''
+  inventoryConditions.value = []
+  showInventoryPreview.value = false
+  inventoryPreviewDevices.value = []
 }
 
 // Device Templates Functions
@@ -3727,11 +4419,6 @@ const deleteTemplate = async (template: any) => {
 const getPlatformName = (platformId: string) => {
   const platform = platforms.value.find(p => p.id === platformId)
   return platform ? platform.name : platformId
-}
-
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString)
-  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
 }
 
 const addCredential = () => {

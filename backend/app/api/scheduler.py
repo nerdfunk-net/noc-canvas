@@ -703,6 +703,17 @@ async def get_available_tasks(
             }
         },
         {
+            "name": "create_baseline",
+            "task": "app.tasks.baseline_tasks.create_baseline",
+            "description": "Create or update baseline configurations for devices by executing all topology-related commands (interfaces, routing, CDP, ARP, MAC table) and storing output for future comparison",
+            "args_schema": {},
+            "kwargs_schema": {
+                "device_ids": "array of device IDs (optional) - If not provided, baselines all devices",
+                "commands": "array of commands (optional) - Specific commands to execute. If not provided, runs all default commands",
+                "notes": "string (optional) - Notes about this baseline (e.g., 'Pre-upgrade baseline')",
+            }
+        },
+        {
             "name": "test_job",
             "task": "app.tasks.test_tasks.test_background_task",
             "description": "Test background task for verification",

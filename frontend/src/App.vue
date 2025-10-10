@@ -17,6 +17,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import SessionWarningDialog from '@/components/SessionWarningDialog.vue'
 import sessionManager from '@/services/sessionManager'
+import { tokenKeepAlive } from '@/services/tokenKeepAlive'
 import { set401Handler } from '@/services/api'
 
 const router = useRouter()
@@ -26,6 +27,7 @@ const sessionState = sessionManager.state
 // Handle session expiration
 const handleSessionExpired = async () => {
   console.warn('⚠️ App: Session expired, redirecting to login')
+  tokenKeepAlive.stop() // Stop token refresh when session expires
   await authStore.logout()
   router.push('/login')
 }
@@ -40,6 +42,7 @@ const handleContinueSession = async () => {
 const handleLogoutFromWarning = async () => {
   console.log('🔐 App: User chose to logout from warning')
   sessionManager.dismissWarning()
+  tokenKeepAlive.stop() // Stop token refresh on logout
   await authStore.logout()
   router.push('/login')
 }
@@ -55,10 +58,11 @@ onMounted(() => {
   // Register session expired callback
   sessionManager.onSessionExpired(handleSessionExpired)
 
-  // Start session manager if authenticated
+  // Start session manager and token keep-alive if authenticated
   if (authStore.isAuthenticated) {
-    console.log('🔐 App: User authenticated, starting session manager')
+    console.log('🔐 App: User authenticated, starting session manager and token keep-alive')
     sessionManager.start()
+    tokenKeepAlive.start()
   }
 
   // Watch for authentication changes
@@ -69,12 +73,15 @@ onMounted(() => {
         console.log('🔐 App: Starting session manager on protected route')
         sessionManager.start()
       }
+      // Start token keep-alive for authenticated users
+      tokenKeepAlive.start()
     } else if (to.name === 'login') {
-      // User navigated to login, stop session manager
+      // User navigated to login, stop session manager and token keep-alive
       if (sessionState.value.isActive) {
         console.log('🔐 App: Stopping session manager on login page')
         sessionManager.stop()
       }
+      tokenKeepAlive.stop()
     }
   })
 
@@ -85,5 +92,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   sessionManager.stop()
+  tokenKeepAlive.stop()
 })
 </script>

@@ -565,6 +565,14 @@ cd<template>
         📐
       </button>
       <button
+        @click="toggleSnapToGrid"
+        class="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 flex-shrink-0 text-xl"
+        :class="{ 'bg-purple-50 border-purple-200': snapToGrid }"
+        :title="snapToGrid ? 'Snap to Grid: ON\nDevices snap to grid points' : 'Snap to Grid: OFF\nClick to enable grid snapping'"
+      >
+        {{ snapToGrid ? '🔒' : '🔓' }}
+      </button>
+      <button
         @click="toggleConnectionMode"
         class="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 flex-shrink-0"
         :class="{ 'bg-green-50 border-green-200': connectionMode }"
@@ -807,6 +815,28 @@ const GRID_SIZE = 50
 const SCALE_FACTOR = 1.1
 const DEVICE_NAME_OFFSET_Y = 10
 const DEVICE_TEXT_Y_OFFSET = 50
+
+// Snap-to-grid feature
+const snapToGrid = ref(false)
+
+// Toggle snap to grid function
+const toggleSnapToGrid = () => {
+  snapToGrid.value = !snapToGrid.value
+  console.log('🧲 Snap to Grid:', snapToGrid.value ? 'ENABLED ✅' : 'DISABLED ❌')
+}
+
+// Helper function to snap coordinates to grid
+const snapToGridCoordinates = (x: number, y: number): { x: number; y: number } => {
+  if (!snapToGrid.value) {
+    return { x, y }
+  }
+  const snapped = {
+    x: Math.round(x / GRID_SIZE) * GRID_SIZE,
+    y: Math.round(y / GRID_SIZE) * GRID_SIZE
+  }
+  console.log(`📍 Snapping (${x.toFixed(0)}, ${y.toFixed(0)}) → (${snapped.x}, ${snapped.y})`)
+  return snapped
+}
 
 const deviceStore = useDevicesStore()
 const canvasStore = useCanvasStore()
@@ -3154,8 +3184,18 @@ const onDeviceDragMove = (device: Device, event: any) => {
 }
 
 const onDeviceDragEnd = (device: Device, event: any) => {
-  const newX = event.target.x()
-  const newY = event.target.y()
+  let newX = event.target.x()
+  let newY = event.target.y()
+
+  // Apply snap-to-grid if enabled
+  if (snapToGrid.value) {
+    const snapped = snapToGridCoordinates(newX, newY)
+    newX = snapped.x
+    newY = snapped.y
+    // Update the visual position immediately
+    event.target.x(newX)
+    event.target.y(newY)
+  }
 
   try {
     // If multiple devices are selected, we only need to update the dragged device
@@ -3770,6 +3810,79 @@ const handleGlobalKeyDown = (event: KeyboardEvent) => {
   if ((event.ctrlKey || event.metaKey) && event.key === 's') {
     event.preventDefault() // Prevent browser's default save behavior
     saveCanvas()
+    return
+  }
+
+  // Handle arrow keys for moving selected devices
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+    // Check if any device is selected
+    if (selectedDevice.value || selectedDevices.value.size > 0) {
+      event.preventDefault() // Prevent page scrolling
+      
+      // Determine move distance (10px normal, 50px with Shift for grid alignment)
+      const moveDistance = event.shiftKey ? GRID_SIZE : 10
+      
+      // Calculate offset based on arrow key
+      let dx = 0
+      let dy = 0
+      
+      switch (event.key) {
+        case 'ArrowUp':
+          dy = -moveDistance
+          break
+        case 'ArrowDown':
+          dy = moveDistance
+          break
+        case 'ArrowLeft':
+          dx = -moveDistance
+          break
+        case 'ArrowRight':
+          dx = moveDistance
+          break
+      }
+      
+      // Move the selected device(s)
+      if (selectedDevices.value.size > 0) {
+        // Move all selected devices
+        selectedDevices.value.forEach(deviceId => {
+          const device = deviceStore.devices.find(d => d.id === deviceId)
+          if (device) {
+            let newX = device.position_x + dx
+            let newY = device.position_y + dy
+            
+            // Apply snap-to-grid if enabled
+            if (snapToGrid.value) {
+              const snapped = snapToGridCoordinates(newX, newY)
+              newX = snapped.x
+              newY = snapped.y
+            }
+            
+            deviceStore.updateDevice(device.id, {
+              position_x: newX,
+              position_y: newY,
+            })
+          }
+        })
+        console.log(`⌨️ Moved ${selectedDevices.value.size} device(s) by (${dx}, ${dy})`)
+      } else if (selectedDevice.value) {
+        // Move single selected device
+        let newX = selectedDevice.value.position_x + dx
+        let newY = selectedDevice.value.position_y + dy
+        
+        // Apply snap-to-grid if enabled
+        if (snapToGrid.value) {
+          const snapped = snapToGridCoordinates(newX, newY)
+          newX = snapped.x
+          newY = snapped.y
+        }
+        
+        deviceStore.updateDevice(selectedDevice.value.id, {
+          position_x: newX,
+          position_y: newY,
+        })
+        console.log(`⌨️ Moved device "${selectedDevice.value.name}" by (${dx}, ${dy})`)
+      }
+    }
   }
 }
 

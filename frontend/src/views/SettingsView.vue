@@ -975,6 +975,11 @@
             </div>
           </div>
 
+          <!-- Scheduler Tab -->
+          <div v-if="activeTab === 'scheduler'" class="space-y-6">
+            <SchedulerManagement />
+          </div>
+
           <!-- Jobs Tab -->
           <div v-if="activeTab === 'jobs'" class="space-y-6">
             <!-- Celery Worker Status -->
@@ -1869,7 +1874,7 @@
           </div>
 
           <!-- Save Button (for General and Plugins tabs) -->
-          <div v-if="activeTab !== 'profile' && activeTab !== 'canvas' && activeTab !== 'commands' && activeTab !== 'cache' && activeTab !== 'jobs'" class="flex justify-end">
+          <div v-if="activeTab !== 'profile' && activeTab !== 'canvas' && activeTab !== 'commands' && activeTab !== 'cache' && activeTab !== 'jobs' && activeTab !== 'scheduler'" class="flex justify-end">
             <button @click="saveSettings" class="btn-primary" :disabled="saving">
               <i class="fas fa-save mr-2"></i>
               {{ saving ? 'Saving...' : 'Save Settings' }}
@@ -2682,6 +2687,7 @@
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
+import SchedulerManagement from '@/components/SchedulerManagement.vue'
 import { useNotificationStore } from '@/stores/notification'
 import { canvasApi, type CanvasListItem, makeAuthenticatedRequest } from '@/services/api'
 import { useDevicesStore } from '@/stores/devices'
@@ -2760,6 +2766,7 @@ const tabs = [
   { id: 'canvas', name: 'Canvas', icon: 'fas fa-layer-group' },
   { id: 'templates', name: 'Templates', icon: 'fas fa-shapes' },
   { id: 'commands', name: 'Commands', icon: 'fas fa-terminal' },
+  { id: 'scheduler', name: 'Scheduler', icon: 'fas fa-clock' },
   { id: 'jobs', name: 'Jobs', icon: 'fas fa-tasks' },
   { id: 'cache', name: 'Cache', icon: 'fas fa-database' },
   { id: 'profile', name: 'Profile', icon: 'fas fa-user' },

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Start Celery Worker for background task processing.
+Start Celery Beat scheduler with SQLAlchemy database backend.
 
-This script starts a Celery Worker that processes background tasks
-dispatched by the Celery Beat scheduler or API endpoints.
+This script starts the Celery Beat periodic task scheduler that reads
+schedules from the PostgreSQL database and dispatches tasks to workers.
 
 Usage:
-    python start_worker.py
+    python start_beat.py
 
-    or with custom options:
-    python start_worker.py --loglevel=debug --concurrency=4
+    or with custom log level:
+    python start_beat.py --loglevel=debug
 """
 
 import sys
@@ -40,6 +40,13 @@ def check_dependencies():
         return False
 
     try:
+        import celery_sqlalchemy_scheduler
+        logger.info(f"✓ celery-sqlalchemy-scheduler installed")
+    except ImportError:
+        logger.error("✗ celery-sqlalchemy-scheduler is not installed. Run: pip install celery-sqlalchemy-scheduler")
+        return False
+
+    try:
         import redis
         logger.info(f"✓ Redis client installed")
     except ImportError:
@@ -65,25 +72,25 @@ def check_redis_connection():
         return False
 
 
-def list_registered_tasks():
-    """List all registered Celery tasks."""
+def check_database_connection():
+    """Check if database is accessible."""
     try:
-        from app.services.background_jobs import celery_app, CELERY_AVAILABLE
+        from app.core.database import engine
+        from sqlalchemy import text
 
-        if not CELERY_AVAILABLE or not celery_app:
-            return []
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
 
-        tasks = sorted(celery_app.tasks.keys())
-        # Filter out celery internal tasks
-        tasks = [t for t in tasks if not t.startswith('celery.')]
-        return tasks
+        logger.info(f"✓ Database is accessible")
+        return True
     except Exception as e:
-        logger.warning(f"Could not list tasks: {e}")
-        return []
+        logger.error(f"✗ Cannot connect to database: {e}")
+        logger.error("  Make sure PostgreSQL is running and configured correctly")
+        return False
 
 
-def start_worker():
-    """Start Celery Worker."""
+def start_beat():
+    """Start Celery Beat scheduler."""
     try:
         from app.services.background_jobs import celery_app, CELERY_AVAILABLE
 
@@ -92,24 +99,16 @@ def start_worker():
             return False
 
         logger.info("=" * 60)
-        logger.info("Starting Celery Worker")
+        logger.info("Starting Celery Beat Scheduler")
         logger.info("=" * 60)
         logger.info("")
-
-        # List registered tasks
-        tasks = list_registered_tasks()
-        if tasks:
-            logger.info(f"Registered tasks ({len(tasks)}):")
-            for task in tasks:
-                logger.info(f"  • {task}")
-        else:
-            logger.info("No tasks registered yet")
-
+        logger.info("Scheduler: DatabaseScheduler (celery-sqlalchemy-scheduler)")
+        logger.info("Database: PostgreSQL")
         logger.info("")
-        logger.info("This worker will:")
-        logger.info("  1. Process tasks sent to the queue")
-        logger.info("  2. Execute scheduled tasks from Celery Beat")
-        logger.info("  3. Report task results to the result backend")
+        logger.info("This will:")
+        logger.info("  1. Read scheduled tasks from the database")
+        logger.info("  2. Dispatch tasks to workers at their scheduled times")
+        logger.info("  3. Update last run times and execution counts")
         logger.info("")
         logger.info("Press Ctrl+C to stop")
         logger.info("=" * 60)
@@ -118,20 +117,20 @@ def start_worker():
         # Parse command line arguments
         argv = sys.argv[1:]
         if not argv:
-            argv = ['worker', '--loglevel=info']
-        elif 'worker' not in argv:
-            argv.insert(0, 'worker')
+            argv = ['beat', '--loglevel=info']
+        elif 'beat' not in argv:
+            argv.insert(0, 'beat')
 
-        # Start Celery Worker
+        # Start Celery Beat
         celery_app.start(argv=argv)
 
     except KeyboardInterrupt:
         logger.info("\n\n" + "=" * 60)
-        logger.info("Celery Worker stopped by user")
+        logger.info("Celery Beat stopped by user")
         logger.info("=" * 60)
         return True
     except Exception as e:
-        logger.error(f"✗ Failed to start Celery Worker: {e}")
+        logger.error(f"✗ Failed to start Celery Beat: {e}")
         import traceback
         logger.error(traceback.format_exc())
         return False
@@ -140,7 +139,7 @@ def start_worker():
 def main():
     """Main entry point."""
     print("\n" + "=" * 60)
-    print("NOC Canvas - Celery Worker")
+    print("NOC Canvas - Celery Beat Scheduler")
     print("=" * 60 + "\n")
 
     # Check dependencies
@@ -161,10 +160,18 @@ def main():
 
     logger.info("")
 
-    # All checks passed, start Worker
-    logger.info("All checks passed! Starting Celery Worker...\n")
+    # Check database connection
+    logger.info("Checking database connection...")
+    if not check_database_connection():
+        logger.error("\nPlease check your database configuration and try again.")
+        sys.exit(1)
 
-    success = start_worker()
+    logger.info("")
+
+    # All checks passed, start Beat
+    logger.info("All checks passed! Starting Celery Beat...\n")
+
+    success = start_beat()
 
     if not success:
         sys.exit(1)

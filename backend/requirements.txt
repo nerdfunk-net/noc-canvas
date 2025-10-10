@@ -11,7 +11,9 @@ pydantic==2.5.0
 pydantic-settings==2.1.0
 requests>=2.31.0
 redis>=4.5.0
+pytz>=2025.2
 celery>=5.3.0
+celery-sqlalchemy-scheduler>=0.3.0
 websockets>=11.0
 httpx>=0.25.0
 cryptography>=41.0.0

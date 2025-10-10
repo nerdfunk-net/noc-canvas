@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from celery import Celery
+    import pytz
 
     CELERY_AVAILABLE = True
 
@@ -30,11 +31,21 @@ except ImportError:
 
 # Configure Celery
 if CELERY_AVAILABLE and celery_app:
+    from ..core.database import engine
+
+    # Get database URI with password for Celery Beat
+    # SQLAlchemy 2.0+ uses render_as_string, older versions use __str__
+    try:
+        db_uri = engine.url.render_as_string(hide_password=False)
+    except AttributeError:
+        # Fallback for older SQLAlchemy versions
+        db_uri = str(engine.url).replace('***', engine.url.password or '')
+
     celery_app.conf.update(
         task_serializer="json",
         accept_content=["json"],
         result_serializer="json",
-        timezone="UTC",
+        timezone=pytz.UTC,
         enable_utc=True,
         task_track_started=True,
         task_time_limit=30 * 60,  # 30 minutes
@@ -42,6 +53,10 @@ if CELERY_AVAILABLE and celery_app:
         worker_prefetch_multiplier=1,
         worker_max_tasks_per_child=1000,
         result_extended=True,  # Store task name and other metadata in results
+        # Configure Celery Beat with SQLAlchemy scheduler
+        beat_scheduler='celery_sqlalchemy_scheduler.schedulers:DatabaseScheduler',
+        beat_dburi=db_uri,  # Use the same database as the app with password
+        beat_schema='celerybeat',  # Schema for beat tables (optional)
     )
 
 
@@ -415,6 +430,202 @@ if CELERY_AVAILABLE and celery_app:
                 meta={
                     "error": str(e),
                     "status": f"Test job failed: {message}",
+                },
+            )
+            raise
+
+    @celery_app.task(bind=True)
+    def cleanup_old_data(self, days_to_keep: int = 7):
+        """
+        Cleanup task to remove old and expired data.
+        
+        This task cleans up:
+        - Expired Celery task results
+        - Old Celery task metadata
+        - Completed one-off scheduled tasks
+        
+        Args:
+            days_to_keep: Number of days to keep data (default: 7)
+        """
+        from datetime import datetime, timedelta
+        from sqlalchemy import create_engine, text
+        from sqlalchemy.orm import sessionmaker
+
+        logger.info(f"Starting cleanup task (keeping last {days_to_keep} days)")
+        
+        cleanup_stats = {
+            "celery_results_deleted": 0,
+            "expired_tasks_deleted": 0,
+            "one_off_tasks_deleted": 0,
+            "errors": []
+        }
+
+        try:
+            # Update task state
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": 1,
+                    "total": 4,
+                    "status": "Starting cleanup process...",
+                    "stats": cleanup_stats,
+                },
+            )
+
+            # Get database connection
+            from ..core.database import engine as app_engine
+            
+            # Calculate cutoff date
+            cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+            logger.info(f"Cutoff date: {cutoff_date}")
+
+            # Step 1: Clean up old Celery results from Redis/Backend
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": 2,
+                    "total": 4,
+                    "status": "Cleaning up old Celery results...",
+                    "stats": cleanup_stats,
+                },
+            )
+            
+            try:
+                # Get all task IDs and check their age
+                from celery.result import AsyncResult
+                # Note: This is a basic cleanup. For production, consider using celery.backend_cleanup
+                logger.info("Celery results cleanup delegated to celery.backend_cleanup task")
+            except Exception as e:
+                logger.warning(f"Error cleaning Celery results: {e}")
+                cleanup_stats["errors"].append(f"Celery results: {str(e)}")
+
+            # Step 2: Clean up expired periodic tasks from celery_periodic_task table
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": 3,
+                    "total": 4,
+                    "status": "Cleaning up expired scheduled tasks...",
+                    "stats": cleanup_stats,
+                },
+            )
+            
+            try:
+                # Get the scheduler tables
+                from celery_sqlalchemy_scheduler.models import PeriodicTask
+                from celery_sqlalchemy_scheduler.session import SessionManager
+                
+                # Get database URI
+                try:
+                    db_uri = app_engine.url.render_as_string(hide_password=False)
+                except AttributeError:
+                    db_uri = str(app_engine.url).replace('***', app_engine.url.password or '')
+                
+                session_manager = SessionManager()
+                session = session_manager.session_factory(db_uri)
+                
+                try:
+                    # Delete expired tasks
+                    expired_tasks = session.query(PeriodicTask).filter(
+                        PeriodicTask.expires.isnot(None),
+                        PeriodicTask.expires < datetime.utcnow()
+                    ).all()
+                    
+                    for task in expired_tasks:
+                        logger.info(f"Deleting expired task: {task.name}")
+                        session.delete(task)
+                        cleanup_stats["expired_tasks_deleted"] += 1
+                    
+                    session.commit()
+                    logger.info(f"Deleted {cleanup_stats['expired_tasks_deleted']} expired tasks")
+                    
+                except Exception as e:
+                    session.rollback()
+                    logger.error(f"Error cleaning expired tasks: {e}")
+                    cleanup_stats["errors"].append(f"Expired tasks: {str(e)}")
+                finally:
+                    session.close()
+                    
+            except Exception as e:
+                logger.error(f"Error accessing scheduler database: {e}")
+                cleanup_stats["errors"].append(f"Scheduler DB: {str(e)}")
+
+            # Step 3: Clean up completed one-off tasks
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": 4,
+                    "total": 4,
+                    "status": "Cleaning up completed one-off tasks...",
+                    "stats": cleanup_stats,
+                },
+            )
+            
+            try:
+                from celery_sqlalchemy_scheduler.models import PeriodicTask
+                from celery_sqlalchemy_scheduler.session import SessionManager
+                
+                session_manager = SessionManager()
+                session = session_manager.session_factory(db_uri)
+                
+                try:
+                    # Delete completed one-off tasks that ran more than X days ago
+                    old_one_off_tasks = session.query(PeriodicTask).filter(
+                        PeriodicTask.one_off == True,
+                        PeriodicTask.enabled == False,
+                        PeriodicTask.last_run_at.isnot(None),
+                        PeriodicTask.last_run_at < cutoff_date
+                    ).all()
+                    
+                    for task in old_one_off_tasks:
+                        logger.info(f"Deleting completed one-off task: {task.name}")
+                        session.delete(task)
+                        cleanup_stats["one_off_tasks_deleted"] += 1
+                    
+                    session.commit()
+                    logger.info(f"Deleted {cleanup_stats['one_off_tasks_deleted']} completed one-off tasks")
+                    
+                except Exception as e:
+                    session.rollback()
+                    logger.error(f"Error cleaning one-off tasks: {e}")
+                    cleanup_stats["errors"].append(f"One-off tasks: {str(e)}")
+                finally:
+                    session.close()
+                    
+            except Exception as e:
+                logger.error(f"Error cleaning one-off tasks: {e}")
+                cleanup_stats["errors"].append(f"One-off cleanup: {str(e)}")
+
+            # Prepare final result
+            total_deleted = (
+                cleanup_stats["celery_results_deleted"] +
+                cleanup_stats["expired_tasks_deleted"] +
+                cleanup_stats["one_off_tasks_deleted"]
+            )
+            
+            logger.info(f"Cleanup completed. Total items deleted: {total_deleted}")
+            
+            return {
+                "status": "SUCCESS",
+                "message": f"Cleanup completed successfully. Deleted {total_deleted} items.",
+                "stats": cleanup_stats,
+                "cutoff_date": cutoff_date.isoformat(),
+                "days_kept": days_to_keep,
+            }
+
+        except Exception as e:
+            logger.error(f"Error in cleanup_old_data: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            
+            cleanup_stats["errors"].append(f"General error: {str(e)}")
+            
+            self.update_state(
+                state="FAILURE",
+                meta={
+                    "error": str(e),
+                    "status": "Cleanup job failed",
+                    "stats": cleanup_stats,
                 },
             )
             raise

@@ -2096,137 +2096,213 @@
           <!-- Profile Tab -->
           <div v-if="activeTab === 'profile'" class="space-y-6">
             <!-- Personal Credentials -->
-            <div class="card p-6">
-              <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold text-gray-900">Personal Credentials</h2>
-                <div class="flex items-center space-x-2">
-                  <button
-                    @click="addCredential"
-                    class="w-8 h-8 bg-green-600 hover:bg-green-700 text-white rounded-full flex items-center justify-center transition-colors font-bold text-lg"
-                    title="Add credential"
-                  >
-                    +
-                  </button>
-                  <button
-                    @click="removeLastCredential"
-                    :disabled="settings.credentials.length === 0"
-                    class="w-8 h-8 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition-colors font-bold text-lg"
-                    title="Remove last credential"
-                  >
-                    −
-                  </button>
-                </div>
-              </div>
-              <div class="space-y-3">
-                <div
-                  v-for="(credential, index) in settings.credentials"
-                  :key="index"
-                  class="border border-gray-200 rounded-lg p-3 bg-gray-50"
-                >
-                  <div class="flex items-center justify-between mb-3">
-                    <span class="text-sm font-medium text-gray-600"
-                      >Credential {{ index + 1 }}</span
-                    >
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-blue-200">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
+                      <i class="fas fa-key text-white"></i>
+                    </div>
+                    <div>
+                      <h2 class="text-lg font-bold text-gray-900">Personal Credentials</h2>
+                      <p class="text-sm text-gray-600">Manage your SSH and TACACS credentials</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center space-x-2">
                     <button
-                      @click="removeCredential(index)"
-                      class="w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors font-bold text-sm"
-                      title="Remove this credential"
+                      @click="addCredential"
+                      class="p-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-all shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                      title="Add credential"
                     >
-                      ×
+                      <i class="fas fa-plus"></i>
+                    </button>
+                    <button
+                      @click="removeLastCredential"
+                      :disabled="settings.credentials.length === 0"
+                      class="p-2.5 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg transition-all shadow-sm hover:shadow-md transform hover:-translate-y-0.5 disabled:transform-none"
+                      title="Remove last credential"
+                    >
+                      <i class="fas fa-minus"></i>
                     </button>
                   </div>
-                  <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div>
-                      <label class="block text-xs font-medium text-gray-700 mb-1"> Name </label>
-                      <input
-                        v-model="credential.name"
-                        type="text"
-                        placeholder="Credential name"
-                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label class="block text-xs font-medium text-gray-700 mb-1"> Username </label>
-                      <input
-                        v-model="credential.username"
-                        type="text"
-                        placeholder="Username"
-                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label class="block text-xs font-medium text-gray-700 mb-1"> Password </label>
-                      <input
-                        v-model="credential.password"
-                        type="password"
-                        placeholder="Password"
-                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label class="block text-xs font-medium text-gray-700 mb-1"> Purpose </label>
-                      <select
-                        v-model="credential.purpose"
-                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                      >
-                        <option value="ssh">SSH</option>
-                        <option value="tacacs">TACACS</option>
-                      </select>
-                    </div>
-                  </div>
                 </div>
+              </div>
+
+              <div class="p-6">
                 <div
                   v-if="settings.credentials.length === 0"
-                  class="text-center py-6 text-gray-500"
+                  class="text-center py-16 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-dashed border-gray-300"
                 >
-                  <i class="fas fa-key text-3xl mb-3 opacity-50"></i>
-                  <p class="text-sm">No credentials added yet. Click the "+" button to add one.</p>
+                  <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-key text-4xl text-gray-300"></i>
+                  </div>
+                  <h3 class="text-lg font-semibold text-gray-900 mb-2">No credentials yet</h3>
+                  <p class="text-gray-500 mb-6">Add your first credential to get started</p>
+                  <button
+                    @click="addCredential"
+                    class="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg shadow-sm transition-all duration-200"
+                  >
+                    <i class="fas fa-plus mr-2"></i>
+                    Add Credential
+                  </button>
+                </div>
+
+                <div v-else class="space-y-4">
+                  <div
+                    v-for="(credential, index) in settings.credentials"
+                    :key="index"
+                    class="group bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all duration-200"
+                  >
+                    <div class="flex items-center justify-between mb-4">
+                      <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
+                          <span class="text-white font-bold text-sm">{{ index + 1 }}</span>
+                        </div>
+                        <span class="text-sm font-bold text-gray-900">Credential {{ index + 1 }}</span>
+                      </div>
+                      <button
+                        @click="removeCredential(index)"
+                        class="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors shadow-sm opacity-0 group-hover:opacity-100"
+                        title="Remove this credential"
+                      >
+                        <i class="fas fa-trash text-sm"></i>
+                      </button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                          <i class="fas fa-tag text-blue-500 mr-1"></i>
+                          Name
+                        </label>
+                        <input
+                          v-model="credential.name"
+                          type="text"
+                          placeholder="e.g., Production SSH"
+                          class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all shadow-sm"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                          <i class="fas fa-user text-green-500 mr-1"></i>
+                          Username
+                        </label>
+                        <input
+                          v-model="credential.username"
+                          type="text"
+                          placeholder="admin"
+                          class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all shadow-sm"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                          <i class="fas fa-lock text-purple-500 mr-1"></i>
+                          Password
+                        </label>
+                        <input
+                          v-model="credential.password"
+                          type="password"
+                          placeholder="••••••••"
+                          class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all shadow-sm"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                          <i class="fas fa-briefcase text-orange-500 mr-1"></i>
+                          Purpose
+                        </label>
+                        <select
+                          v-model="credential.purpose"
+                          class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all shadow-sm"
+                        >
+                          <option value="ssh">SSH</option>
+                          <option value="tacacs">TACACS</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
             <!-- Change Password -->
-            <div class="card p-6">
-              <h2 class="text-lg font-semibold text-gray-900 mb-4">Change Login Password</h2>
-              <div class="max-w-md space-y-4">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-2">
-                    Current Password
-                  </label>
-                  <input
-                    v-model="passwordChange.currentPassword"
-                    type="password"
-                    placeholder="Enter current password"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  />
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div class="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-purple-200">
+                <div class="flex items-center space-x-3">
+                  <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center shadow-sm">
+                    <i class="fas fa-shield-alt text-white"></i>
+                  </div>
+                  <div>
+                    <h2 class="text-lg font-bold text-gray-900">Change Login Password</h2>
+                    <p class="text-sm text-gray-600">Update your account password</p>
+                  </div>
                 </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-2"> New Password </label>
-                  <input
-                    v-model="passwordChange.newPassword"
-                    type="password"
-                    placeholder="Enter new password"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  />
+              </div>
+
+              <div class="p-6">
+                <div class="max-w-md space-y-5">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                      <i class="fas fa-key text-gray-500 mr-1"></i>
+                      Current Password
+                    </label>
+                    <input
+                      v-model="passwordChange.currentPassword"
+                      type="password"
+                      placeholder="Enter current password"
+                      class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all shadow-sm"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                      <i class="fas fa-lock text-green-500 mr-1"></i>
+                      New Password
+                    </label>
+                    <input
+                      v-model="passwordChange.newPassword"
+                      type="password"
+                      placeholder="Enter new password"
+                      class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all shadow-sm"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                      <i class="fas fa-check-circle text-blue-500 mr-1"></i>
+                      Confirm New Password
+                    </label>
+                    <input
+                      v-model="passwordChange.confirmPassword"
+                      type="password"
+                      placeholder="Confirm new password"
+                      class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all shadow-sm"
+                    />
+                  </div>
+                  
+                  <!-- Password strength indicator -->
+                  <div v-if="passwordChange.newPassword" class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div class="flex items-start space-x-2">
+                      <i class="fas fa-info-circle text-blue-500 mt-0.5"></i>
+                      <div class="text-sm text-blue-700">
+                        <p class="font-semibold mb-1">Password requirements:</p>
+                        <ul class="list-disc list-inside space-y-0.5 text-xs">
+                          <li>At least 8 characters long</li>
+                          <li>Contains uppercase and lowercase letters</li>
+                          <li>Includes numbers and special characters</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="pt-2">
+                    <button
+                      @click="changePassword"
+                      :disabled="changingPassword || !isPasswordChangeValid"
+                      class="w-full px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 disabled:from-gray-300 disabled:to-gray-400 text-white font-medium rounded-lg shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5 disabled:transform-none flex items-center justify-center"
+                    >
+                      <i :class="['mr-2', changingPassword ? 'fas fa-spinner fa-spin' : 'fas fa-sync-alt']"></i>
+                      {{ changingPassword ? 'Changing Password...' : 'Change Password' }}
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-2">
-                    Confirm New Password
-                  </label>
-                  <input
-                    v-model="passwordChange.confirmPassword"
-                    type="password"
-                    placeholder="Confirm new password"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  />
-                </div>
-                <button
-                  @click="changePassword"
-                  class="btn-primary"
-                  :disabled="changingPassword || !isPasswordChangeValid"
-                >
-                  {{ changingPassword ? 'Changing...' : 'Change Password' }}
-                </button>
               </div>
             </div>
           </div>
@@ -2834,9 +2910,13 @@
           </div>
 
           <!-- Save Button (for Profile tab) -->
-          <div v-if="activeTab === 'profile'" class="flex justify-end">
-            <button @click="saveProfile" class="btn-primary" :disabled="savingProfile">
-              <i class="fas fa-save mr-2"></i>
+          <div v-if="activeTab === 'profile'" class="flex justify-end pt-4">
+            <button 
+              @click="saveProfile" 
+              :disabled="savingProfile"
+              class="px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 disabled:from-gray-300 disabled:to-gray-400 text-white font-medium rounded-lg shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5 disabled:transform-none flex items-center"
+            >
+              <i :class="['mr-2', savingProfile ? 'fas fa-spinner fa-spin' : 'fas fa-save']"></i>
               {{ savingProfile ? 'Saving...' : 'Save Credentials' }}
             </button>
           </div>

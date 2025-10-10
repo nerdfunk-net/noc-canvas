@@ -681,6 +681,13 @@ cd<template>
       @close="closeSSHTerminalModal"
     />
 
+    <!-- Device Overview Modal -->
+    <DeviceOverviewModal
+      :show="showDeviceOverviewModal"
+      :device-id="deviceOverviewId"
+      @close="closeDeviceOverviewModal"
+    />
+
     <!-- Unsaved Changes Warning Dialog -->
     <ConfirmDialog
       :show="showUnsavedChangesDialog"
@@ -815,6 +822,7 @@ import TopologyBuilderModal from './TopologyBuilderModal.vue'
 import TopologyDiscoveryModal from './TopologyDiscoveryModal.vue'
 import DeviceInterfacesModal from './DeviceInterfacesModal.vue'
 import SSHTerminalModal from './SSHTerminalModal.vue'
+import DeviceOverviewModal from './DeviceOverviewModal.vue'
 import type { TopologyGraph } from '@/services/api'
 
 // Constants
@@ -1243,6 +1251,10 @@ const showSSHTerminalModal = ref(false)
 const sshTerminalDeviceId = ref('')
 const sshTerminalDeviceName = ref('')
 
+// Device Overview Modal state
+const showDeviceOverviewModal = ref(false)
+const deviceOverviewId = ref('')
+
 // Device Search state
 const showDeviceSearch = ref(false)
 const deviceSearchQuery = ref('')
@@ -1644,11 +1656,11 @@ const contextMenuItems = computed(() => {
     {
       icon: '🔄',
       label: 'Reload',
-      action: async () => { 
-        hideContextMenu()
+      action: async () => {
         console.log('🔄 Reloading commands...')
         await reloadCommands()
-        console.log('✅ Commands reloaded successfully')
+        console.log('✅ Commands reloaded successfully - menu will update automatically')
+        // Don't hide menu - it will update automatically with new commands
       }
     }
   ]
@@ -2006,6 +2018,22 @@ const handleDuplicateAdd = () => {
 }
 
 const showDeviceOverview = (device: Device) => {
+  // Get the device's Nautobot ID from properties
+  const props = device.properties ? JSON.parse(device.properties) : {}
+  const nautobotId = props.nautobot_id
+
+  if (!nautobotId) {
+    console.error('Device does not have a Nautobot ID')
+    return
+  }
+
+  deviceOverviewId.value = nautobotId
+  showDeviceOverviewModal.value = true
+}
+
+const closeDeviceOverviewModal = () => {
+  showDeviceOverviewModal.value = false
+  deviceOverviewId.value = ''
 }
 
 // Device configuration functions

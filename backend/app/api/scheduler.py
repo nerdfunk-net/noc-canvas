@@ -64,7 +64,7 @@ class IntervalSchedule(BaseModel):
 class PeriodicTaskCreate(BaseModel):
     """Create a new periodic task."""
     name: str = Field(description="Unique task name")
-    task: str = Field(description="Task to execute (e.g., 'app.services.background_jobs.sync_nautobot_devices')")
+    task: str = Field(description="Task to execute (e.g., 'app.tasks.nautobot_tasks.sync_nautobot_devices')")
     description: Optional[str] = Field(None, description="Task description")
 
     # Schedule type - either crontab or interval
@@ -654,7 +654,7 @@ async def get_available_tasks(
     available_tasks = [
         {
             "name": "sync_nautobot_devices",
-            "task": "app.services.background_jobs.sync_nautobot_devices",
+            "task": "app.tasks.nautobot_tasks.sync_nautobot_devices",
             "description": "Sync devices from Nautobot",
             "args_schema": {},
             "kwargs_schema": {
@@ -666,7 +666,7 @@ async def get_available_tasks(
         },
         {
             "name": "sync_checkmk_hosts",
-            "task": "app.services.background_jobs.sync_checkmk_hosts",
+            "task": "app.tasks.checkmk_tasks.sync_checkmk_hosts",
             "description": "Sync hosts from CheckMK",
             "args_schema": {},
             "kwargs_schema": {
@@ -677,7 +677,7 @@ async def get_available_tasks(
         },
         {
             "name": "cache_warm_up",
-            "task": "app.services.background_jobs.cache_warm_up",
+            "task": "app.tasks.cache_tasks.cache_warm_up",
             "description": "Warm up caches with frequently accessed data",
             "args_schema": {},
             "kwargs_schema": {}
@@ -695,7 +695,7 @@ async def get_available_tasks(
         },
         {
             "name": "cleanup_old_data",
-            "task": "app.services.background_jobs.cleanup_old_data",
+            "task": "app.tasks.cleanup_tasks.cleanup_old_data",
             "description": "Clean up old data including expired tasks, completed one-off tasks, and stale results",
             "args_schema": {},
             "kwargs_schema": {
@@ -704,7 +704,7 @@ async def get_available_tasks(
         },
         {
             "name": "test_job",
-            "task": "app.services.background_jobs.test_background_task",
+            "task": "app.tasks.test_tasks.test_background_task",
             "description": "Test background task for verification",
             "args_schema": {},
             "kwargs_schema": {

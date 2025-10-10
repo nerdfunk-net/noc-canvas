@@ -1361,7 +1361,7 @@ async def get_job_status(
                                                 if task_name and task_name != "Unknown Task":
                                                     # Convert task paths to readable names
                                                     # e.g., "app.tasks.topology_tasks.discover_single_device_task" -> "Discover Single Device"
-                                                    # e.g., "app.services.background_jobs.test_background_task" -> "Test Background Task"
+                                                    # e.g., "app.tasks.test_tasks.test_background_task" -> "Test Background Task"
                                                     if '.' in task_name:
                                                         task_name = task_name.split('.')[-1]  # Get last part
                                                     # Convert snake_case to Title Case
@@ -1429,13 +1429,16 @@ async def submit_test_job(
 ):
     """Submit a test job to verify Celery worker functionality."""
     try:
-        from ..services.background_jobs import test_background_task, CELERY_AVAILABLE
+        from ..services.background_jobs import celery_app, CELERY_AVAILABLE
 
         if not CELERY_AVAILABLE:
             raise HTTPException(status_code=503, detail="Celery is not available")
 
         # Submit test job with a 10-second delay to demonstrate functionality
-        result = test_background_task.delay("Test job from settings", 10)
+        result = celery_app.send_task(
+            "app.tasks.test_tasks.test_background_task",
+            kwargs={"duration": 10}
+        )
 
         return {
             "success": True,

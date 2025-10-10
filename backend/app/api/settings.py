@@ -4,7 +4,6 @@ Settings API router for managing application configuration.
 
 import logging
 import json
-import os
 import shutil
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -79,7 +78,9 @@ def build_nautobot_settings(db: Session) -> Dict[str, Any]:
 
     return {
         "url": stored_settings.get("nautobot_url") or app_settings.nautobot_url or "",
-        "token": stored_settings.get("nautobot_token") or app_settings.nautobot_token or "",
+        "token": stored_settings.get("nautobot_token")
+        or app_settings.nautobot_token
+        or "",
         "verifyTls": stored_settings.get(
             "nautobot_verify_tls", str(app_settings.nautobot_verify_ssl)
         ).lower()
@@ -119,9 +120,13 @@ def build_netmiko_settings(db: Session) -> Dict[str, Any]:
 
     return {
         "readTimeout": int(stored_settings.get("netmiko_read_timeout", "10")),
-        "lastRead": int(stored_settings.get("netmiko_last_read")) if stored_settings.get("netmiko_last_read") else None,
+        "lastRead": int(stored_settings.get("netmiko_last_read"))
+        if stored_settings.get("netmiko_last_read")
+        else None,
         "connTimeout": int(stored_settings.get("netmiko_conn_timeout", "10")),
-        "authTimeout": int(stored_settings.get("netmiko_auth_timeout")) if stored_settings.get("netmiko_auth_timeout") else None,
+        "authTimeout": int(stored_settings.get("netmiko_auth_timeout"))
+        if stored_settings.get("netmiko_auth_timeout")
+        else None,
         "bannerTimeout": int(stored_settings.get("netmiko_banner_timeout", "15")),
         "blockingTimeout": int(stored_settings.get("netmiko_blocking_timeout", "20")),
         "timeout": int(stored_settings.get("netmiko_timeout", "100")),
@@ -132,7 +137,9 @@ def build_netmiko_settings(db: Session) -> Dict[str, Any]:
 def build_canvas_settings(db: Session) -> Dict[str, Any]:
     """Build canvas settings dict from database."""
     return {
-        "autoSaveEnabled": get_setting_value(db, "canvas_autosave_enabled", "false").lower()
+        "autoSaveEnabled": get_setting_value(
+            db, "canvas_autosave_enabled", "false"
+        ).lower()
         == "true",
         "autoSaveInterval": int(
             get_setting_value(db, "canvas_autosave_interval", "60")
@@ -424,7 +431,9 @@ async def get_device_templates(
                 name=template.name,
                 filename=template.filename,
                 platforms=json.loads(template.platforms) if template.platforms else [],
-                device_types=json.loads(template.device_types) if template.device_types else [],
+                device_types=json.loads(template.device_types)
+                if template.device_types
+                else [],
             )
         )
     return result
@@ -551,7 +560,9 @@ async def update_device_template(
             name=template.name,
             filename=template.filename,
             platforms=json.loads(template.platforms) if template.platforms else [],
-            device_types=json.loads(template.device_types) if template.device_types else [],
+            device_types=json.loads(template.device_types)
+            if template.device_types
+            else [],
         )
     except HTTPException:
         raise
@@ -583,24 +594,32 @@ async def delete_device_template(
             db.query(DeviceTemplate)
             .filter(
                 DeviceTemplate.filename == template.filename,
-                DeviceTemplate.id != template_id
+                DeviceTemplate.id != template_id,
             )
             .count()
         )
 
         # Only delete the file if no other templates are using it
         if other_templates_using_file == 0:
-            icons_dir = Path(__file__).parent.parent.parent.parent / "frontend" / "icons"
+            icons_dir = (
+                Path(__file__).parent.parent.parent.parent / "frontend" / "icons"
+            )
             file_path = icons_dir / template.filename
             if file_path.exists():
                 file_path.unlink()
-                logger.info(f"Deleted icon file: {template.filename} (not used by other templates)")
+                logger.info(
+                    f"Deleted icon file: {template.filename} (not used by other templates)"
+                )
         else:
-            logger.info(f"Keeping icon file: {template.filename} (used by {other_templates_using_file} other template(s))")
+            logger.info(
+                f"Keeping icon file: {template.filename} (used by {other_templates_using_file} other template(s))"
+            )
 
         db.delete(template)
         db.commit()
-        return {"message": f"Device template with ID {template_id} deleted successfully"}
+        return {
+            "message": f"Device template with ID {template_id} deleted successfully"
+        }
     except Exception as e:
         logger.error(f"Error deleting device template: {str(e)}")
         raise HTTPException(
@@ -618,7 +637,7 @@ async def upload_device_template_icon(
     """Upload an SVG icon for device templates."""
     try:
         # Validate file extension
-        if not file.filename.endswith('.svg'):
+        if not file.filename.endswith(".svg"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Only SVG files are supported",
@@ -833,18 +852,21 @@ async def get_cache_settings(
 ):
     """Get current cache settings."""
     # Try to get settings from database
-    cache_settings = db.query(AppSettings).filter(
-        AppSettings.key == "cache_settings"
-    ).first()
+    cache_settings = (
+        db.query(AppSettings).filter(AppSettings.key == "cache_settings").first()
+    )
 
     if cache_settings and cache_settings.value:
         import json
+
         settings_data = json.loads(cache_settings.value)
         return CacheSettings(
             enabled=True,
             ttl_seconds=settings_data.get("defaultTtlMinutes", 60) * 60,
             prefetch_on_startup=True,
-            refresh_interval_minutes=settings_data.get("autoRefreshIntervalMinutes", 30),
+            refresh_interval_minutes=settings_data.get(
+                "autoRefreshIntervalMinutes", 30
+            ),
             prefetch_items={
                 "devices": False,
                 "locations": False,
@@ -876,9 +898,9 @@ async def save_cache_settings(
     import json
 
     # Get or create cache settings entry
-    cache_settings = db.query(AppSettings).filter(
-        AppSettings.key == "cache_settings"
-    ).first()
+    cache_settings = (
+        db.query(AppSettings).filter(AppSettings.key == "cache_settings").first()
+    )
 
     if cache_settings:
         cache_settings.value = json.dumps(settings)
@@ -887,7 +909,7 @@ async def save_cache_settings(
         cache_settings = AppSettings(
             key="cache_settings",
             value=json.dumps(settings),
-            description="Cache configuration settings"
+            description="Cache configuration settings",
         )
         db.add(cache_settings)
 
@@ -1014,14 +1036,39 @@ async def save_unified_settings(
             netmiko_config = settings_data.netmiko
             settings_to_save.extend(
                 [
-                    ("netmiko_read_timeout", str(netmiko_config.get("readTimeout", 10))),
-                    ("netmiko_last_read", str(netmiko_config.get("lastRead")) if netmiko_config.get("lastRead") is not None else ""),
-                    ("netmiko_conn_timeout", str(netmiko_config.get("connTimeout", 10))),
-                    ("netmiko_auth_timeout", str(netmiko_config.get("authTimeout")) if netmiko_config.get("authTimeout") is not None else ""),
-                    ("netmiko_banner_timeout", str(netmiko_config.get("bannerTimeout", 15))),
-                    ("netmiko_blocking_timeout", str(netmiko_config.get("blockingTimeout", 20))),
+                    (
+                        "netmiko_read_timeout",
+                        str(netmiko_config.get("readTimeout", 10)),
+                    ),
+                    (
+                        "netmiko_last_read",
+                        str(netmiko_config.get("lastRead"))
+                        if netmiko_config.get("lastRead") is not None
+                        else "",
+                    ),
+                    (
+                        "netmiko_conn_timeout",
+                        str(netmiko_config.get("connTimeout", 10)),
+                    ),
+                    (
+                        "netmiko_auth_timeout",
+                        str(netmiko_config.get("authTimeout"))
+                        if netmiko_config.get("authTimeout") is not None
+                        else "",
+                    ),
+                    (
+                        "netmiko_banner_timeout",
+                        str(netmiko_config.get("bannerTimeout", 15)),
+                    ),
+                    (
+                        "netmiko_blocking_timeout",
+                        str(netmiko_config.get("blockingTimeout", 20)),
+                    ),
                     ("netmiko_timeout", str(netmiko_config.get("timeout", 100))),
-                    ("netmiko_session_timeout", str(netmiko_config.get("sessionTimeout", 60))),
+                    (
+                        "netmiko_session_timeout",
+                        str(netmiko_config.get("sessionTimeout", 60)),
+                    ),
                 ]
             )
 
@@ -1029,7 +1076,9 @@ async def save_unified_settings(
         logger.info(f"💾 Total settings to save: {len(settings_to_save)}")
         for key, value in settings_to_save:
             if value != "***":  # Skip masked passwords
-                logger.info(f"💾 Saving setting: {key} = {value[:50] if len(str(value)) > 50 else value}")
+                logger.info(
+                    f"💾 Saving setting: {key} = {value[:50] if len(str(value)) > 50 else value}"
+                )
                 upsert_setting(db, key, value)
             else:
                 logger.info(f"💾 Skipping masked value for: {key}")
@@ -1060,6 +1109,7 @@ async def save_unified_settings(
     except Exception as e:
         logger.error(f"❌ Error saving unified settings: {str(e)}")
         import traceback
+
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1259,12 +1309,12 @@ async def get_job_status(
         # Get recent job results - both running and completed
         recent_jobs = []
         task_ids_seen = set()
-        
+
         try:
             # First, add currently running jobs
             for worker_name in active_workers.keys():
                 for job in active_workers[worker_name]:
-                    task_id = job.get('id', 'unknown')
+                    task_id = job.get("id", "unknown")
                     if task_id not in task_ids_seen:
                         recent_jobs.append(
                             {
@@ -1284,52 +1334,58 @@ async def get_job_status(
             from celery.result import AsyncResult
             # Get recent task IDs from registered tasks
             # We'll check for results of recently executed tasks
-            
+
             # Try to get reserved tasks which includes queued jobs
             try:
                 reserved = inspect.reserved() or {}
                 for worker_name, tasks in reserved.items():
                     for task in tasks:
-                        task_id = task.get('id', 'unknown')
+                        task_id = task.get("id", "unknown")
                         if task_id not in task_ids_seen:
-                            recent_jobs.append({
-                                "id": task_id,
-                                "name": task.get("name", "Unknown Task"),
-                                "state": "PENDING",
-                                "timestamp": "",
-                                "worker": worker_name,
-                            })
+                            recent_jobs.append(
+                                {
+                                    "id": task_id,
+                                    "name": task.get("name", "Unknown Task"),
+                                    "state": "PENDING",
+                                    "timestamp": "",
+                                    "worker": worker_name,
+                                }
+                            )
                             task_ids_seen.add(task_id)
             except Exception as e:
                 logger.warning(f"Could not get reserved tasks: {e}")
-            
+
             # Try to query the result backend directly for recent results
             # This is implementation-specific to Redis backend
             try:
                 from celery import current_app
                 import redis
-                
+
                 # Get Redis connection from Celery config
                 redis_url = current_app.conf.result_backend
-                if redis_url and redis_url.startswith('redis://'):
+                if redis_url and redis_url.startswith("redis://"):
                     r = redis.from_url(redis_url)
-                    
+
                     # Scan for celery task result keys
                     # Results are stored with key pattern: celery-task-meta-{task_id}
                     cursor = 0
                     max_jobs = 20
                     jobs_found = 0
-                    
+
                     while jobs_found < max_jobs:
-                        cursor, keys = r.scan(cursor, match='celery-task-meta-*', count=100)
-                        
+                        cursor, keys = r.scan(
+                            cursor, match="celery-task-meta-*", count=100
+                        )
+
                         for key in keys:
                             if jobs_found >= max_jobs:
                                 break
-                                
+
                             try:
                                 # Extract task ID from key
-                                task_id = key.decode('utf-8').replace('celery-task-meta-', '')
+                                task_id = key.decode("utf-8").replace(
+                                    "celery-task-meta-", ""
+                                )
 
                                 if task_id not in task_ids_seen:
                                     # Get the task result
@@ -1345,29 +1401,41 @@ async def get_job_status(
                                             result_meta = r.get(key)
                                             if result_meta:
                                                 import json
+
                                                 meta_data = json.loads(result_meta)
 
                                                 # With result_extended=True, Celery stores task name in 'name' field
-                                                if 'name' in meta_data:
-                                                    task_name = meta_data['name']
-                                                elif 'task' in meta_data:
-                                                    task_name = meta_data['task']
+                                                if "name" in meta_data:
+                                                    task_name = meta_data["name"]
+                                                elif "task" in meta_data:
+                                                    task_name = meta_data["task"]
 
                                                 # Get timestamp
-                                                if 'date_done' in meta_data:
-                                                    timestamp = meta_data['date_done']
+                                                if "date_done" in meta_data:
+                                                    timestamp = meta_data["date_done"]
 
                                                 # Format task name for better readability
-                                                if task_name and task_name != "Unknown Task":
+                                                if (
+                                                    task_name
+                                                    and task_name != "Unknown Task"
+                                                ):
                                                     # Convert task paths to readable names
                                                     # e.g., "app.tasks.topology_tasks.discover_single_device_task" -> "Discover Single Device"
                                                     # e.g., "app.tasks.test_tasks.test_background_task" -> "Test Background Task"
-                                                    if '.' in task_name:
-                                                        task_name = task_name.split('.')[-1]  # Get last part
+                                                    if "." in task_name:
+                                                        task_name = task_name.split(
+                                                            "."
+                                                        )[-1]  # Get last part
                                                     # Convert snake_case to Title Case
-                                                    task_name = task_name.replace('_task', '').replace('_', ' ').title()
+                                                    task_name = (
+                                                        task_name.replace("_task", "")
+                                                        .replace("_", " ")
+                                                        .title()
+                                                    )
                                         except Exception as name_error:
-                                            logger.debug(f"Could not extract task name from metadata: {name_error}")
+                                            logger.debug(
+                                                f"Could not extract task name from metadata: {name_error}"
+                                            )
 
                                         job_data = {
                                             "id": task_id,
@@ -1377,10 +1445,16 @@ async def get_job_status(
                                         }
 
                                         # Add result details if available
-                                        if result.state == 'SUCCESS':
-                                            job_data["result"] = str(result.result)[:200]  # Truncate long results
-                                        elif result.state == 'FAILURE':
-                                            job_data["traceback"] = str(result.traceback)[:500] if result.traceback else "Unknown error"
+                                        if result.state == "SUCCESS":
+                                            job_data["result"] = str(result.result)[
+                                                :200
+                                            ]  # Truncate long results
+                                        elif result.state == "FAILURE":
+                                            job_data["traceback"] = (
+                                                str(result.traceback)[:500]
+                                                if result.traceback
+                                                else "Unknown error"
+                                            )
 
                                         recent_jobs.append(job_data)
                                         task_ids_seen.add(task_id)
@@ -1388,18 +1462,24 @@ async def get_job_status(
                             except Exception as e:
                                 logger.debug(f"Error processing task result {key}: {e}")
                                 continue
-                        
+
                         if cursor == 0:  # Scan complete
                             break
-                            
+
             except Exception as e:
                 logger.warning(f"Could not query Redis result backend: {e}")
-                
+
         except Exception as e:
             logger.warning(f"Could not get completed jobs: {e}")
 
         # Sort by state priority: RUNNING > PENDING > FAILURE > SUCCESS
-        state_priority = {"RUNNING": 0, "PENDING": 1, "STARTED": 2, "FAILURE": 3, "SUCCESS": 4}
+        state_priority = {
+            "RUNNING": 0,
+            "PENDING": 1,
+            "STARTED": 2,
+            "FAILURE": 3,
+            "SUCCESS": 4,
+        }
         recent_jobs.sort(key=lambda x: state_priority.get(x.get("state", ""), 99))
 
         return {
@@ -1436,8 +1516,7 @@ async def submit_test_job(
 
         # Submit test job with a 10-second delay to demonstrate functionality
         result = celery_app.send_task(
-            "app.tasks.test_tasks.test_background_task",
-            kwargs={"duration": 10}
+            "app.tasks.test_tasks.test_background_task", kwargs={"duration": 10}
         )
 
         return {
@@ -1460,63 +1539,57 @@ async def clear_job_logs(
     """Clear all Celery job result logs from Redis backend."""
     try:
         from ..services.background_jobs import celery_app, CELERY_AVAILABLE
-        
+
         if not CELERY_AVAILABLE or not celery_app:
-            raise HTTPException(
-                status_code=503, 
-                detail="Celery is not available"
-            )
-        
+            raise HTTPException(status_code=503, detail="Celery is not available")
+
         # Clear job results from Redis backend
         try:
             from celery import current_app
             import redis
-            
+
             # Get Redis connection from Celery config
             redis_url = current_app.conf.result_backend
-            if not redis_url or not redis_url.startswith('redis://'):
+            if not redis_url or not redis_url.startswith("redis://"):
                 raise HTTPException(
-                    status_code=500,
-                    detail="Redis result backend not configured"
+                    status_code=500, detail="Redis result backend not configured"
                 )
-            
+
             r = redis.from_url(redis_url)
-            
+
             # Scan for all celery task result keys
             cursor = 0
             deleted_count = 0
-            
+
             while True:
-                cursor, keys = r.scan(cursor, match='celery-task-meta-*', count=100)
-                
+                cursor, keys = r.scan(cursor, match="celery-task-meta-*", count=100)
+
                 if keys:
                     # Delete all found keys
                     deleted_count += r.delete(*keys)
-                
+
                 # Scan complete
                 if cursor == 0:
                     break
-            
+
             logger.info(f"Cleared {deleted_count} job result(s) from Redis")
-            
+
             return {
                 "success": True,
                 "message": f"Successfully cleared {deleted_count} job log(s)",
                 "deleted_count": deleted_count,
             }
-            
+
         except redis.RedisError as e:
             logger.error(f"Redis error while clearing jobs: {str(e)}")
             raise HTTPException(
-                status_code=500,
-                detail=f"Failed to clear jobs from Redis: {str(e)}"
+                status_code=500, detail=f"Failed to clear jobs from Redis: {str(e)}"
             )
-    
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error clearing job logs: {str(e)}")
         raise HTTPException(
-            status_code=500, 
-            detail=f"Failed to clear job logs: {str(e)}"
+            status_code=500, detail=f"Failed to clear job logs: {str(e)}"
         )

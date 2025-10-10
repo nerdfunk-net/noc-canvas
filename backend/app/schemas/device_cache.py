@@ -244,6 +244,7 @@ class CDPNeighborCacheResponse(CDPNeighborCacheBase):
 # Composite schemas for bulk operations
 class DeviceCacheWithDetails(DeviceCacheResponse):
     """Device cache with all related data."""
+
     interfaces: List[InterfaceCacheResponse] = []
     ip_addresses: List[IPAddressCacheResponse] = []
     arp_entries: List[ARPCacheResponse] = []
@@ -256,12 +257,14 @@ class DeviceCacheWithDetails(DeviceCacheResponse):
 
 class InterfaceWithIPs(InterfaceCacheResponse):
     """Interface with its IP addresses."""
+
     ip_addresses: List[IPAddressCacheResponse] = []
 
 
 # Bulk update schemas
 class BulkCacheUpdate(BaseModel):
     """For updating entire device cache from discovery."""
+
     device: DeviceCacheCreate
     interfaces: List[InterfaceCacheCreate] = []
     ip_addresses: List[IPAddressCacheCreate] = []
@@ -277,16 +280,19 @@ class JSONBlobCacheBase(BaseModel):
 
 class JSONBlobCacheCreate(JSONBlobCacheBase):
     """Schema for creating a new JSON cache entry."""
+
     pass
 
 
 class JSONBlobCacheUpdate(BaseModel):
     """Schema for updating an existing JSON cache entry."""
+
     json_data: str
 
 
 class JSONBlobCacheResponse(JSONBlobCacheBase):
     """Schema for JSON cache response."""
+
     id: int
     updated_at: datetime
 

@@ -10,13 +10,21 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from ..models.device_cache import (
-    DeviceCache, CDPNeighborCache, StaticRouteCache,
-    OSPFRouteCache, BGPRouteCache, ARPCache, MACAddressTableCache,
-    IPAddressCache
+    DeviceCache,
+    CDPNeighborCache,
+    StaticRouteCache,
+    OSPFRouteCache,
+    BGPRouteCache,
+    ARPCache,
+    IPAddressCache,
 )
 from ..schemas.topology import (
-    TopologyNode, TopologyLink, TopologyGraph, LinkType,
-    TopologyStatistics, NeighborResolution
+    TopologyNode,
+    TopologyLink,
+    TopologyGraph,
+    LinkType,
+    TopologyStatistics,
+    NeighborResolution,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,7 +42,7 @@ class TopologyBuilderService:
         route_types: List[str] = ["static", "ospf", "bgp"],
         include_layer2: bool = False,
         auto_layout: bool = True,
-        layout_algorithm: str = "force_directed"
+        layout_algorithm: str = "force_directed",
     ) -> TopologyGraph:
         """
         Build complete topology from cache data.
@@ -62,7 +70,9 @@ class TopologyBuilderService:
 
         if not devices:
             logger.warning("No devices found for topology building")
-            return TopologyGraph(nodes=[], links=[], metadata={"device_count": 0, "link_count": 0})
+            return TopologyGraph(
+                nodes=[], links=[], metadata={"device_count": 0, "link_count": 0}
+            )
 
         # Build nodes
         nodes = TopologyBuilderService._build_nodes(devices)
@@ -76,7 +86,9 @@ class TopologyBuilderService:
             logger.info(f"Extracted {len(cdp_links)} CDP links")
 
         if include_routing:
-            routing_links = TopologyBuilderService._extract_routing_links(db, devices, route_types)
+            routing_links = TopologyBuilderService._extract_routing_links(
+                db, devices, route_types
+            )
             all_links.extend(routing_links)
             logger.info(f"Extracted {len(routing_links)} routing links")
 
@@ -104,16 +116,14 @@ class TopologyBuilderService:
             "include_cdp": include_cdp,
             "include_routing": include_routing,
             "include_layer2": include_layer2,
-            "layout_algorithm": layout_algorithm if auto_layout else None
+            "layout_algorithm": layout_algorithm if auto_layout else None,
         }
 
         return TopologyGraph(nodes=nodes, links=links, metadata=metadata)
 
     @staticmethod
     def build_cdp_topology(
-        db: Session,
-        device_ids: Optional[List[str]] = None,
-        auto_layout: bool = True
+        db: Session, device_ids: Optional[List[str]] = None, auto_layout: bool = True
     ) -> TopologyGraph:
         """Build topology from CDP/LLDP neighbors only."""
         return TopologyBuilderService.build_topology_from_cache(
@@ -122,7 +132,7 @@ class TopologyBuilderService:
             include_cdp=True,
             include_routing=False,
             include_layer2=False,
-            auto_layout=auto_layout
+            auto_layout=auto_layout,
         )
 
     @staticmethod
@@ -130,7 +140,7 @@ class TopologyBuilderService:
         db: Session,
         device_ids: Optional[List[str]] = None,
         route_types: List[str] = ["static", "ospf", "bgp"],
-        auto_layout: bool = True
+        auto_layout: bool = True,
     ) -> TopologyGraph:
         """Build topology from routing tables."""
         return TopologyBuilderService.build_topology_from_cache(
@@ -140,14 +150,12 @@ class TopologyBuilderService:
             include_routing=True,
             route_types=route_types,
             include_layer2=False,
-            auto_layout=auto_layout
+            auto_layout=auto_layout,
         )
 
     @staticmethod
     def build_layer2_topology(
-        db: Session,
-        device_ids: Optional[List[str]] = None,
-        auto_layout: bool = True
+        db: Session, device_ids: Optional[List[str]] = None, auto_layout: bool = True
     ) -> TopologyGraph:
         """Build topology from MAC/ARP tables."""
         return TopologyBuilderService.build_topology_from_cache(
@@ -156,7 +164,7 @@ class TopologyBuilderService:
             include_cdp=False,
             include_routing=False,
             include_layer2=True,
-            auto_layout=auto_layout
+            auto_layout=auto_layout,
         )
 
     @staticmethod
@@ -171,23 +179,31 @@ class TopologyBuilderService:
                 platform=device.platform,
                 metadata={
                     "polling_enabled": device.polling_enabled,
-                    "last_updated": device.last_updated.isoformat() if device.last_updated else None,
-                    "cache_valid_until": device.cache_valid_until.isoformat() if device.cache_valid_until else None
-                }
+                    "last_updated": device.last_updated.isoformat()
+                    if device.last_updated
+                    else None,
+                    "cache_valid_until": device.cache_valid_until.isoformat()
+                    if device.cache_valid_until
+                    else None,
+                },
             )
             nodes.append(node)
         return nodes
 
     @staticmethod
-    def _extract_cdp_links(db: Session, devices: List[DeviceCache]) -> List[TopologyLink]:
+    def _extract_cdp_links(
+        db: Session, devices: List[DeviceCache]
+    ) -> List[TopologyLink]:
         """Extract links from CDP neighbor cache."""
         links = []
         device_ids = [d.device_id for d in devices]
 
         # Query all CDP neighbors for these devices
-        cdp_neighbors = db.query(CDPNeighborCache).filter(
-            CDPNeighborCache.device_id.in_(device_ids)
-        ).all()
+        cdp_neighbors = (
+            db.query(CDPNeighborCache)
+            .filter(CDPNeighborCache.device_id.in_(device_ids))
+            .all()
+        )
 
         logger.info(f"Processing {len(cdp_neighbors)} CDP neighbor entries")
 
@@ -198,14 +214,20 @@ class TopologyBuilderService:
             )
 
             if not neighbor_device_id:
-                logger.debug(f"Could not resolve CDP neighbor: {cdp.neighbor_name} ({cdp.neighbor_ip})")
+                logger.debug(
+                    f"Could not resolve CDP neighbor: {cdp.neighbor_name} ({cdp.neighbor_ip})"
+                )
                 continue
 
             # Get device names
-            source_device = next((d for d in devices if d.device_id == cdp.device_id), None)
-            target_device = db.query(DeviceCache).filter(
-                DeviceCache.device_id == neighbor_device_id
-            ).first()
+            source_device = next(
+                (d for d in devices if d.device_id == cdp.device_id), None
+            )
+            target_device = (
+                db.query(DeviceCache)
+                .filter(DeviceCache.device_id == neighbor_device_id)
+                .first()
+            )
 
             if not source_device or not target_device:
                 continue
@@ -221,8 +243,8 @@ class TopologyBuilderService:
                 bidirectional=True,
                 link_metadata={
                     "neighbor_platform": cdp.platform,
-                    "neighbor_capabilities": cdp.capabilities
-                }
+                    "neighbor_capabilities": cdp.capabilities,
+                },
             )
             links.append(link)
 
@@ -230,9 +252,7 @@ class TopologyBuilderService:
 
     @staticmethod
     def _extract_routing_links(
-        db: Session,
-        devices: List[DeviceCache],
-        route_types: List[str]
+        db: Session, devices: List[DeviceCache], route_types: List[str]
     ) -> List[TopologyLink]:
         """Extract links from routing tables."""
         links = []
@@ -240,20 +260,26 @@ class TopologyBuilderService:
 
         # Extract static route links
         if "static" in route_types:
-            static_routes = db.query(StaticRouteCache).filter(
-                StaticRouteCache.device_id.in_(device_ids)
-            ).all()
+            static_routes = (
+                db.query(StaticRouteCache)
+                .filter(StaticRouteCache.device_id.in_(device_ids))
+                .all()
+            )
 
             for route in static_routes:
                 if not route.nexthop_ip:
                     continue
 
                 # Find which device owns the nexthop IP
-                nexthop_device = TopologyBuilderService._find_device_by_ip(db, route.nexthop_ip)
+                nexthop_device = TopologyBuilderService._find_device_by_ip(
+                    db, route.nexthop_ip
+                )
                 if not nexthop_device:
                     continue
 
-                source_device = next((d for d in devices if d.device_id == route.device_id), None)
+                source_device = next(
+                    (d for d in devices if d.device_id == route.device_id), None
+                )
                 if not source_device:
                     continue
 
@@ -270,26 +296,32 @@ class TopologyBuilderService:
                         "network": route.network,
                         "nexthop_ip": route.nexthop_ip,
                         "metric": route.metric,
-                        "distance": route.distance
-                    }
+                        "distance": route.distance,
+                    },
                 )
                 links.append(link)
 
         # Extract OSPF route links
         if "ospf" in route_types:
-            ospf_routes = db.query(OSPFRouteCache).filter(
-                OSPFRouteCache.device_id.in_(device_ids)
-            ).all()
+            ospf_routes = (
+                db.query(OSPFRouteCache)
+                .filter(OSPFRouteCache.device_id.in_(device_ids))
+                .all()
+            )
 
             for route in ospf_routes:
                 if not route.nexthop_ip:
                     continue
 
-                nexthop_device = TopologyBuilderService._find_device_by_ip(db, route.nexthop_ip)
+                nexthop_device = TopologyBuilderService._find_device_by_ip(
+                    db, route.nexthop_ip
+                )
                 if not nexthop_device:
                     continue
 
-                source_device = next((d for d in devices if d.device_id == route.device_id), None)
+                source_device = next(
+                    (d for d in devices if d.device_id == route.device_id), None
+                )
                 if not source_device:
                     continue
 
@@ -307,26 +339,32 @@ class TopologyBuilderService:
                         "nexthop_ip": route.nexthop_ip,
                         "metric": route.metric,
                         "area": route.area,
-                        "route_type": route.route_type
-                    }
+                        "route_type": route.route_type,
+                    },
                 )
                 links.append(link)
 
         # Extract BGP route links
         if "bgp" in route_types:
-            bgp_routes = db.query(BGPRouteCache).filter(
-                BGPRouteCache.device_id.in_(device_ids)
-            ).all()
+            bgp_routes = (
+                db.query(BGPRouteCache)
+                .filter(BGPRouteCache.device_id.in_(device_ids))
+                .all()
+            )
 
             for route in bgp_routes:
                 if not route.nexthop_ip:
                     continue
 
-                nexthop_device = TopologyBuilderService._find_device_by_ip(db, route.nexthop_ip)
+                nexthop_device = TopologyBuilderService._find_device_by_ip(
+                    db, route.nexthop_ip
+                )
                 if not nexthop_device:
                     continue
 
-                source_device = next((d for d in devices if d.device_id == route.device_id), None)
+                source_device = next(
+                    (d for d in devices if d.device_id == route.device_id), None
+                )
                 if not source_device:
                     continue
 
@@ -344,31 +382,37 @@ class TopologyBuilderService:
                         "nexthop_ip": route.nexthop_ip,
                         "as_path": route.as_path,
                         "local_pref": route.local_pref,
-                        "metric": route.metric
-                    }
+                        "metric": route.metric,
+                    },
                 )
                 links.append(link)
 
         return links
 
     @staticmethod
-    def _extract_layer2_links(db: Session, devices: List[DeviceCache]) -> List[TopologyLink]:
+    def _extract_layer2_links(
+        db: Session, devices: List[DeviceCache]
+    ) -> List[TopologyLink]:
         """Extract links from MAC/ARP tables."""
         links = []
         device_ids = [d.device_id for d in devices]
 
         # Get ARP entries for these devices
-        arp_entries = db.query(ARPCache).filter(
-            ARPCache.device_id.in_(device_ids)
-        ).all()
+        arp_entries = (
+            db.query(ARPCache).filter(ARPCache.device_id.in_(device_ids)).all()
+        )
 
         for arp in arp_entries:
             # Find which device has this IP
-            target_device = TopologyBuilderService._find_device_by_ip(db, arp.ip_address)
+            target_device = TopologyBuilderService._find_device_by_ip(
+                db, arp.ip_address
+            )
             if not target_device or target_device.device_id == arp.device_id:
                 continue
 
-            source_device = next((d for d in devices if d.device_id == arp.device_id), None)
+            source_device = next(
+                (d for d in devices if d.device_id == arp.device_id), None
+            )
             if not source_device:
                 continue
 
@@ -384,8 +428,8 @@ class TopologyBuilderService:
                 link_metadata={
                     "ip_address": arp.ip_address,
                     "mac_address": arp.mac_address,
-                    "age": arp.age
-                }
+                    "age": arp.age,
+                },
             )
             links.append(link)
 
@@ -393,9 +437,7 @@ class TopologyBuilderService:
 
     @staticmethod
     def _resolve_neighbor_device_id(
-        db: Session,
-        neighbor_name: str,
-        neighbor_ip: Optional[str]
+        db: Session, neighbor_name: str, neighbor_ip: Optional[str]
     ) -> Optional[str]:
         """
         Resolve neighbor name/IP to device_id in cache.
@@ -406,32 +448,42 @@ class TopologyBuilderService:
         # Try exact name match first
         if neighbor_name:
             # Clean up neighbor name (remove domain suffix if present)
-            clean_name = neighbor_name.split('.')[0] if '.' in neighbor_name else neighbor_name
+            clean_name = (
+                neighbor_name.split(".")[0] if "." in neighbor_name else neighbor_name
+            )
 
-            device = db.query(DeviceCache).filter(
-                or_(
-                    DeviceCache.device_name == neighbor_name,
-                    DeviceCache.device_name == clean_name,
-                    DeviceCache.device_name.like(f"{clean_name}%")
+            device = (
+                db.query(DeviceCache)
+                .filter(
+                    or_(
+                        DeviceCache.device_name == neighbor_name,
+                        DeviceCache.device_name == clean_name,
+                        DeviceCache.device_name.like(f"{clean_name}%"),
+                    )
                 )
-            ).first()
+                .first()
+            )
 
             if device:
                 return device.device_id
 
         # Try IP match
         if neighbor_ip:
-            device = db.query(DeviceCache).filter(
-                DeviceCache.primary_ip == neighbor_ip
-            ).first()
+            device = (
+                db.query(DeviceCache)
+                .filter(DeviceCache.primary_ip == neighbor_ip)
+                .first()
+            )
 
             if device:
                 return device.device_id
 
             # Also check if IP is assigned to any device interface
-            ip_entry = db.query(IPAddressCache).filter(
-                IPAddressCache.ip_address == neighbor_ip
-            ).first()
+            ip_entry = (
+                db.query(IPAddressCache)
+                .filter(IPAddressCache.ip_address == neighbor_ip)
+                .first()
+            )
 
             if ip_entry:
                 return ip_entry.device_id
@@ -442,22 +494,26 @@ class TopologyBuilderService:
     def _find_device_by_ip(db: Session, ip_address: str) -> Optional[DeviceCache]:
         """Find device that owns a specific IP address."""
         # Check primary IP
-        device = db.query(DeviceCache).filter(
-            DeviceCache.primary_ip == ip_address
-        ).first()
+        device = (
+            db.query(DeviceCache).filter(DeviceCache.primary_ip == ip_address).first()
+        )
 
         if device:
             return device
 
         # Check interface IPs
-        ip_entry = db.query(IPAddressCache).filter(
-            IPAddressCache.ip_address == ip_address
-        ).first()
+        ip_entry = (
+            db.query(IPAddressCache)
+            .filter(IPAddressCache.ip_address == ip_address)
+            .first()
+        )
 
         if ip_entry:
-            return db.query(DeviceCache).filter(
-                DeviceCache.device_id == ip_entry.device_id
-            ).first()
+            return (
+                db.query(DeviceCache)
+                .filter(DeviceCache.device_id == ip_entry.device_id)
+                .first()
+            )
 
         return None
 
@@ -486,7 +542,7 @@ class TopologyBuilderService:
     def _calculate_layout_positions(
         nodes: List[TopologyNode],
         links: List[TopologyLink],
-        algorithm: str = "force_directed"
+        algorithm: str = "force_directed",
     ) -> Dict[str, Tuple[float, float]]:
         """
         Calculate x/y positions for nodes using graph layout algorithm.
@@ -527,8 +583,7 @@ class TopologyBuilderService:
 
     @staticmethod
     def _hierarchical_layout(
-        nodes: List[TopologyNode],
-        links: List[TopologyLink]
+        nodes: List[TopologyNode], links: List[TopologyLink]
     ) -> Dict[str, Tuple[float, float]]:
         """Arrange nodes in hierarchical layers."""
         # Simple hierarchical layout based on connection count
@@ -537,11 +592,18 @@ class TopologyBuilderService:
         # Count connections per node
         connection_counts = {}
         for node in nodes:
-            count = sum(1 for link in links if link.source_device_id == node.device_id or link.target_device_id == node.device_id)
+            count = sum(
+                1
+                for link in links
+                if link.source_device_id == node.device_id
+                or link.target_device_id == node.device_id
+            )
             connection_counts[node.device_id] = count
 
         # Sort nodes by connection count (most connected at top)
-        sorted_nodes = sorted(nodes, key=lambda n: connection_counts.get(n.device_id, 0), reverse=True)
+        sorted_nodes = sorted(
+            nodes, key=lambda n: connection_counts.get(n.device_id, 0), reverse=True
+        )
 
         # Assign positions in layers
         layer_height = 150
@@ -560,9 +622,7 @@ class TopologyBuilderService:
 
     @staticmethod
     def _force_directed_layout(
-        nodes: List[TopologyNode],
-        links: List[TopologyLink],
-        iterations: int = 50
+        nodes: List[TopologyNode], links: List[TopologyLink], iterations: int = 50
     ) -> Dict[str, Tuple[float, float]]:
         """
         Simple force-directed layout algorithm.
@@ -609,7 +669,7 @@ class TopologyBuilderService:
 
             # Repulsion forces (repel all nodes from each other)
             for i, node1 in enumerate(nodes):
-                for node2 in nodes[i+1:]:
+                for node2 in nodes[i + 1 :]:
                     pos1 = positions[node1.device_id]
                     pos2 = positions[node2.device_id]
 
@@ -636,7 +696,9 @@ class TopologyBuilderService:
         return positions
 
     @staticmethod
-    def get_topology_statistics(db: Session, topology: TopologyGraph) -> TopologyStatistics:
+    def get_topology_statistics(
+        db: Session, topology: TopologyGraph
+    ) -> TopologyStatistics:
         """Calculate statistics for a topology graph."""
         # Link types breakdown
         link_types_breakdown = {}
@@ -656,10 +718,14 @@ class TopologyBuilderService:
             connected_device_ids.add(link.source_device_id)
             connected_device_ids.add(link.target_device_id)
 
-        isolated_devices = len([n for n in topology.nodes if n.device_id not in connected_device_ids])
+        isolated_devices = len(
+            [n for n in topology.nodes if n.device_id not in connected_device_ids]
+        )
 
         # Average connections per device
-        avg_connections = len(topology.links) * 2 / len(topology.nodes) if topology.nodes else 0
+        avg_connections = (
+            len(topology.links) * 2 / len(topology.nodes) if topology.nodes else 0
+        )
 
         return TopologyStatistics(
             total_devices=len(topology.nodes),
@@ -667,27 +733,32 @@ class TopologyBuilderService:
             link_types_breakdown=link_types_breakdown,
             devices_by_platform=devices_by_platform,
             isolated_devices=isolated_devices,
-            average_connections_per_device=round(avg_connections, 2)
+            average_connections_per_device=round(avg_connections, 2),
         )
 
     @staticmethod
     def resolve_neighbor(
-        db: Session,
-        neighbor_name: str,
-        neighbor_ip: Optional[str] = None
+        db: Session, neighbor_name: str, neighbor_ip: Optional[str] = None
     ) -> NeighborResolution:
         """Resolve neighbor name/IP to device in cache."""
-        device_id = TopologyBuilderService._resolve_neighbor_device_id(db, neighbor_name, neighbor_ip)
+        device_id = TopologyBuilderService._resolve_neighbor_device_id(
+            db, neighbor_name, neighbor_ip
+        )
 
         if device_id:
-            device = db.query(DeviceCache).filter(DeviceCache.device_id == device_id).first()
+            device = (
+                db.query(DeviceCache).filter(DeviceCache.device_id == device_id).first()
+            )
 
             # Determine match confidence
             matched_by = "none"
             confidence = "low"
 
             if device:
-                if device.device_name == neighbor_name and device.primary_ip == neighbor_ip:
+                if (
+                    device.device_name == neighbor_name
+                    and device.primary_ip == neighbor_ip
+                ):
                     matched_by = "both"
                     confidence = "high"
                 elif device.device_name == neighbor_name:
@@ -706,7 +777,7 @@ class TopologyBuilderService:
                     device_id=device.device_id,
                     device_name=device.device_name,
                     matched_by=matched_by,
-                    confidence=confidence
+                    confidence=confidence,
                 )
 
         return NeighborResolution(
@@ -715,5 +786,5 @@ class TopologyBuilderService:
             device_id=None,
             device_name=None,
             matched_by="none",
-            confidence="none"
+            confidence="none",
         )

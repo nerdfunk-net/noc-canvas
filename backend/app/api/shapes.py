@@ -51,8 +51,7 @@ class ShapeResponse(BaseModel):
 
 @router.get("/shapes", response_model=List[ShapeResponse])
 def get_shapes(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
 ):
     """Get all shapes"""
     shapes = db.query(Shape).all()
@@ -63,7 +62,7 @@ def get_shapes(
 def create_shape(
     shape: ShapeCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """Create a new shape"""
     db_shape = Shape(**shape.model_dump())
@@ -78,7 +77,7 @@ def update_shape(
     shape_id: int,
     shape: ShapeUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """Update a shape"""
     db_shape = db.query(Shape).filter(Shape.id == shape_id).first()
@@ -98,7 +97,7 @@ def update_shape(
 def delete_shape(
     shape_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """Delete a shape"""
     db_shape = db.query(Shape).filter(Shape.id == shape_id).first()

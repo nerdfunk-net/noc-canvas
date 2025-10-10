@@ -2681,7 +2681,6 @@ const deleteMultiDevices = () => {
     } catch (error) {
       console.error('❌ Failed to delete multiple devices:', error)
     }
-  } else {
   }
 
   hideContextMenu()
@@ -3231,7 +3230,6 @@ const onDeviceMouseDown = (device: Device, event: any) => {
       selectedDevices.value.add(device.id)
       selectedDevice.value = device
       deviceStore.setSelectedDevice(device)
-    } else {
     }
 
     // Get the canvas container's bounding rect to calculate relative position
@@ -3264,8 +3262,6 @@ const onDeviceMouseDown = (device: Device, event: any) => {
     // Show context menu using composable function
     const targetType = selectedDevices.value.size > 1 ? 'multi-device' : 'device'
     showContextMenu(menuX, menuY, device, targetType)
-
-  } else {
   }
 }
 
@@ -3977,7 +3973,6 @@ const handleGlobalClick = (event: MouseEvent) => {
 
     if (!clickedInsideMenu) {
       hideContextMenu()
-    } else {
     }
   }
 }
@@ -4003,9 +3998,7 @@ const handleGlobalMouseUp = (event: MouseEvent) => {
 
     if (!clickedInsideMenu) {
       hideContextMenu()
-    } else {
     }
-  } else if (event.button === 2) {
   }
 }
 

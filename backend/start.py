@@ -14,16 +14,15 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ],
-    force=True  # This forces reconfiguration even if logging was already configured
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,  # This forces reconfiguration even if logging was already configured
 )
 
 # Load environment variables from .env file
 try:
     from dotenv import load_dotenv
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     load_dotenv(env_path)
     print(f"Loaded environment variables from {env_path}")
 except ImportError:
@@ -40,6 +39,6 @@ if __name__ == "__main__":
         access_log=True,
         use_colors=True,
     )
-    
+
     server = uvicorn.Server(uvicorn_config)
     server.run()

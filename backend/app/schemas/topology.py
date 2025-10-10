@@ -10,6 +10,7 @@ from enum import Enum
 
 class LinkType(str, Enum):
     """Types of topology links."""
+
     CDP_NEIGHBOR = "cdp_neighbor"
     LLDP_NEIGHBOR = "lldp_neighbor"
     STATIC_ROUTE = "static_route"
@@ -21,6 +22,7 @@ class LinkType(str, Enum):
 
 class TopologyNode(BaseModel):
     """Represents a device node in the topology."""
+
     device_id: str
     device_name: str
     primary_ip: Optional[str] = None
@@ -36,6 +38,7 @@ class TopologyNode(BaseModel):
 
 class TopologyLink(BaseModel):
     """Represents a connection between two devices."""
+
     source_device_id: str
     target_device_id: str
     source_device_name: str
@@ -52,6 +55,7 @@ class TopologyLink(BaseModel):
 
 class TopologyGraph(BaseModel):
     """Complete topology graph with nodes and links."""
+
     nodes: List[TopologyNode]
     links: List[TopologyLink]
     metadata: Optional[Dict[str, Any]] = None
@@ -62,6 +66,7 @@ class TopologyGraph(BaseModel):
 
 class TopologyStatistics(BaseModel):
     """Statistics about the topology."""
+
     total_devices: int
     total_links: int
     link_types_breakdown: Dict[str, int]
@@ -72,17 +77,21 @@ class TopologyStatistics(BaseModel):
 
 class TopologyBuildRequest(BaseModel):
     """Request parameters for building topology."""
+
     device_ids: Optional[List[str]] = None
     include_cdp: bool = True
     include_routing: bool = False
     route_types: List[str] = ["static", "ospf", "bgp"]
     include_layer2: bool = False
     auto_layout: bool = True
-    layout_algorithm: Optional[str] = "force_directed"  # force_directed, hierarchical, circular
+    layout_algorithm: Optional[str] = (
+        "force_directed"  # force_directed, hierarchical, circular
+    )
 
 
 class NeighborResolution(BaseModel):
     """Result of neighbor name/IP resolution."""
+
     neighbor_name: str
     neighbor_ip: Optional[str]
     device_id: Optional[str]
@@ -93,6 +102,7 @@ class NeighborResolution(BaseModel):
 
 class TopologyDiscoveryRequest(BaseModel):
     """Request for topology discovery."""
+
     device_ids: List[str]
     include_static_routes: bool = True
     include_ospf_routes: bool = True
@@ -107,6 +117,7 @@ class TopologyDiscoveryRequest(BaseModel):
 
 class DeviceDiscoveryProgress(BaseModel):
     """Progress for a single device discovery."""
+
     device_id: str
     device_name: str
     status: str  # "pending", "in_progress", "completed", "failed"
@@ -119,6 +130,7 @@ class DeviceDiscoveryProgress(BaseModel):
 
 class TopologyDiscoveryProgress(BaseModel):
     """Overall topology discovery progress."""
+
     job_id: str
     status: str  # "pending", "in_progress", "completed", "failed"
     total_devices: int
@@ -133,6 +145,7 @@ class TopologyDiscoveryProgress(BaseModel):
 
 class TopologyDiscoveryResult(BaseModel):
     """Result of topology discovery."""
+
     job_id: str
     status: str
     total_devices: int

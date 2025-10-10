@@ -5,10 +5,9 @@ Handles job execution endpoints (onboarding, sync)
 
 from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import logging
 from sqlalchemy.orm import Session
-from ..core.config import settings
 from ..core.database import get_db
 from ..core.dynamic_settings import get_nautobot_config
 from ..api.auth import get_current_user

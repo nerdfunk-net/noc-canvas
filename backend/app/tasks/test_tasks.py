@@ -13,20 +13,20 @@ logger = logging.getLogger(__name__)
 def register_tasks(celery_app):
     """Register test tasks with the Celery app."""
 
-    @celery_app.task(bind=True, name='app.tasks.test_tasks.test_background_task')
+    @celery_app.task(bind=True, name="app.tasks.test_tasks.test_background_task")
     def test_background_task(self, duration: int = 10):
         """
         Test task that simulates a long-running background job.
-        
+
         This task is useful for testing:
         - Task execution and state updates
         - Progress tracking
         - Error handling
         - Task scheduling
-        
+
         Args:
             duration: How many seconds the task should run for
-            
+
         Returns:
             Dictionary with test results
         """
@@ -45,7 +45,7 @@ def register_tasks(celery_app):
                 logger.info(f"Test task progress: {i + 1}/{duration}")
 
             logger.info("Test background task completed successfully")
-            
+
             return {
                 "status": "completed",
                 "message": f"Test task completed after {duration} seconds",
@@ -64,5 +64,5 @@ def register_tasks(celery_app):
             raise
 
     return {
-        'test_background_task': test_background_task,
+        "test_background_task": test_background_task,
     }

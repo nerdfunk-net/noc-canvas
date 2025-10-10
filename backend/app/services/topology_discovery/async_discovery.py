@@ -16,16 +16,6 @@ import httpx
 from sqlalchemy.orm import Session
 
 from ...core.config import settings
-from ...schemas.device_cache import (
-    ARPCacheCreate,
-    BGPRouteCacheCreate,
-    CDPNeighborCacheCreate,
-    InterfaceCacheCreate,
-    IPAddressCacheCreate,
-    MACAddressTableCacheCreate,
-    OSPFRouteCacheCreate,
-    StaticRouteCacheCreate,
-)
 from ...services.device_cache_service import device_cache_service
 from .base import TopologyDiscoveryBase
 
@@ -44,7 +34,7 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
         This method is used in the async/API path to make internal HTTP calls
         to device endpoints. It reuses the existing device API infrastructure.
-        
+
         Before making the HTTP call, checks the JSON blob cache for existing data.
         If valid cached data exists, returns it immediately without making the API call.
 
@@ -61,35 +51,37 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
             import json
             from ...core.database import SessionLocal
             from ...services.json_cache_service import JSONCacheService
-            
+
             # Get the command for this endpoint
             command = AsyncTopologyDiscoveryService._get_device_command(endpoint)
-            
+
             db = SessionLocal()
             try:
                 valid_cache = JSONCacheService.get_valid_cache(
-                    db=db,
-                    device_id=device_id,
-                    command=command
+                    db=db, device_id=device_id, command=command
                 )
-                
+
                 if valid_cache:
                     # Use cached data
                     cached_output = json.loads(valid_cache.json_data)
-                    logger.info(f"✅ Using cached data for device {device_id}, command '{command}' (endpoint: {endpoint}) in async discovery")
+                    logger.info(
+                        f"✅ Using cached data for device {device_id}, command '{command}' (endpoint: {endpoint}) in async discovery"
+                    )
                     return {
                         "success": True,
                         "output": cached_output,
                         "parsed": True,
                         "parser_used": "TEXTFSM (from cache)",
                         "execution_time": 0.0,
-                        "cached": True
+                        "cached": True,
                     }
             finally:
                 db.close()
         except Exception as cache_error:
-            logger.warning(f"Failed to check cache for device {device_id}, endpoint '{endpoint}', will call API: {str(cache_error)}")
-        
+            logger.warning(
+                f"Failed to check cache for device {device_id}, endpoint '{endpoint}', will call API: {str(cache_error)}"
+            )
+
         # No cache or cache check failed, proceed with HTTP call
         base_url = settings.internal_api_url
         url = f"{base_url}/api/devices/{device_id}/{endpoint}?use_textfsm=true"
@@ -176,7 +168,7 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                 try:
                     from ...services.nautobot import nautobot_service
                     from ...schemas.device_cache import DeviceCacheCreate
-                    
+
                     # Extract username from token
                     username = AsyncTopologyDiscoveryService._get_username_from_token(
                         auth_token
@@ -196,9 +188,7 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
                         # Extract platform
                         platform_info = device_info.get("platform")
-                        platform = (
-                            platform_info.get("name") if platform_info else None
-                        )
+                        platform = platform_info.get("name") if platform_info else None
 
                         # Create or update device cache entry
                         device_cache_data = DeviceCacheCreate(
@@ -235,7 +225,9 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                         f"📍 Calling API endpoint for interfaces on device {device_id}"
                     )
                     result = await AsyncTopologyDiscoveryService._call_device_endpoint(
-                        device_id=device_id, endpoint="interfaces", auth_token=auth_token
+                        device_id=device_id,
+                        endpoint="interfaces",
+                        auth_token=auth_token,
                     )
                     logger.info(
                         f"📍 Interfaces Result: success={result.get('success')}, "
@@ -252,7 +244,8 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                         )
                 except Exception as e:
                     logger.error(
-                        f"❌ Failed to get interfaces for {device_id}: {e}", exc_info=True
+                        f"❌ Failed to get interfaces for {device_id}: {e}",
+                        exc_info=True,
                     )
 
                 completed_tasks += 1
@@ -307,7 +300,9 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                 )
                 try:
                     result = await AsyncTopologyDiscoveryService._call_device_endpoint(
-                        device_id=device_id, endpoint="ip-route/ospf", auth_token=auth_token
+                        device_id=device_id,
+                        endpoint="ip-route/ospf",
+                        auth_token=auth_token,
                     )
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["ospf_routes"] = result["output"]
@@ -327,7 +322,9 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                 )
                 try:
                     result = await AsyncTopologyDiscoveryService._call_device_endpoint(
-                        device_id=device_id, endpoint="ip-route/bgp", auth_token=auth_token
+                        device_id=device_id,
+                        endpoint="ip-route/bgp",
+                        auth_token=auth_token,
                     )
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["bgp_routes"] = result["output"]
@@ -411,7 +408,8 @@ class AsyncTopologyDiscoveryService(TopologyDiscoveryBase):
                         )
                 except Exception as e:
                     logger.error(
-                        f"❌ Failed to get ARP entries for {device_id}: {e}", exc_info=True
+                        f"❌ Failed to get ARP entries for {device_id}: {e}",
+                        exc_info=True,
                     )
 
                 completed_tasks += 1

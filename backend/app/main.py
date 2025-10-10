@@ -20,6 +20,7 @@ from .api import (
     scheduler,
     inventory,
 )
+
 # Removed old routers that were causing duplicate endpoints:
 # from .routers import (
 #     nautobot_devices,
@@ -95,9 +96,11 @@ async def lifespan(app: FastAPI):
         db = next(get_db())
         try:
             # Get cache settings from database (stored as key-value)
-            cache_settings = db.query(AppSettings).filter(
-                AppSettings.key == "cache_settings"
-            ).first()
+            cache_settings = (
+                db.query(AppSettings)
+                .filter(AppSettings.key == "cache_settings")
+                .first()
+            )
 
             if cache_settings and cache_settings.value:
                 settings_data = json.loads(cache_settings.value)

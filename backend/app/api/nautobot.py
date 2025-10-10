@@ -414,7 +414,9 @@ async def get_devices(
                 # Extract platform
                 platform = None
                 if device.get("platform"):
-                    platform = device["platform"].get("name") or device["platform"].get("network_driver")
+                    platform = device["platform"].get("name") or device["platform"].get(
+                        "network_driver"
+                    )
 
                 # Create or update device cache entry
                 device_cache_data = DeviceCacheCreate(
@@ -429,7 +431,9 @@ async def get_devices(
                 cached_count += 1
             except Exception as cache_error:
                 # Log but don't fail the request if caching fails
-                logger.warning(f"Failed to cache device {device.get('name')}: {str(cache_error)}")
+                logger.warning(
+                    f"Failed to cache device {device.get('name')}: {str(cache_error)}"
+                )
 
         if cached_count > 0:
             logger.info(f"Successfully cached {cached_count} devices")
@@ -908,18 +912,17 @@ async def get_device_types(
         # Extract relevant fields from the response
         device_types = []
         for dt in result.get("results", []):
-            device_types.append({
-                "id": dt.get("id"),
-                "model": dt.get("model"),
-                "manufacturer": dt.get("manufacturer", {}).get("name"),
-                "display": dt.get("display"),
-                "device_count": dt.get("device_count", 0),
-            })
+            device_types.append(
+                {
+                    "id": dt.get("id"),
+                    "model": dt.get("model"),
+                    "manufacturer": dt.get("manufacturer", {}).get("name"),
+                    "display": dt.get("display"),
+                    "device_count": dt.get("device_count", 0),
+                }
+            )
 
-        return {
-            "count": result.get("count", 0),
-            "results": device_types
-        }
+        return {"count": result.get("count", 0), "results": device_types}
     except Exception as e:
         logger.error(f"Error fetching device types: {str(e)}")
         raise HTTPException(

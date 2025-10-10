@@ -509,23 +509,31 @@ class NautobotService:
         logger.info("=" * 80)
         logger.info("DEBUG: RAW GRAPHQL RESPONSE")
         logger.info(f"Result keys: {result.get('data', {}).keys()}")
-        
-        if result.get('data', {}).get('devices'):
-            devices_list = result['data']['devices']
+
+        if result.get("data", {}).get("devices"):
+            devices_list = result["data"]["devices"]
             logger.info(f"Number of devices in GraphQL response: {len(devices_list)}")
-            
+
             if devices_list:
                 sample_device = devices_list[0]
                 logger.info(f"Sample device FULL structure: {sample_device}")
                 logger.info(f"Sample device name: {sample_device.get('name')}")
-                logger.info(f"Sample device primary_ip4 RAW: {sample_device.get('primary_ip4')}")
-                logger.info(f"Sample device primary_ip4 TYPE: {type(sample_device.get('primary_ip4'))}")
-                
+                logger.info(
+                    f"Sample device primary_ip4 RAW: {sample_device.get('primary_ip4')}"
+                )
+                logger.info(
+                    f"Sample device primary_ip4 TYPE: {type(sample_device.get('primary_ip4'))}"
+                )
+
                 # Check if primary_ip4 has address field
-                if sample_device.get('primary_ip4'):
-                    logger.info(f"primary_ip4 has 'address' key: {'address' in sample_device.get('primary_ip4')}")
-                    if isinstance(sample_device.get('primary_ip4'), dict):
-                        logger.info(f"primary_ip4 keys: {sample_device.get('primary_ip4').keys()}")
+                if sample_device.get("primary_ip4"):
+                    logger.info(
+                        f"primary_ip4 has 'address' key: {'address' in sample_device.get('primary_ip4')}"
+                    )
+                    if isinstance(sample_device.get("primary_ip4"), dict):
+                        logger.info(
+                            f"primary_ip4 keys: {sample_device.get('primary_ip4').keys()}"
+                        )
         logger.info("=" * 80)
 
         # Process results based on filter type
@@ -542,46 +550,56 @@ class NautobotService:
             # Extract devices from IP address query results
             devices_dict = {}
             device_ids_to_fetch = []
-            
-            logger.info(f"Processing IP address filter results...")
-            
+
+            logger.info("Processing IP address filter results...")
+
             for ip_addr in result["data"]["ip_addresses"]:
                 logger.info(f"IP Address: {ip_addr.get('address')}")
-                
+
                 # Get devices from primary_ip4_for (these have full device data)
                 if ip_addr.get("primary_ip4_for"):
-                    logger.info(f"  Found {len(ip_addr['primary_ip4_for'])} devices in primary_ip4_for")
+                    logger.info(
+                        f"  Found {len(ip_addr['primary_ip4_for'])} devices in primary_ip4_for"
+                    )
                     for device in ip_addr["primary_ip4_for"]:
                         devices_dict[device["id"]] = device
-                        
+
                 # Get devices from interfaces (these only have id and name)
                 if ip_addr.get("interfaces"):
                     logger.info(f"  Found {len(ip_addr['interfaces'])} interfaces")
                     for interface in ip_addr["interfaces"]:
                         if interface.get("device"):
                             device_basic = interface["device"]
-                            logger.info(f"    Interface {interface['name']} on device: {device_basic['name']} (id: {device_basic['id']})")
-                            
+                            logger.info(
+                                f"    Interface {interface['name']} on device: {device_basic['name']} (id: {device_basic['id']})"
+                            )
+
                             # If we don't have full device data yet, mark it for fetching
                             if device_basic["id"] not in devices_dict:
                                 device_ids_to_fetch.append(device_basic["id"])
-            
+
             # Fetch full device details for devices found via interfaces
             if device_ids_to_fetch:
-                logger.info(f"Fetching full details for {len(device_ids_to_fetch)} devices found via interfaces...")
+                logger.info(
+                    f"Fetching full details for {len(device_ids_to_fetch)} devices found via interfaces..."
+                )
                 for device_id in device_ids_to_fetch:
                     try:
                         # Fetch full device data using the existing get_device method
                         full_device = await self.get_device(device_id, username)
                         if full_device:
                             devices_dict[device_id] = full_device
-                            logger.info(f"  Fetched full data for device: {full_device.get('name')}")
+                            logger.info(
+                                f"  Fetched full data for device: {full_device.get('name')}"
+                            )
                     except Exception as e:
                         logger.error(f"  Failed to fetch device {device_id}: {e}")
-            
+
             devices = list(devices_dict.values())
             total_count = len(devices)
-            logger.info(f"Total devices after processing ip_address filter: {total_count}")
+            logger.info(
+                f"Total devices after processing ip_address filter: {total_count}"
+            )
         elif filter_type == "prefix":
             devices_dict = {}
             for prefix in result["data"]["prefixes"]:
@@ -612,10 +630,6 @@ class NautobotService:
 
         # Calculate pagination info
         has_more = (offset or 0) + len(devices) < total_count if limit else False
-        
-        # Count devices with/without primary_ip4
-        devices_with_ip = sum(1 for d in devices if d.get('primary_ip4'))
-        devices_without_ip = len(devices) - devices_with_ip
 
         response_data = {
             "devices": devices,

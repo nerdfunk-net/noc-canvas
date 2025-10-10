@@ -15,7 +15,7 @@ from ..core.database import get_db
 from ..core.security import verify_token
 from ..models.user import User
 from ..models.scheduled_task_owner import ScheduledTaskOwner
-from ..services.background_jobs import celery_app, CELERY_AVAILABLE
+from ..services.background_jobs import CELERY_AVAILABLE
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -47,25 +47,37 @@ def get_current_user(
 
 # Pydantic models for API
 
+
 class CrontabSchedule(BaseModel):
     """Crontab schedule configuration."""
+
     minute: str = Field(default="*", description="Minute (0-59, *, */5, etc.)")
     hour: str = Field(default="*", description="Hour (0-23, *, */2, etc.)")
-    day_of_week: str = Field(default="*", description="Day of week (0-6, mon-sun, *, etc.)")
-    day_of_month: str = Field(default="*", description="Day of month (1-31, *, */2, etc.)")
-    month_of_year: str = Field(default="*", description="Month (1-12, jan-dec, *, etc.)")
+    day_of_week: str = Field(
+        default="*", description="Day of week (0-6, mon-sun, *, etc.)"
+    )
+    day_of_month: str = Field(
+        default="*", description="Day of month (1-31, *, */2, etc.)"
+    )
+    month_of_year: str = Field(
+        default="*", description="Month (1-12, jan-dec, *, etc.)"
+    )
 
 
 class IntervalSchedule(BaseModel):
     """Interval schedule configuration."""
+
     every: int = Field(gt=0, description="Interval value")
     period: str = Field(description="Period type: seconds, minutes, hours, days")
 
 
 class PeriodicTaskCreate(BaseModel):
     """Create a new periodic task."""
+
     name: str = Field(description="Unique task name")
-    task: str = Field(description="Task to execute (e.g., 'app.tasks.nautobot_tasks.sync_nautobot_devices')")
+    task: str = Field(
+        description="Task to execute (e.g., 'app.tasks.nautobot_tasks.sync_nautobot_devices')"
+    )
     description: Optional[str] = Field(None, description="Task description")
 
     # Schedule type - either crontab or interval
@@ -74,17 +86,24 @@ class PeriodicTaskCreate(BaseModel):
     interval: Optional[IntervalSchedule] = None
 
     # Task arguments
-    args: Optional[List[Any]] = Field(default_factory=list, description="Positional arguments as JSON array")
-    kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Keyword arguments as JSON object")
+    args: Optional[List[Any]] = Field(
+        default_factory=list, description="Positional arguments as JSON array"
+    )
+    kwargs: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Keyword arguments as JSON object"
+    )
 
     # Task options
     enabled: bool = Field(default=True, description="Whether the task is enabled")
-    one_off: bool = Field(default=False, description="If True, run only once then disable")
+    one_off: bool = Field(
+        default=False, description="If True, run only once then disable"
+    )
     expires: Optional[datetime] = Field(None, description="Task expiry datetime")
 
 
 class PeriodicTaskUpdate(BaseModel):
     """Update a periodic task."""
+
     name: Optional[str] = None
     task: Optional[str] = None
     description: Optional[str] = None
@@ -100,6 +119,7 @@ class PeriodicTaskUpdate(BaseModel):
 
 class PeriodicTaskResponse(BaseModel):
     """Periodic task response."""
+
     id: int
     name: str
     task: str
@@ -120,13 +140,11 @@ class PeriodicTaskResponse(BaseModel):
 
 # Helper functions
 
+
 def get_schedule_tables():
     """Get schedule tables from celery-sqlalchemy-scheduler."""
     if not CELERY_AVAILABLE:
-        raise HTTPException(
-            status_code=503,
-            detail="Celery is not available"
-        )
+        raise HTTPException(status_code=503, detail="Celery is not available")
 
     from celery_sqlalchemy_scheduler.models import (
         PeriodicTask,
@@ -147,7 +165,7 @@ def get_db_uri():
         db_uri = engine.url.render_as_string(hide_password=False)
     except AttributeError:
         # Fallback for older SQLAlchemy versions
-        db_uri = str(engine.url).replace('***', engine.url.password or '')
+        db_uri = str(engine.url).replace("***", engine.url.password or "")
 
     return db_uri
 
@@ -165,6 +183,7 @@ def deserialize_json_field(value, default):
 
 
 # API Endpoints
+
 
 @router.get("/tasks", response_model=List[PeriodicTaskResponse])
 async def list_periodic_tasks(
@@ -185,10 +204,12 @@ async def list_periodic_tasks(
             result = []
             for task in tasks:
                 # Look up owner from our tracking table
-                owner = db.query(ScheduledTaskOwner).filter(
-                    ScheduledTaskOwner.periodic_task_id == task.id
-                ).first()
-                
+                owner = (
+                    db.query(ScheduledTaskOwner)
+                    .filter(ScheduledTaskOwner.periodic_task_id == task.id)
+                    .first()
+                )
+
                 task_data = {
                     "id": task.id,
                     "name": task.name,
@@ -202,7 +223,9 @@ async def list_periodic_tasks(
                     "enabled": task.enabled if task.enabled is not None else True,
                     "one_off": task.one_off if task.one_off is not None else False,
                     "last_run_at": task.last_run_at,
-                    "total_run_count": task.total_run_count if task.total_run_count is not None else 0,
+                    "total_run_count": task.total_run_count
+                    if task.total_run_count is not None
+                    else 0,
                     "date_changed": task.date_changed,
                     "expires": task.expires,
                     "owner_username": owner.owner_username if owner else None,
@@ -234,8 +257,7 @@ async def list_periodic_tasks(
     except Exception as e:
         logger.error(f"Error listing periodic tasks: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list periodic tasks: {str(e)}"
+            status_code=500, detail=f"Failed to list periodic tasks: {str(e)}"
         )
 
 
@@ -247,7 +269,9 @@ async def create_periodic_task(
 ):
     """Create a new periodic task."""
     try:
-        PeriodicTask, IntervalScheduleModel, CrontabScheduleModel, SessionManager = get_schedule_tables()
+        PeriodicTask, IntervalScheduleModel, CrontabScheduleModel, SessionManager = (
+            get_schedule_tables()
+        )
         db_uri = get_db_uri()
 
         session_manager = SessionManager()
@@ -255,27 +279,40 @@ async def create_periodic_task(
 
         try:
             # Check if task with same name already exists
-            existing = session.query(PeriodicTask).filter(PeriodicTask.name == task_data.name).first()
+            existing = (
+                session.query(PeriodicTask)
+                .filter(PeriodicTask.name == task_data.name)
+                .first()
+            )
             if existing:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Task with name '{task_data.name}' already exists"
+                    detail=f"Task with name '{task_data.name}' already exists",
                 )
 
             # Create schedule
             schedule = None
             if task_data.schedule_type == "crontab":
                 if not task_data.crontab:
-                    raise HTTPException(status_code=400, detail="Crontab schedule is required")
+                    raise HTTPException(
+                        status_code=400, detail="Crontab schedule is required"
+                    )
 
                 # Check if crontab schedule already exists
-                schedule = session.query(CrontabScheduleModel).filter(
-                    CrontabScheduleModel.minute == task_data.crontab.minute,
-                    CrontabScheduleModel.hour == task_data.crontab.hour,
-                    CrontabScheduleModel.day_of_week == task_data.crontab.day_of_week,
-                    CrontabScheduleModel.day_of_month == task_data.crontab.day_of_month,
-                    CrontabScheduleModel.month_of_year == task_data.crontab.month_of_year,
-                ).first()
+                schedule = (
+                    session.query(CrontabScheduleModel)
+                    .filter(
+                        CrontabScheduleModel.minute == task_data.crontab.minute,
+                        CrontabScheduleModel.hour == task_data.crontab.hour,
+                        CrontabScheduleModel.day_of_week
+                        == task_data.crontab.day_of_week,
+                        CrontabScheduleModel.day_of_month
+                        == task_data.crontab.day_of_month,
+                        CrontabScheduleModel.month_of_year
+                        == task_data.crontab.month_of_year,
+                    )
+                    .first()
+                )
 
                 if not schedule:
                     schedule = CrontabScheduleModel(
@@ -290,13 +327,19 @@ async def create_periodic_task(
 
             elif task_data.schedule_type == "interval":
                 if not task_data.interval:
-                    raise HTTPException(status_code=400, detail="Interval schedule is required")
+                    raise HTTPException(
+                        status_code=400, detail="Interval schedule is required"
+                    )
 
                 # Check if interval schedule already exists
-                schedule = session.query(IntervalScheduleModel).filter(
-                    IntervalScheduleModel.every == task_data.interval.every,
-                    IntervalScheduleModel.period == task_data.interval.period,
-                ).first()
+                schedule = (
+                    session.query(IntervalScheduleModel)
+                    .filter(
+                        IntervalScheduleModel.every == task_data.interval.every,
+                        IntervalScheduleModel.period == task_data.interval.period,
+                    )
+                    .first()
+                )
 
                 if not schedule:
                     schedule = IntervalScheduleModel(
@@ -308,15 +351,15 @@ async def create_periodic_task(
             else:
                 raise HTTPException(
                     status_code=400,
-                    detail="Schedule type must be 'crontab' or 'interval'"
+                    detail="Schedule type must be 'crontab' or 'interval'",
                 )
 
             # Prepare kwargs - inject username for credential lookup
             task_kwargs = task_data.kwargs.copy() if task_data.kwargs else {}
             # Add username to kwargs so background tasks can look up the correct user's credentials
-            if 'username' not in task_kwargs:
-                task_kwargs['username'] = current_user.username
-            
+            if "username" not in task_kwargs:
+                task_kwargs["username"] = current_user.username
+
             # Create periodic task
             periodic_task = PeriodicTask(
                 name=task_data.name,
@@ -325,7 +368,7 @@ async def create_periodic_task(
                 enabled=task_data.enabled,
                 one_off=task_data.one_off,
                 expires=task_data.expires,
-                args=json.dumps(task_data.args) if task_data.args else '[]',
+                args=json.dumps(task_data.args) if task_data.args else "[]",
                 kwargs=json.dumps(task_kwargs),
             )
 
@@ -338,17 +381,19 @@ async def create_periodic_task(
             session.add(periodic_task)
             session.commit()
             session.refresh(periodic_task)
-            
+
             # Record task ownership in our tracking table
             try:
                 task_owner = ScheduledTaskOwner(
                     periodic_task_id=periodic_task.id,
                     owner_username=current_user.username,
-                    owner_id=current_user.id
+                    owner_id=current_user.id,
                 )
                 db.add(task_owner)
                 db.commit()
-                logger.info(f"Recorded ownership: task {periodic_task.id} owned by {current_user.username}")
+                logger.info(
+                    f"Recorded ownership: task {periodic_task.id} owned by {current_user.username}"
+                )
             except Exception as e:
                 logger.error(f"Failed to record task ownership: {e}")
                 # Don't fail the entire operation, but log the error
@@ -365,10 +410,16 @@ async def create_periodic_task(
                 "interval": task_data.interval.dict() if task_data.interval else None,
                 "args": deserialize_json_field(periodic_task.args, []),
                 "kwargs": deserialize_json_field(periodic_task.kwargs, {}),
-                "enabled": periodic_task.enabled if periodic_task.enabled is not None else True,
-                "one_off": periodic_task.one_off if periodic_task.one_off is not None else False,
+                "enabled": periodic_task.enabled
+                if periodic_task.enabled is not None
+                else True,
+                "one_off": periodic_task.one_off
+                if periodic_task.one_off is not None
+                else False,
                 "last_run_at": periodic_task.last_run_at,
-                "total_run_count": periodic_task.total_run_count if periodic_task.total_run_count is not None else 0,
+                "total_run_count": periodic_task.total_run_count
+                if periodic_task.total_run_count is not None
+                else 0,
                 "date_changed": periodic_task.date_changed,
                 "expires": periodic_task.expires,
                 "owner_username": current_user.username,  # Include owner in response
@@ -383,8 +434,7 @@ async def create_periodic_task(
         except Exception as e:
             session.rollback()
             raise HTTPException(
-                status_code=500,
-                detail=f"Failed to create periodic task: {str(e)}"
+                status_code=500, detail=f"Failed to create periodic task: {str(e)}"
             )
         finally:
             session.close()
@@ -394,8 +444,7 @@ async def create_periodic_task(
     except Exception as e:
         logger.error(f"Error creating periodic task: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create periodic task: {str(e)}"
+            status_code=500, detail=f"Failed to create periodic task: {str(e)}"
         )
 
 
@@ -414,14 +463,20 @@ async def get_periodic_task(
         session = session_manager.session_factory(db_uri)
 
         try:
-            task = session.query(PeriodicTask).filter(PeriodicTask.id == task_id).first()
+            task = (
+                session.query(PeriodicTask).filter(PeriodicTask.id == task_id).first()
+            )
             if not task:
-                raise HTTPException(status_code=404, detail=f"Task with ID {task_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Task with ID {task_id} not found"
+                )
 
             # Look up owner from our tracking table
-            owner = db.query(ScheduledTaskOwner).filter(
-                ScheduledTaskOwner.periodic_task_id == task.id
-            ).first()
+            owner = (
+                db.query(ScheduledTaskOwner)
+                .filter(ScheduledTaskOwner.periodic_task_id == task.id)
+                .first()
+            )
 
             task_data = {
                 "id": task.id,
@@ -436,7 +491,9 @@ async def get_periodic_task(
                 "enabled": task.enabled if task.enabled is not None else True,
                 "one_off": task.one_off if task.one_off is not None else False,
                 "last_run_at": task.last_run_at,
-                "total_run_count": task.total_run_count if task.total_run_count is not None else 0,
+                "total_run_count": task.total_run_count
+                if task.total_run_count is not None
+                else 0,
                 "date_changed": task.date_changed,
                 "expires": task.expires,
                 "owner_username": owner.owner_username if owner else None,
@@ -467,8 +524,7 @@ async def get_periodic_task(
     except Exception as e:
         logger.error(f"Error getting periodic task: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get periodic task: {str(e)}"
+            status_code=500, detail=f"Failed to get periodic task: {str(e)}"
         )
 
 
@@ -481,62 +537,87 @@ async def update_periodic_task(
 ):
     """Update a periodic task."""
     try:
-        PeriodicTask, IntervalScheduleModel, CrontabScheduleModel, SessionManager = get_schedule_tables()
+        PeriodicTask, IntervalScheduleModel, CrontabScheduleModel, SessionManager = (
+            get_schedule_tables()
+        )
         db_uri = get_db_uri()
 
         session_manager = SessionManager()
         session = session_manager.session_factory(db_uri)
 
         try:
-            task = session.query(PeriodicTask).filter(PeriodicTask.id == task_id).first()
+            task = (
+                session.query(PeriodicTask).filter(PeriodicTask.id == task_id).first()
+            )
             if not task:
-                raise HTTPException(status_code=404, detail=f"Task with ID {task_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Task with ID {task_id} not found"
+                )
 
             # Get only fields that were explicitly set in the request
             update_data = task_update.model_dump(exclude_unset=True)
 
             # Update basic fields
-            if 'name' in update_data:
+            if "name" in update_data:
                 # Check for name conflict
                 if task_update.name:
-                    existing = session.query(PeriodicTask).filter(
-                        PeriodicTask.name == task_update.name,
-                        PeriodicTask.id != task_id
-                    ).first()
+                    existing = (
+                        session.query(PeriodicTask)
+                        .filter(
+                            PeriodicTask.name == task_update.name,
+                            PeriodicTask.id != task_id,
+                        )
+                        .first()
+                    )
                     if existing:
                         raise HTTPException(
                             status_code=400,
-                            detail=f"Task with name '{task_update.name}' already exists"
+                            detail=f"Task with name '{task_update.name}' already exists",
                         )
                 task.name = task_update.name
 
-            if 'task' in update_data:
+            if "task" in update_data:
                 task.task = task_update.task
-            if 'description' in update_data:
+            if "description" in update_data:
                 task.description = task_update.description
-            if 'enabled' in update_data:
+            if "enabled" in update_data:
                 task.enabled = task_update.enabled
-            if 'one_off' in update_data:
+            if "one_off" in update_data:
                 task.one_off = task_update.one_off
-            if 'expires' in update_data:
+            if "expires" in update_data:
                 # This will now properly set expires to None when explicitly sent as null
                 task.expires = task_update.expires
-            if 'args' in update_data:
-                task.args = json.dumps(task_update.args) if task_update.args is not None else '[]'
-            if 'kwargs' in update_data:
-                task.kwargs = json.dumps(task_update.kwargs) if task_update.kwargs is not None else '{}'
+            if "args" in update_data:
+                task.args = (
+                    json.dumps(task_update.args)
+                    if task_update.args is not None
+                    else "[]"
+                )
+            if "kwargs" in update_data:
+                task.kwargs = (
+                    json.dumps(task_update.kwargs)
+                    if task_update.kwargs is not None
+                    else "{}"
+                )
 
             # Update schedule if provided
-            if 'schedule_type' in update_data:
+            if "schedule_type" in update_data:
                 if task_update.schedule_type == "crontab" and task_update.crontab:
                     # Find or create crontab schedule
-                    schedule = session.query(CrontabScheduleModel).filter(
-                        CrontabScheduleModel.minute == task_update.crontab.minute,
-                        CrontabScheduleModel.hour == task_update.crontab.hour,
-                        CrontabScheduleModel.day_of_week == task_update.crontab.day_of_week,
-                        CrontabScheduleModel.day_of_month == task_update.crontab.day_of_month,
-                        CrontabScheduleModel.month_of_year == task_update.crontab.month_of_year,
-                    ).first()
+                    schedule = (
+                        session.query(CrontabScheduleModel)
+                        .filter(
+                            CrontabScheduleModel.minute == task_update.crontab.minute,
+                            CrontabScheduleModel.hour == task_update.crontab.hour,
+                            CrontabScheduleModel.day_of_week
+                            == task_update.crontab.day_of_week,
+                            CrontabScheduleModel.day_of_month
+                            == task_update.crontab.day_of_month,
+                            CrontabScheduleModel.month_of_year
+                            == task_update.crontab.month_of_year,
+                        )
+                        .first()
+                    )
 
                     if not schedule:
                         schedule = CrontabScheduleModel(
@@ -554,10 +635,14 @@ async def update_periodic_task(
 
                 elif task_update.schedule_type == "interval" and task_update.interval:
                     # Find or create interval schedule
-                    schedule = session.query(IntervalScheduleModel).filter(
-                        IntervalScheduleModel.every == task_update.interval.every,
-                        IntervalScheduleModel.period == task_update.interval.period,
-                    ).first()
+                    schedule = (
+                        session.query(IntervalScheduleModel)
+                        .filter(
+                            IntervalScheduleModel.every == task_update.interval.every,
+                            IntervalScheduleModel.period == task_update.interval.period,
+                        )
+                        .first()
+                    )
 
                     if not schedule:
                         schedule = IntervalScheduleModel(
@@ -587,7 +672,9 @@ async def update_periodic_task(
                 "enabled": task.enabled if task.enabled is not None else True,
                 "one_off": task.one_off if task.one_off is not None else False,
                 "last_run_at": task.last_run_at,
-                "total_run_count": task.total_run_count if task.total_run_count is not None else 0,
+                "total_run_count": task.total_run_count
+                if task.total_run_count is not None
+                else 0,
                 "date_changed": task.date_changed,
                 "expires": task.expires,
             }
@@ -617,8 +704,7 @@ async def update_periodic_task(
         except Exception as e:
             session.rollback()
             raise HTTPException(
-                status_code=500,
-                detail=f"Failed to update periodic task: {str(e)}"
+                status_code=500, detail=f"Failed to update periodic task: {str(e)}"
             )
         finally:
             session.close()
@@ -628,8 +714,7 @@ async def update_periodic_task(
     except Exception as e:
         logger.error(f"Error updating periodic task: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to update periodic task: {str(e)}"
+            status_code=500, detail=f"Failed to update periodic task: {str(e)}"
         )
 
 
@@ -648,19 +733,25 @@ async def delete_periodic_task(
         session = session_manager.session_factory(db_uri)
 
         try:
-            task = session.query(PeriodicTask).filter(PeriodicTask.id == task_id).first()
+            task = (
+                session.query(PeriodicTask).filter(PeriodicTask.id == task_id).first()
+            )
             if not task:
-                raise HTTPException(status_code=404, detail=f"Task with ID {task_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Task with ID {task_id} not found"
+                )
 
             task_name = task.name
             session.delete(task)
             session.commit()
-            
+
             # Also delete the ownership record
             try:
-                owner = db.query(ScheduledTaskOwner).filter(
-                    ScheduledTaskOwner.periodic_task_id == task_id
-                ).first()
+                owner = (
+                    db.query(ScheduledTaskOwner)
+                    .filter(ScheduledTaskOwner.periodic_task_id == task_id)
+                    .first()
+                )
                 if owner:
                     db.delete(owner)
                     db.commit()
@@ -678,8 +769,7 @@ async def delete_periodic_task(
         except Exception as e:
             session.rollback()
             raise HTTPException(
-                status_code=500,
-                detail=f"Failed to delete periodic task: {str(e)}"
+                status_code=500, detail=f"Failed to delete periodic task: {str(e)}"
             )
         finally:
             session.close()
@@ -689,8 +779,7 @@ async def delete_periodic_task(
     except Exception as e:
         logger.error(f"Error deleting periodic task: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete periodic task: {str(e)}"
+            status_code=500, detail=f"Failed to delete periodic task: {str(e)}"
         )
 
 
@@ -712,7 +801,7 @@ async def get_available_tasks(
                 "offset": "int (optional)",
                 "filter_type": "string (optional)",
                 "filter_value": "string (optional)",
-            }
+            },
         },
         {
             "name": "sync_checkmk_hosts",
@@ -724,7 +813,7 @@ async def get_available_tasks(
                 "effective_attributes": "boolean (optional)",
                 "include_links": "boolean (optional)",
                 "site": "string (optional)",
-            }
+            },
         },
         {
             "name": "cache_warm_up",
@@ -732,7 +821,7 @@ async def get_available_tasks(
             "description": "Pre-load frequently accessed data into cache",
             "supports_inventory": False,
             "args_schema": {},
-            "kwargs_schema": {}
+            "kwargs_schema": {},
         },
         {
             "name": "discover_topology",
@@ -745,7 +834,7 @@ async def get_available_tasks(
                 "inventory_id": "int (optional) - Use devices from this inventory",
                 "max_depth": "int (optional, default: 3)",
                 "discover_neighbors": "boolean (optional, default: true)",
-            }
+            },
         },
         {
             "name": "cleanup_old_data",
@@ -755,7 +844,7 @@ async def get_available_tasks(
             "args_schema": {},
             "kwargs_schema": {
                 "days_to_keep": "int (optional, default: 7) - Number of days to keep historical data",
-            }
+            },
         },
         {
             "name": "create_baseline",
@@ -769,7 +858,7 @@ async def get_available_tasks(
                 "commands": "array of commands (optional) - Specific commands to execute. If not provided, runs all default commands",
                 "notes": "string (optional) - Notes about this baseline (e.g., 'Pre-upgrade baseline')",
                 "username": "string (auto-injected) - Username for credential lookup. Automatically set to the user who created the scheduled task",
-            }
+            },
         },
         {
             "name": "test_job",
@@ -780,7 +869,7 @@ async def get_available_tasks(
             "kwargs_schema": {
                 "message": "string (optional)",
                 "duration": "int (optional, seconds)",
-            }
+            },
         },
     ]
 
@@ -794,9 +883,9 @@ async def get_inventories_for_scheduler(
 ):
     """Get list of available inventories for task scheduling."""
     from ..models.inventory import Inventory
-    
+
     inventories = db.query(Inventory).order_by(Inventory.name).all()
-    
+
     return [
         {
             "id": inv.id,

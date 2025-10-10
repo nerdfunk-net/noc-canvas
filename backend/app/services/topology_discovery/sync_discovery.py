@@ -22,8 +22,6 @@ from ...schemas.device_cache import (
     InterfaceCacheCreate,
     IPAddressCacheCreate,
     MACAddressTableCacheCreate,
-    OSPFRouteCacheCreate,
-    StaticRouteCacheCreate,
 )
 from ...services.device_cache_service import device_cache_service
 from ...services.device_communication import DeviceCommunicationService
@@ -57,9 +55,7 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
         """
         try:
             # Extract username from token
-            username = SyncTopologyDiscoveryService._get_username_from_token(
-                auth_token
-            )
+            username = SyncTopologyDiscoveryService._get_username_from_token(auth_token)
 
             # Get the command for this endpoint
             command = SyncTopologyDiscoveryService._get_device_command(endpoint)
@@ -71,31 +67,33 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     import json
                     from ...core.database import SessionLocal
                     from ...services.json_cache_service import JSONCacheService
-                    
+
                     db = SessionLocal()
                     try:
                         valid_cache = JSONCacheService.get_valid_cache(
-                            db=db,
-                            device_id=device_id,
-                            command=command
+                            db=db, device_id=device_id, command=command
                         )
-                        
+
                         if valid_cache:
                             # Use cached data
                             cached_output = json.loads(valid_cache.json_data)
-                            logger.info(f"✅ Using cached data for device {device_id}, command '{command}' (endpoint: {endpoint})")
+                            logger.info(
+                                f"✅ Using cached data for device {device_id}, command '{command}' (endpoint: {endpoint})"
+                            )
                             return {
                                 "success": True,
                                 "output": cached_output,
                                 "parsed": True,
                                 "parser_used": "TEXTFSM (from cache)",
                                 "execution_time": 0.0,
-                                "cached": True
+                                "cached": True,
                             }
                     finally:
                         db.close()
                 except Exception as cache_error:
-                    logger.warning(f"Failed to check cache for device {device_id}, command '{command}', will execute: {str(cache_error)}")
+                    logger.warning(
+                        f"Failed to check cache for device {device_id}, command '{command}', will execute: {str(cache_error)}"
+                    )
 
                 # Get device info from Nautobot (returns raw GraphQL structure)
                 device_data = await nautobot_service.get_device(device_id, username)
@@ -145,14 +143,18 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     username=username,
                     parser="TEXTFSM",
                 )
-                
+
                 # Cache data after successful execution for any command
-                if result.get("success") and result.get("parsed") and isinstance(result.get("output"), list):
+                if (
+                    result.get("success")
+                    and result.get("parsed")
+                    and isinstance(result.get("output"), list)
+                ):
                     try:
                         import json
                         from ...core.database import SessionLocal
                         from ...services.json_cache_service import JSONCacheService
-                        
+
                         db = SessionLocal()
                         try:
                             json_data = json.dumps(result["output"])
@@ -160,14 +162,18 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                                 db=db,
                                 device_id=device_id,
                                 command=command,
-                                json_data=json_data
+                                json_data=json_data,
                             )
-                            logger.info(f"✅ Cached data for device {device_id}, command '{command}' (endpoint: {endpoint})")
+                            logger.info(
+                                f"✅ Cached data for device {device_id}, command '{command}' (endpoint: {endpoint})"
+                            )
                         finally:
                             db.close()
                     except Exception as cache_error:
-                        logger.error(f"Failed to cache data for device {device_id}, command '{command}': {str(cache_error)}")
-                
+                        logger.error(
+                            f"Failed to cache data for device {device_id}, command '{command}': {str(cache_error)}"
+                        )
+
                 return result
 
             # Use asyncio.run for sync context (Celery worker)
@@ -268,9 +274,7 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
                         # Extract platform
                         platform_info = device_info.get("platform")
-                        platform = (
-                            platform_info.get("name") if platform_info else None
-                        )
+                        platform = platform_info.get("name") if platform_info else None
 
                         # Create or update device cache entry
                         device_cache_data = DeviceCacheCreate(
@@ -377,7 +381,9 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                 )
                 try:
                     result = SyncTopologyDiscoveryService._call_device_endpoint_sync(
-                        device_id=device_id, endpoint="ip-route/bgp", auth_token=auth_token
+                        device_id=device_id,
+                        endpoint="ip-route/bgp",
+                        auth_token=auth_token,
                     )
                     if result.get("success") and isinstance(result.get("output"), list):
                         device_data["bgp_routes"] = result["output"]
@@ -505,7 +511,9 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                         f"📍 Executing command for interfaces on device {device_id}"
                     )
                     result = SyncTopologyDiscoveryService._call_device_endpoint_sync(
-                        device_id=device_id, endpoint="interfaces", auth_token=auth_token
+                        device_id=device_id,
+                        endpoint="interfaces",
+                        auth_token=auth_token,
                     )
                     logger.info(
                         f"📍 Interfaces Result: success={result.get('success')}, "
@@ -543,7 +551,6 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
             return device_data
 
         except Exception as e:
-            error_msg = f"Discovery failed: {str(e)}"
             logger.error(
                 f"❌ Sync discovery failed for device {device_id}: {e}", exc_info=True
             )
@@ -572,7 +579,9 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
             # Use bulk replace method
             if cache_entries:
-                device_cache_service.bulk_replace_bgp_routes(db, device_id, cache_entries)
+                device_cache_service.bulk_replace_bgp_routes(
+                    db, device_id, cache_entries
+                )
                 logger.debug(f"Cached {len(routes)} BGP routes for device {device_id}")
         except Exception as e:
             logger.error(f"Failed to cache BGP routes for {device_id}: {e}")
@@ -597,7 +606,9 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
 
             # Use bulk replace method
             if cache_entries:
-                device_cache_service.bulk_replace_mac_table(db, device_id, cache_entries)
+                device_cache_service.bulk_replace_mac_table(
+                    db, device_id, cache_entries
+                )
                 logger.debug(
                     f"Cached {len(mac_entries)} MAC entries for device {device_id}"
                 )
@@ -644,7 +655,9 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     or neighbor.get("neighbor_port")
                     or ""
                 )
-                platform_raw = neighbor.get("PLATFORM") or neighbor.get("platform") or ""
+                platform_raw = (
+                    neighbor.get("PLATFORM") or neighbor.get("platform") or ""
+                )
                 capabilities_raw = (
                     neighbor.get("CAPABILITIES") or neighbor.get("capabilities") or ""
                 )
@@ -695,7 +708,9 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                 platform = platform.strip() if platform else ""
 
                 if isinstance(capabilities_raw, list):
-                    capabilities = ", ".join(capabilities_raw) if capabilities_raw else ""
+                    capabilities = (
+                        ", ".join(capabilities_raw) if capabilities_raw else ""
+                    )
                 else:
                     capabilities = capabilities_raw
                 capabilities = capabilities.strip() if capabilities else ""
@@ -704,7 +719,9 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     device_id=device_id,
                     local_interface=local_interface,
                     neighbor_name=neighbor_name,
-                    neighbor_interface=neighbor_interface if neighbor_interface else None,
+                    neighbor_interface=neighbor_interface
+                    if neighbor_interface
+                    else None,
                     neighbor_ip=neighbor_ip if neighbor_ip else None,
                     platform=platform if platform else None,
                     capabilities=capabilities if capabilities else None,
@@ -796,7 +813,9 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                 # Combine statuses (e.g., "up/up", "down/down", "up/down")
                 status = None
                 if link_status or protocol_status:
-                    status = f"{link_status or 'unknown'}/{protocol_status or 'unknown'}"
+                    status = (
+                        f"{link_status or 'unknown'}/{protocol_status or 'unknown'}"
+                    )
 
                 # Create interface entry
                 interface_entry = InterfaceCacheCreate(
@@ -819,7 +838,9 @@ class SyncTopologyDiscoveryService(TopologyDiscoveryBase):
                     if "/" in ip_address:
                         ip_addr, prefix = ip_address.split("/")
                         ip_address = ip_addr
-                        subnet_mask = prefix  # Can be converted to dotted decimal if needed
+                        subnet_mask = (
+                            prefix  # Can be converted to dotted decimal if needed
+                        )
 
                     ip_entry = IPAddressCacheCreate(
                         device_id=device_id,

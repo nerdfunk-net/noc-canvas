@@ -12,16 +12,16 @@ logger = logging.getLogger(__name__)
 def register_tasks(celery_app):
     """Register cache tasks with the Celery app."""
 
-    @celery_app.task(bind=True, name='app.tasks.cache_tasks.cache_warm_up')
+    @celery_app.task(bind=True, name="app.tasks.cache_tasks.cache_warm_up")
     def cache_warm_up(self):
         """
         Warm up caches with frequently accessed data.
-        
+
         This task pre-loads commonly accessed data into the cache to improve
         application performance. It caches:
         - Nautobot device stats, device list, and locations
         - CheckMK host stats, host list, and folders
-        
+
         Returns:
             Dictionary with cache warm-up results
         """
@@ -69,7 +69,7 @@ def register_tasks(celery_app):
             checkmk_service.get_all_folders()
 
             logger.info("Cache warm-up completed successfully")
-            
+
             return {
                 "status": "completed",
                 "message": "Cache warm-up completed successfully",
@@ -95,5 +95,5 @@ def register_tasks(celery_app):
             raise
 
     return {
-        'cache_warm_up': cache_warm_up,
+        "cache_warm_up": cache_warm_up,
     }

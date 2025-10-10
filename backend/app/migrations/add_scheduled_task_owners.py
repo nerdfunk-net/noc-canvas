@@ -9,8 +9,8 @@ Run this script once to initialize the table:
 """
 
 import logging
-from sqlalchemy import create_engine, inspect
-from app.core.database import Base, engine
+from sqlalchemy import inspect
+from app.core.database import engine
 from app.models.scheduled_task_owner import ScheduledTaskOwner
 
 logging.basicConfig(level=logging.INFO)
@@ -23,19 +23,21 @@ def run_migration():
         # Check if table already exists
         inspector = inspect(engine)
         existing_tables = inspector.get_table_names()
-        
-        if 'scheduled_task_owners' in existing_tables:
-            logger.info("Table 'scheduled_task_owners' already exists. Skipping migration.")
+
+        if "scheduled_task_owners" in existing_tables:
+            logger.info(
+                "Table 'scheduled_task_owners' already exists. Skipping migration."
+            )
             return
-        
+
         logger.info("Creating 'scheduled_task_owners' table...")
-        
+
         # Create only the ScheduledTaskOwner table
         ScheduledTaskOwner.__table__.create(engine, checkfirst=True)
-        
+
         logger.info("✅ Successfully created 'scheduled_task_owners' table")
         logger.info("Migration completed successfully!")
-        
+
     except Exception as e:
         logger.error(f"❌ Migration failed: {e}")
         raise

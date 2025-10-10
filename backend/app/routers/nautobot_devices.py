@@ -8,7 +8,6 @@ from typing import List, Optional
 from pydantic import BaseModel
 import requests
 from sqlalchemy.orm import Session
-from ..core.config import settings
 from ..core.database import get_db
 from ..core.dynamic_settings import get_nautobot_config
 from ..api.auth import get_current_user
@@ -108,14 +107,16 @@ async def get_devices(
             previous=data.get("previous"),
         )
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch devices: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch devices: {str(e)}"
+        )
 
 
 @router.get("/devices/{device_id}", response_model=Device)
 async def get_device(
     device_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Get a specific device by ID from Nautobot"""
     nautobot_config = get_nautobot_config(db)
@@ -141,7 +142,7 @@ async def get_device(
 async def get_device_nautobot_data(
     device_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Get complete device data from Nautobot using GraphQL"""
     nautobot_config = get_nautobot_config(db)
@@ -158,7 +159,10 @@ async def get_device_nautobot_data(
     try:
         response = requests.post(
             graphql_url,
-            json={"query": COMPLETE_DEVICE_DATA_QUERY, "variables": {"device_id": device_id}},
+            json={
+                "query": COMPLETE_DEVICE_DATA_QUERY,
+                "variables": {"device_id": device_id},
+            },
             headers=headers,
             timeout=30,
         )
@@ -170,14 +174,16 @@ async def get_device_nautobot_data(
 
         return data.get("data", {}).get("device", {})
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch device data: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch device data: {str(e)}"
+        )
 
 
 @router.get("/devices/{device_id}/details")
 async def get_device_details(
     device_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Get detailed device information using GraphQL"""
     nautobot_config = get_nautobot_config(db)
@@ -206,7 +212,9 @@ async def get_device_details(
 
         return data.get("data", {}).get("device", {})
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch device details: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch device details: {str(e)}"
+        )
 
 
 @router.post("/devices/search", response_model=DeviceListResponse)
@@ -248,7 +256,9 @@ async def search_devices(
             previous=data.get("previous"),
         )
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Failed to search devices: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to search devices: {str(e)}"
+        )
 
 
 @router.get("/device-types", response_model=DeviceTypeListResponse)
@@ -267,12 +277,18 @@ async def get_device_types(
     }
 
     try:
-        response = requests.get(url, headers=headers, params={"limit": 10000}, timeout=30)
+        response = requests.get(
+            url, headers=headers, params={"limit": 10000}, timeout=30
+        )
         response.raise_for_status()
         data = response.json()
 
         device_types = [DeviceType(**dt) for dt in data.get("results", [])]
 
-        return DeviceTypeListResponse(device_types=device_types, count=len(device_types))
+        return DeviceTypeListResponse(
+            device_types=device_types, count=len(device_types)
+        )
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch device types: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch device types: {str(e)}"
+        )

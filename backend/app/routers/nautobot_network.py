@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from typing import Optional
 import logging
 from sqlalchemy.orm import Session
-from ..core.config import settings
 from ..core.database import get_db
 from ..core.dynamic_settings import get_nautobot_config
 from ..api.auth import get_current_user
@@ -70,7 +69,9 @@ async def test_nautobot_connection(
             success=success,
             message=message,
             nautobot_url=nautobot_config["url"],
-            connection_source="database" if nautobot_config.get("_source") == "database" else "environment",
+            connection_source="database"
+            if nautobot_config.get("_source") == "database"
+            else "environment",
         )
     except HTTPException:
         raise

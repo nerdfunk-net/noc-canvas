@@ -80,7 +80,7 @@ async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
 async def register(
     user_data: UserCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """Register a new user. Requires authentication - only authenticated users can create new accounts."""
     # Check if user already exists

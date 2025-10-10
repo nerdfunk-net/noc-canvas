@@ -13,18 +13,18 @@ logger = logging.getLogger(__name__)
 def register_tasks(celery_app):
     """Register Nautobot tasks with the Celery app."""
 
-    @celery_app.task(bind=True, name='app.tasks.nautobot_tasks.sync_nautobot_devices')
+    @celery_app.task(bind=True, name="app.tasks.nautobot_tasks.sync_nautobot_devices")
     def sync_nautobot_devices(self, filters: Optional[Dict[str, Any]] = None):
         """
         Sync devices from Nautobot.
-        
+
         Args:
             filters: Optional filters for device query
                 - limit: Maximum number of devices to retrieve
                 - offset: Offset for pagination
                 - filter_type: Type of filter to apply
                 - filter_value: Value for the filter
-        
+
         Returns:
             Dictionary with sync results including device count and status
         """
@@ -70,7 +70,7 @@ def register_tasks(celery_app):
                     )
 
             logger.info(f"Successfully synced {processed_count} devices from Nautobot")
-            
+
             return {
                 "status": "completed",
                 "devices_processed": processed_count,
@@ -90,5 +90,5 @@ def register_tasks(celery_app):
             raise
 
     return {
-        'sync_nautobot_devices': sync_nautobot_devices,
+        "sync_nautobot_devices": sync_nautobot_devices,
     }

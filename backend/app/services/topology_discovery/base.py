@@ -58,9 +58,7 @@ class TopologyDiscoveryBase:
         Returns:
             The CLI command to execute on the device
         """
-        return TopologyDiscoveryBase.ENDPOINT_COMMANDS.get(
-            endpoint, f"show {endpoint}"
-        )
+        return TopologyDiscoveryBase.ENDPOINT_COMMANDS.get(endpoint, f"show {endpoint}")
 
     @staticmethod
     def _get_username_from_token(auth_token: str) -> str:
@@ -295,7 +293,9 @@ class TopologyDiscoveryBase:
                 cache_entries.append(cache_entry)
 
             if cache_entries:
-                device_cache_service.bulk_replace_bgp_routes(db, device_id, cache_entries)
+                device_cache_service.bulk_replace_bgp_routes(
+                    db, device_id, cache_entries
+                )
                 logger.debug(f"Cached {len(routes)} BGP routes for device {device_id}")
         except Exception as e:
             logger.error(f"Failed to cache BGP routes for {device_id}: {e}")
@@ -319,7 +319,9 @@ class TopologyDiscoveryBase:
                 cache_entries.append(cache_entry)
 
             if cache_entries:
-                device_cache_service.bulk_replace_mac_table(db, device_id, cache_entries)
+                device_cache_service.bulk_replace_mac_table(
+                    db, device_id, cache_entries
+                )
                 logger.debug(
                     f"Cached {len(mac_entries)} MAC entries for device {device_id}"
                 )
@@ -366,7 +368,9 @@ class TopologyDiscoveryBase:
                     or neighbor.get("neighbor_port")
                     or ""
                 )
-                platform_raw = neighbor.get("PLATFORM") or neighbor.get("platform") or ""
+                platform_raw = (
+                    neighbor.get("PLATFORM") or neighbor.get("platform") or ""
+                )
                 capabilities_raw = (
                     neighbor.get("CAPABILITIES") or neighbor.get("capabilities") or ""
                 )
@@ -417,7 +421,9 @@ class TopologyDiscoveryBase:
                 platform = platform.strip() if platform else ""
 
                 if isinstance(capabilities_raw, list):
-                    capabilities = ", ".join(capabilities_raw) if capabilities_raw else ""
+                    capabilities = (
+                        ", ".join(capabilities_raw) if capabilities_raw else ""
+                    )
                 else:
                     capabilities = capabilities_raw
                 capabilities = capabilities.strip() if capabilities else ""
@@ -426,7 +432,9 @@ class TopologyDiscoveryBase:
                     device_id=device_id,
                     local_interface=local_interface,
                     neighbor_name=neighbor_name,
-                    neighbor_interface=neighbor_interface if neighbor_interface else None,
+                    neighbor_interface=neighbor_interface
+                    if neighbor_interface
+                    else None,
                     neighbor_ip=neighbor_ip if neighbor_ip else None,
                     platform=platform if platform else None,
                     capabilities=capabilities if capabilities else None,
@@ -515,7 +523,9 @@ class TopologyDiscoveryBase:
                 # Combine statuses
                 status = None
                 if link_status or protocol_status:
-                    status = f"{link_status or 'unknown'}/{protocol_status or 'unknown'}"
+                    status = (
+                        f"{link_status or 'unknown'}/{protocol_status or 'unknown'}"
+                    )
 
                 # Create interface entry
                 interface_entry = InterfaceCacheCreate(

@@ -253,7 +253,7 @@ const connectWebSocket = () => {
           connectionStatus.value = 'disconnected'
           break
 
-        case 'disconnected':
+        case 'disconnected': {
           const reason = message.reason || 'unknown'
           const disconnectMessage = message.message || 'Connection closed'
 
@@ -281,6 +281,7 @@ const connectWebSocket = () => {
             }
           }
           break
+        }
 
         default:
           console.warn('⚠️ SSH Terminal: Unknown message type:', message.type, message)

@@ -12,7 +12,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
-from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 logger = logging.getLogger(__name__)
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 def register_tasks(celery_app):
     """Register baseline tasks with the Celery app."""
 
-    @celery_app.task(bind=True, name='app.tasks.baseline_tasks.create_baseline')
+    @celery_app.task(bind=True, name="app.tasks.baseline_tasks.create_baseline")
     def create_baseline(
         self,
         device_ids: Optional[List[str]] = None,
@@ -29,15 +28,15 @@ def register_tasks(celery_app):
         commands: Optional[List[str]] = None,
         notes: Optional[str] = None,
         auth_token: str = "",
-        username: Optional[str] = None
+        username: Optional[str] = None,
     ):
         """
         Create or update baseline configurations for devices.
-        
+
         This task executes all topology-related commands on devices and stores
         the output as baseline data for future comparison. It reuses the topology
         discovery infrastructure to gather data.
-        
+
         Commands executed by default:
         - show interfaces (Interface states and configuration)
         - show ip arp (ARP table)
@@ -46,7 +45,7 @@ def register_tasks(celery_app):
         - show ip route static (Static routes)
         - show ip route ospf (OSPF routes)
         - show ip route bgp (BGP routes)
-        
+
         Args:
             device_ids: List of device IDs to baseline. If None, baselines all devices.
             inventory_id: ID of inventory to use for device selection. Takes precedence over device_ids.
@@ -54,7 +53,7 @@ def register_tasks(celery_app):
             notes: Optional notes to store with baseline (e.g., "Pre-upgrade baseline")
             auth_token: Authentication token for device access (deprecated, use username instead)
             username: Username to use for credential lookup. If not provided, extracts from auth_token or defaults to 'admin'
-            
+
         Returns:
             Dictionary with baseline creation results:
                 - status: "completed" or "failed"
@@ -72,12 +71,15 @@ def register_tasks(celery_app):
         from ..services.inventory import InventoryService
         from ..services.task_security import validate_task_username
         from ..schemas.inventory import LogicalOperation
-        
-        logger.info(f"Starting baseline creation task")
-        
+
+        logger.info("Starting baseline creation task")
+
         try:
-            self.update_state(state="PROGRESS", meta={"current": 0, "total": 100, "status": "Initializing"})
-            
+            self.update_state(
+                state="PROGRESS",
+                meta={"current": 0, "total": 100, "status": "Initializing"},
+            )
+
             # Default commands to execute for baseline
             default_commands = [
                 "show interfaces",
@@ -88,70 +90,81 @@ def register_tasks(celery_app):
                 "show ip route ospf",
                 "show ip route bgp",
             ]
-            
+
             # Use provided commands or default
             commands_to_run = commands if commands else default_commands
-            
+
             # Get username - priority: explicit username parameter > extract from token > default to 'admin'
             if username:
                 task_username = username
             else:
                 task_username = _get_username_from_token(auth_token)
-            
+
             # Initialize database session
             db = SessionLocal()
-            
+
             try:
                 # Security validation: Verify username matches task owner
                 # Get periodic_task_id from Celery request context if available
                 periodic_task_id = None
                 try:
                     # Celery provides request context with task metadata
-                    if hasattr(self, 'request') and hasattr(self.request, 'properties'):
+                    if hasattr(self, "request") and hasattr(self.request, "properties"):
                         # Try to extract periodic task ID from task properties/headers
                         # This is set by celery-beat when running scheduled tasks
-                        periodic_task_id = self.request.properties.get('periodic_task_name')
+                        periodic_task_id = self.request.properties.get(
+                            "periodic_task_name"
+                        )
                         if periodic_task_id:
                             # Extract numeric ID if it's in format "celery.backend_cleanup_123"
                             import re
-                            match = re.search(r'_(\d+)$', str(periodic_task_id))
+
+                            match = re.search(r"_(\d+)$", str(periodic_task_id))
                             if match:
                                 periodic_task_id = int(match.group(1))
                             else:
                                 periodic_task_id = None
                 except Exception as e:
                     logger.debug(f"Could not extract periodic_task_id: {e}")
-                
+
                 # Validate and get the correct username to use
                 is_valid, validated_username = validate_task_username(
                     db, periodic_task_id, task_username
                 )
-                
+
                 if not is_valid:
                     logger.warning(
                         f"Username mismatch detected! Using validated username: {validated_username}"
                     )
-                
+
                 task_username = validated_username
-                logger.info(f"Running baseline task for validated user: {task_username}")
-                
+                logger.info(
+                    f"Running baseline task for validated user: {task_username}"
+                )
+
                 # Get devices to baseline
                 # Priority: inventory_id > device_ids > all devices
                 if inventory_id:
                     # Resolve inventory to device IDs
                     self.update_state(
                         state="PROGRESS",
-                        meta={"current": 3, "total": 100, "status": f"Resolving inventory {inventory_id} to devices"}
+                        meta={
+                            "current": 3,
+                            "total": 100,
+                            "status": f"Resolving inventory {inventory_id} to devices",
+                        },
                     )
-                    
-                    inventory = db.query(Inventory).filter(Inventory.id == inventory_id).first()
+
+                    inventory = (
+                        db.query(Inventory).filter(Inventory.id == inventory_id).first()
+                    )
                     if not inventory:
                         raise ValueError(f"Inventory {inventory_id} not found")
-                    
+
                     # Parse operations from JSON
                     operations_data = json.loads(inventory.operations_json)
                     operations = [LogicalOperation(**op) for op in operations_data]
-                    
+
                     # Use inventory service to preview devices
                     inventory_service = InventoryService()
                     loop = asyncio.new_event_loop()
@@ -161,12 +174,16 @@ def register_tasks(celery_app):
                             inventory_service.preview_inventory(operations)
                         )
                         device_ids = [d.id for d in devices_list]
-                        logger.info(f"Resolved inventory '{inventory.name}' to {len(device_ids)} devices")
+                        logger.info(
+                            f"Resolved inventory '{inventory.name}' to {len(device_ids)} devices"
+                        )
                     finally:
                         loop.close()
-                    
+
                     if not device_ids:
-                        logger.warning(f"Inventory '{inventory.name}' resolved to zero devices")
+                        logger.warning(
+                            f"Inventory '{inventory.name}' resolved to zero devices"
+                        )
                         return {
                             "status": "completed",
                             "devices_processed": 0,
@@ -174,36 +191,46 @@ def register_tasks(celery_app):
                             "total_commands": 0,
                             "baseline_ids": [],
                             "errors": [],
-                            "message": f"Inventory '{inventory.name}' contains no devices"
+                            "message": f"Inventory '{inventory.name}' contains no devices",
                         }
-                
+
                 if not device_ids:
                     # Get all devices from Nautobot if none specified
                     self.update_state(
                         state="PROGRESS",
-                        meta={"current": 5, "total": 100, "status": "Fetching devices from Nautobot"}
+                        meta={
+                            "current": 5,
+                            "total": 100,
+                            "status": "Fetching devices from Nautobot",
+                        },
                     )
-                    
+
                     # Run async function in event loop
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                     try:
                         devices_result = loop.run_until_complete(
-                            nautobot_service.get_devices_async(task_username, limit=1000)
+                            nautobot_service.get_devices_async(
+                                task_username, limit=1000
+                            )
                         )
-                        device_ids = [d['id'] for d in devices_result.get('devices', [])]
+                        device_ids = [
+                            d["id"] for d in devices_result.get("devices", [])
+                        ]
                     finally:
                         loop.close()
-                
+
                 total_devices = len(device_ids)
                 total_commands = len(commands_to_run)
-                logger.info(f"Baselining {total_devices} devices with {total_commands} commands each")
-                
+                logger.info(
+                    f"Baselining {total_devices} devices with {total_commands} commands each"
+                )
+
                 devices_processed = 0
                 total_commands_executed = 0
                 errors = []
                 baseline_ids = []
-                
+
                 # Process each device
                 for device_index, device_id in enumerate(device_ids):
                     try:
@@ -216,10 +243,10 @@ def register_tasks(celery_app):
                                 "total": 100,
                                 "status": f"Processing device {device_index + 1}/{total_devices}",
                                 "devices_processed": devices_processed,
-                                "total_commands_executed": total_commands_executed
-                            }
+                                "total_commands_executed": total_commands_executed,
+                            },
                         )
-                        
+
                         # Get device info from Nautobot
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
@@ -229,30 +256,42 @@ def register_tasks(celery_app):
                             )
                         finally:
                             loop.close()
-                        
+
                         if not device_data:
                             error_msg = f"Device {device_id} not found in Nautobot"
                             logger.warning(error_msg)
                             errors.append({"device_id": device_id, "error": error_msg})
                             continue
-                        
+
                         device_name = device_data.get("name", device_id)
-                        
+
                         # Validate device has required info
                         primary_ip4 = device_data.get("primary_ip4")
                         if not primary_ip4 or not primary_ip4.get("address"):
                             error_msg = f"Device {device_name} does not have a primary IPv4 address"
                             logger.warning(error_msg)
-                            errors.append({"device_id": device_id, "device_name": device_name, "error": error_msg})
+                            errors.append(
+                                {
+                                    "device_id": device_id,
+                                    "device_name": device_name,
+                                    "error": error_msg,
+                                }
+                            )
                             continue
-                        
+
                         platform_info = device_data.get("platform")
                         if not platform_info or not platform_info.get("network_driver"):
                             error_msg = f"Device {device_name} does not have platform/network_driver configured"
                             logger.warning(error_msg)
-                            errors.append({"device_id": device_id, "device_name": device_name, "error": error_msg})
+                            errors.append(
+                                {
+                                    "device_id": device_id,
+                                    "device_name": device_name,
+                                    "error": error_msg,
+                                }
+                            )
                             continue
-                        
+
                         # Prepare device info for command execution
                         device_info = {
                             "device_id": device_id,
@@ -261,11 +300,11 @@ def register_tasks(celery_app):
                             "platform": platform_info.get("name", ""),
                             "network_driver": platform_info["network_driver"],
                         }
-                        
+
                         # Execute each command and store baseline
                         device_service = DeviceCommunicationService()
                         device_commands_executed = 0
-                        
+
                         for command in commands_to_run:
                             try:
                                 # Execute command
@@ -277,54 +316,70 @@ def register_tasks(celery_app):
                                             device_info=device_info,
                                             command=command,
                                             username=task_username,
-                                            parser="TEXTFSM"
+                                            parser="TEXTFSM",
                                         )
                                     )
                                 finally:
                                     loop.close()
-                                
+
                                 if not result.get("success"):
                                     error_msg = f"Command '{command}' failed: {result.get('error', 'Unknown error')}"
                                     logger.warning(f"Device {device_name}: {error_msg}")
-                                    errors.append({
-                                        "device_id": device_id,
-                                        "device_name": device_name,
-                                        "command": command,
-                                        "error": error_msg
-                                    })
+                                    errors.append(
+                                        {
+                                            "device_id": device_id,
+                                            "device_name": device_name,
+                                            "command": command,
+                                            "error": error_msg,
+                                        }
+                                    )
                                     continue
-                                
+
                                 # Get parsed output
                                 output = result.get("output")
                                 if not output or not isinstance(output, list):
-                                    logger.warning(f"Device {device_name}: Command '{command}' returned no structured data")
+                                    logger.warning(
+                                        f"Device {device_name}: Command '{command}' returned no structured data"
+                                    )
                                     continue
-                                
+
                                 # Serialize output to JSON
                                 raw_output_json = json.dumps(output, indent=2)
-                                
+
                                 # Create normalized version (remove timestamps, counters, etc.)
-                                normalized_output_json = _normalize_output(output, command)
-                                
+                                normalized_output_json = _normalize_output(
+                                    output, command
+                                )
+
                                 # Check if baseline exists for this device/command
-                                existing_baseline = db.query(BaselineCache).filter(
-                                    and_(
-                                        BaselineCache.device_id == device_id,
-                                        BaselineCache.command == command
+                                existing_baseline = (
+                                    db.query(BaselineCache)
+                                    .filter(
+                                        and_(
+                                            BaselineCache.device_id == device_id,
+                                            BaselineCache.command == command,
+                                        )
                                     )
-                                ).first()
-                                
+                                    .first()
+                                )
+
                                 if existing_baseline:
                                     # Update existing baseline
                                     existing_baseline.raw_output = raw_output_json
-                                    existing_baseline.normalized_output = normalized_output_json
+                                    existing_baseline.normalized_output = (
+                                        normalized_output_json
+                                    )
                                     existing_baseline.device_name = device_name
-                                    existing_baseline.updated_at = datetime.now(timezone.utc)
+                                    existing_baseline.updated_at = datetime.now(
+                                        timezone.utc
+                                    )
                                     existing_baseline.baseline_version += 1
                                     if notes:
                                         existing_baseline.notes = notes
                                     baseline_ids.append(existing_baseline.id)
-                                    logger.info(f"Updated baseline for {device_name}, command '{command}' (version {existing_baseline.baseline_version})")
+                                    logger.info(
+                                        f"Updated baseline for {device_name}, command '{command}' (version {existing_baseline.baseline_version})"
+                                    )
                                 else:
                                     # Create new baseline
                                     new_baseline = BaselineCache(
@@ -333,45 +388,58 @@ def register_tasks(celery_app):
                                         command=command,
                                         raw_output=raw_output_json,
                                         normalized_output=normalized_output_json,
-                                        notes=notes or f"Initial baseline created on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
+                                        notes=notes
+                                        or f"Initial baseline created on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
                                     )
                                     db.add(new_baseline)
                                     db.flush()  # Get the ID
                                     baseline_ids.append(new_baseline.id)
-                                    logger.info(f"Created new baseline for {device_name}, command '{command}'")
-                                
+                                    logger.info(
+                                        f"Created new baseline for {device_name}, command '{command}'"
+                                    )
+
                                 device_commands_executed += 1
                                 total_commands_executed += 1
-                                
+
                             except Exception as cmd_error:
                                 error_msg = f"Error executing command '{command}': {str(cmd_error)}"
-                                logger.error(f"Device {device_name}: {error_msg}", exc_info=True)
-                                errors.append({
-                                    "device_id": device_id,
-                                    "device_name": device_name,
-                                    "command": command,
-                                    "error": error_msg
-                                })
-                        
+                                logger.error(
+                                    f"Device {device_name}: {error_msg}", exc_info=True
+                                )
+                                errors.append(
+                                    {
+                                        "device_id": device_id,
+                                        "device_name": device_name,
+                                        "command": command,
+                                        "error": error_msg,
+                                    }
+                                )
+
                         # Commit after each device
                         db.commit()
-                        
+
                         if device_commands_executed > 0:
                             devices_processed += 1
-                            logger.info(f"Completed baseline for device {device_name}: {device_commands_executed}/{total_commands} commands successful")
-                        
+                            logger.info(
+                                f"Completed baseline for device {device_name}: {device_commands_executed}/{total_commands} commands successful"
+                            )
+
                     except Exception as device_error:
                         db.rollback()
                         error_msg = f"Error processing device: {str(device_error)}"
                         logger.error(f"Device {device_id}: {error_msg}", exc_info=True)
-                        errors.append({
-                            "device_id": device_id,
-                            "error": error_msg
-                        })
-                
+                        errors.append({"device_id": device_id, "error": error_msg})
+
                 # Final progress update
-                self.update_state(state="PROGRESS", meta={"current": 100, "total": 100, "status": "Baseline creation completed"})
-                
+                self.update_state(
+                    state="PROGRESS",
+                    meta={
+                        "current": 100,
+                        "total": 100,
+                        "status": "Baseline creation completed",
+                    },
+                )
+
                 result = {
                     "status": "completed",
                     "devices_processed": devices_processed,
@@ -379,15 +447,15 @@ def register_tasks(celery_app):
                     "total_commands": total_commands_executed,
                     "baseline_ids": baseline_ids,
                     "errors": errors,
-                    "message": f"Successfully created/updated baselines for {devices_processed}/{total_devices} devices ({total_commands_executed} total commands)"
+                    "message": f"Successfully created/updated baselines for {devices_processed}/{total_devices} devices ({total_commands_executed} total commands)",
                 }
-                
+
                 logger.info(f"Baseline creation completed: {result['message']}")
                 return result
-                
+
             finally:
                 db.close()
-                
+
         except Exception as e:
             logger.error(f"Error in create_baseline task: {str(e)}", exc_info=True)
             self.update_state(
@@ -400,24 +468,24 @@ def register_tasks(celery_app):
             raise
 
     return {
-        'create_baseline': create_baseline,
+        "create_baseline": create_baseline,
     }
 
 
 def _get_username_from_token(auth_token: str) -> str:
     """
     Extract username from JWT token.
-    
+
     Args:
         auth_token: JWT authentication token
-        
+
     Returns:
         Username extracted from token, or 'admin' as fallback
     """
     try:
         from jose import jwt
         from ..core.config import settings
-        
+
         payload = jwt.decode(
             auth_token, settings.secret_key, algorithms=[settings.algorithm]
         )
@@ -430,33 +498,44 @@ def _get_username_from_token(auth_token: str) -> str:
 def _normalize_output(output: List[Dict[str, Any]], command: str) -> str:
     """
     Normalize command output for comparison by removing dynamic values.
-    
+
     This function removes or normalizes:
     - Timestamps and uptime values
     - Packet/byte counters
     - Rate statistics
     - Dynamic status changes
     - Whitespace inconsistencies
-    
+
     Args:
         output: Parsed command output (list of dicts from TextFSM)
         command: The command that was executed
-        
+
     Returns:
         JSON string of normalized output
     """
     import copy
-    
+
     # Create deep copy to avoid modifying original
     normalized = copy.deepcopy(output)
-    
+
     # Fields to remove based on command type (these are dynamic and shouldn't affect baseline comparison)
     dynamic_fields = {
         "show interfaces": [
-            "input_rate", "output_rate", "input_packets", "output_packets",
-            "input_bytes", "output_bytes", "input_errors", "output_errors",
-            "crc", "collisions", "interface_resets", "last_input", "last_output",
-            "last_clearing", "queue_strategy"
+            "input_rate",
+            "output_rate",
+            "input_packets",
+            "output_packets",
+            "input_bytes",
+            "output_bytes",
+            "input_errors",
+            "output_errors",
+            "crc",
+            "collisions",
+            "interface_resets",
+            "last_input",
+            "last_output",
+            "last_clearing",
+            "queue_strategy",
         ],
         "show ip arp": [
             "age"  # ARP age changes constantly
@@ -469,37 +548,45 @@ def _normalize_output(output: List[Dict[str, Any]], command: str) -> str:
         ],
         "show ip route": [
             # Routes are generally stable, but we could remove metric values if needed
-        ]
+        ],
     }
-    
+
     # Determine which fields to remove
     fields_to_remove = []
     for cmd_pattern, fields in dynamic_fields.items():
         if cmd_pattern in command.lower():
             fields_to_remove = fields
             break
-    
+
     # Remove dynamic fields from each entry
     for entry in normalized:
         if isinstance(entry, dict):
             for field in fields_to_remove:
                 entry.pop(field, None)
-            
+
             # Normalize string values (strip whitespace, lowercase where appropriate)
             for key, value in entry.items():
                 if isinstance(value, str):
                     entry[key] = value.strip()
-    
+
     # Sort list for consistent ordering (helps with comparison)
     # Sort by first available key that seems like an identifier
     if normalized and isinstance(normalized[0], dict):
-        sort_keys = ['interface', 'name', 'network', 'destination', 'neighbor', 'address', 'mac_address']
+        sort_keys = [
+            "interface",
+            "name",
+            "network",
+            "destination",
+            "neighbor",
+            "address",
+            "mac_address",
+        ]
         for sort_key in sort_keys:
             if sort_key in normalized[0]:
                 try:
-                    normalized = sorted(normalized, key=lambda x: x.get(sort_key, ''))
+                    normalized = sorted(normalized, key=lambda x: x.get(sort_key, ""))
                     break
-                except:
+                except Exception:
                     pass  # Skip if sorting fails
-    
+
     return json.dumps(normalized, indent=2, sort_keys=True)

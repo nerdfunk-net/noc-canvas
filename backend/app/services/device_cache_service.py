@@ -10,8 +10,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from ..models.device_cache import (
-    DeviceCache, InterfaceCache, IPAddressCache, ARPCache,
-    StaticRouteCache, OSPFRouteCache, BGPRouteCache, MACAddressTableCache, CDPNeighborCache
+    DeviceCache,
+    InterfaceCache,
+    IPAddressCache,
+    ARPCache,
+    StaticRouteCache,
+    OSPFRouteCache,
+    BGPRouteCache,
+    MACAddressTableCache,
+    CDPNeighborCache,
 )
 from ..schemas.device_cache import (
     DeviceCacheCreate,
@@ -40,7 +47,9 @@ class DeviceCacheService:
         return (
             db.query(DeviceCache)
             .options(
-                joinedload(DeviceCache.interfaces).joinedload(InterfaceCache.ip_addresses),
+                joinedload(DeviceCache.interfaces).joinedload(
+                    InterfaceCache.ip_addresses
+                ),
                 joinedload(DeviceCache.ip_addresses),
                 joinedload(DeviceCache.arp_entries),
                 joinedload(DeviceCache.static_routes),
@@ -63,7 +72,7 @@ class DeviceCacheService:
         db: Session,
         skip: int = 0,
         limit: int = 100,
-        polling_enabled: Optional[bool] = None
+        polling_enabled: Optional[bool] = None,
     ) -> List[DeviceCache]:
         """Get all cached devices with optional filtering."""
         query = db.query(DeviceCache)
@@ -74,10 +83,14 @@ class DeviceCacheService:
     @staticmethod
     def get_device_by_name(db: Session, device_name: str) -> Optional[DeviceCache]:
         """Get device by name."""
-        return db.query(DeviceCache).filter(DeviceCache.device_name == device_name).first()
+        return (
+            db.query(DeviceCache).filter(DeviceCache.device_name == device_name).first()
+        )
 
     @staticmethod
-    def update_polling_status(db: Session, device_id: str, enabled: bool) -> Optional[DeviceCache]:
+    def update_polling_status(
+        db: Session, device_id: str, enabled: bool
+    ) -> Optional[DeviceCache]:
         """Enable or disable polling for a device."""
         device = DeviceCacheService.get_device(db, device_id)
         if device:
@@ -105,7 +118,7 @@ class DeviceCacheService:
         # Only clean entries that have an expiration date AND are expired
         query = db.query(DeviceCache).filter(
             DeviceCache.cache_valid_until.isnot(None),
-            DeviceCache.cache_valid_until <= now
+            DeviceCache.cache_valid_until <= now,
         )
         if device_id:
             query = query.filter(DeviceCache.device_id == device_id)
@@ -113,7 +126,9 @@ class DeviceCacheService:
         # Log expired entries before deletion
         expired_entries = query.all()
         for entry in expired_entries:
-            logger.info(f"  📅 Expired: {entry.device_name} (valid until: {entry.cache_valid_until})")
+            logger.info(
+                f"  📅 Expired: {entry.device_name} (valid until: {entry.cache_valid_until})"
+            )
 
         count = len(expired_entries)
         if count > 0:
@@ -121,7 +136,7 @@ class DeviceCacheService:
             db.commit()
             logger.info(f"✅ Cleaned {count} expired cache entries")
         else:
-            logger.info(f"✅ No expired cache entries to clean")
+            logger.info("✅ No expired cache entries to clean")
         return count
 
     @staticmethod
@@ -144,13 +159,15 @@ class DeviceCacheService:
         else:
             # Create new device with expiration
             device_dict = device_data.model_dump()
-            device_dict['cache_valid_until'] = now + timedelta(minutes=ttl_minutes)
+            device_dict["cache_valid_until"] = now + timedelta(minutes=ttl_minutes)
             device = DeviceCache(**device_dict)
 
         db.add(device)
         db.commit()
         db.refresh(device)
-        logger.info(f"Device cache {'updated' if device.last_updated != now else 'created'}: {device.device_name}, expires: {device.cache_valid_until}")
+        logger.info(
+            f"Device cache {'updated' if device.last_updated != now else 'created'}: {device.device_name}, expires: {device.cache_valid_until}"
+        )
         return device
 
     @staticmethod
@@ -161,13 +178,13 @@ class DeviceCacheService:
         return datetime.now(timezone.utc) < device.cache_valid_until
 
     @staticmethod
-    def set_cache_ttl(
-        db: Session, device_id: str, ttl_minutes: int = 60
-    ) -> None:
+    def set_cache_ttl(db: Session, device_id: str, ttl_minutes: int = 60) -> None:
         """Set cache validity period."""
         device = DeviceCacheService.get_device_cache(db, device_id)
         if device:
-            device.cache_valid_until = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
+            device.cache_valid_until = datetime.now(timezone.utc) + timedelta(
+                minutes=ttl_minutes
+            )
             db.commit()
 
     @staticmethod
@@ -184,19 +201,25 @@ class DeviceCacheService:
         db: Session, device_id: str, interface_name: str
     ) -> Optional[InterfaceCache]:
         """Get specific interface by device ID and interface name."""
-        return db.query(InterfaceCache).filter(
-            and_(
-                InterfaceCache.device_id == device_id,
-                InterfaceCache.interface_name == interface_name,
+        return (
+            db.query(InterfaceCache)
+            .filter(
+                and_(
+                    InterfaceCache.device_id == device_id,
+                    InterfaceCache.interface_name == interface_name,
+                )
             )
-        ).first()
+            .first()
+        )
 
     @staticmethod
     def get_interfaces_by_mac(db: Session, mac_address: str) -> List[InterfaceCache]:
         """Find interfaces by MAC address (reverse lookup)."""
-        return db.query(InterfaceCache).filter(
-            InterfaceCache.mac_address == mac_address
-        ).all()
+        return (
+            db.query(InterfaceCache)
+            .filter(InterfaceCache.mac_address == mac_address)
+            .all()
+        )
 
     @staticmethod
     def upsert_interface(
@@ -232,7 +255,7 @@ class DeviceCacheService:
         db.query(InterfaceCache).filter(
             and_(
                 InterfaceCache.device_id == device_id,
-                InterfaceCache.interface_name.notin_(interface_names)
+                InterfaceCache.interface_name.notin_(interface_names),
             )
         ).delete(synchronize_session=False)
 
@@ -244,22 +267,26 @@ class DeviceCacheService:
     @staticmethod
     def get_devices_by_ip(db: Session, ip_address: str) -> List[IPAddressCache]:
         """Find which device(s) have a specific IP address."""
-        return db.query(IPAddressCache).filter(
-            IPAddressCache.ip_address == ip_address
-        ).all()
+        return (
+            db.query(IPAddressCache)
+            .filter(IPAddressCache.ip_address == ip_address)
+            .all()
+        )
 
     @staticmethod
-    def upsert_ip_address(
-        db: Session, ip_data: IPAddressCacheCreate
-    ) -> IPAddressCache:
+    def upsert_ip_address(db: Session, ip_data: IPAddressCacheCreate) -> IPAddressCache:
         """Insert or update IP address data."""
-        ip_entry = db.query(IPAddressCache).filter(
-            and_(
-                IPAddressCache.device_id == ip_data.device_id,
-                IPAddressCache.interface_name == ip_data.interface_name,
-                IPAddressCache.ip_address == ip_data.ip_address,
+        ip_entry = (
+            db.query(IPAddressCache)
+            .filter(
+                and_(
+                    IPAddressCache.device_id == ip_data.device_id,
+                    IPAddressCache.interface_name == ip_data.interface_name,
+                    IPAddressCache.ip_address == ip_data.ip_address,
+                )
             )
-        ).first()
+            .first()
+        )
 
         if ip_entry:
             # Update existing
@@ -283,9 +310,9 @@ class DeviceCacheService:
         """Bulk insert/update IP addresses for a device."""
         # Delete existing IPs not in the new list
         new_ips = [(ip.interface_name, ip.ip_address) for ip in ip_addresses]
-        existing = db.query(IPAddressCache).filter(
-            IPAddressCache.device_id == device_id
-        ).all()
+        existing = (
+            db.query(IPAddressCache).filter(IPAddressCache.device_id == device_id).all()
+        )
 
         for existing_ip in existing:
             if (existing_ip.interface_name, existing_ip.ip_address) not in new_ips:
@@ -346,7 +373,9 @@ class DeviceCacheService:
         device = DeviceCacheService.get_or_create_device_cache(db, cache_data.device)
 
         # Set cache TTL
-        device.cache_valid_until = datetime.now(timezone.utc) + timedelta(minutes=cache_ttl_minutes)
+        device.cache_valid_until = datetime.now(timezone.utc) + timedelta(
+            minutes=cache_ttl_minutes
+        )
         db.commit()
 
         # Update interfaces first
@@ -391,7 +420,9 @@ class DeviceCacheService:
     ) -> None:
         """Replace all static routes for a device."""
         # Delete all existing static routes for this device
-        db.query(StaticRouteCache).filter(StaticRouteCache.device_id == device_id).delete()
+        db.query(StaticRouteCache).filter(
+            StaticRouteCache.device_id == device_id
+        ).delete()
 
         # Insert new routes
         for route_data in routes:
@@ -439,7 +470,9 @@ class DeviceCacheService:
     ) -> None:
         """Replace all MAC address table entries for a device."""
         # Delete all existing MAC table entries for this device
-        db.query(MACAddressTableCache).filter(MACAddressTableCache.device_id == device_id).delete()
+        db.query(MACAddressTableCache).filter(
+            MACAddressTableCache.device_id == device_id
+        ).delete()
 
         # Insert new entries
         for entry_data in entries:
@@ -455,7 +488,9 @@ class DeviceCacheService:
     ) -> None:
         """Replace all CDP neighbor entries for a device."""
         # Delete all existing CDP neighbors for this device
-        db.query(CDPNeighborCache).filter(CDPNeighborCache.device_id == device_id).delete()
+        db.query(CDPNeighborCache).filter(
+            CDPNeighborCache.device_id == device_id
+        ).delete()
 
         # Insert new neighbors
         for neighbor_data in neighbors:

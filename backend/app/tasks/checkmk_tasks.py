@@ -13,17 +13,17 @@ logger = logging.getLogger(__name__)
 def register_tasks(celery_app):
     """Register CheckMK tasks with the Celery app."""
 
-    @celery_app.task(bind=True, name='app.tasks.checkmk_tasks.sync_checkmk_hosts')
+    @celery_app.task(bind=True, name="app.tasks.checkmk_tasks.sync_checkmk_hosts")
     def sync_checkmk_hosts(self, filters: Optional[Dict[str, Any]] = None):
         """
         Sync hosts from CheckMK.
-        
+
         Args:
             filters: Optional filters for host query
                 - effective_attributes: Include effective attributes
                 - include_links: Include links in response
                 - site: Specific site to query
-        
+
         Returns:
             Dictionary with sync results including host count and status
         """
@@ -70,7 +70,7 @@ def register_tasks(celery_app):
                     )
 
             logger.info(f"Successfully synced {processed_count} hosts from CheckMK")
-            
+
             return {
                 "status": "completed",
                 "hosts_processed": processed_count,
@@ -89,15 +89,15 @@ def register_tasks(celery_app):
             )
             raise
 
-    @celery_app.task(bind=True, name='app.tasks.checkmk_tasks.bulk_host_operations')
+    @celery_app.task(bind=True, name="app.tasks.checkmk_tasks.bulk_host_operations")
     def bulk_host_operations(self, operation: str, hosts_data: List[Dict[str, Any]]):
         """
         Perform bulk operations on CheckMK hosts.
-        
+
         Args:
             operation: Operation to perform ('create', 'update', 'delete')
             hosts_data: List of host data dictionaries
-        
+
         Returns:
             Dictionary with operation results
         """
@@ -138,8 +138,10 @@ def register_tasks(celery_app):
             # Activate changes
             activation_result = checkmk_service.activate_changes()
 
-            logger.info(f"Successfully completed bulk {operation} for {total_hosts} hosts")
-            
+            logger.info(
+                f"Successfully completed bulk {operation} for {total_hosts} hosts"
+            )
+
             return {
                 "status": "completed",
                 "operation": operation,
@@ -161,6 +163,6 @@ def register_tasks(celery_app):
             raise
 
     return {
-        'sync_checkmk_hosts': sync_checkmk_hosts,
-        'bulk_host_operations': bulk_host_operations,
+        "sync_checkmk_hosts": sync_checkmk_hosts,
+        "bulk_host_operations": bulk_host_operations,
     }

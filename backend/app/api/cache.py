@@ -1,6 +1,7 @@
 """
 API endpoints for device cache operations.
 """
+
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -24,8 +25,15 @@ from app.schemas.device_cache import (
 )
 from app.services.device_cache_service import DeviceCacheService
 from app.models.device_cache import (
-    DeviceCache, InterfaceCache, IPAddressCache, ARPCache,
-    StaticRouteCache, OSPFRouteCache, BGPRouteCache, MACAddressTableCache, CDPNeighborCache
+    DeviceCache,
+    InterfaceCache,
+    IPAddressCache,
+    ARPCache,
+    StaticRouteCache,
+    OSPFRouteCache,
+    BGPRouteCache,
+    MACAddressTableCache,
+    CDPNeighborCache,
 )
 
 router = APIRouter(prefix="/cache", tags=["cache"])
@@ -40,19 +48,22 @@ def fix_null_cache_expirations(
     """Fix devices with NULL cache_valid_until by setting default TTL."""
     from datetime import timedelta
     import logging
+
     logger = logging.getLogger(__name__)
 
     now = datetime.now(timezone.utc)
-    null_devices = db.query(DeviceCache).filter(
-        DeviceCache.cache_valid_until.is_(None)
-    ).all()
+    null_devices = (
+        db.query(DeviceCache).filter(DeviceCache.cache_valid_until.is_(None)).all()
+    )
 
     logger.info(f"🔧 Fixing {len(null_devices)} devices with NULL expiration")
     print(f"\n🔧 Fixing {len(null_devices)} devices with NULL expiration")
 
     for device in null_devices:
         device.cache_valid_until = now + timedelta(minutes=ttl_minutes)
-        logger.info(f"  ✅ Fixed: {device.device_name} - expires: {device.cache_valid_until}")
+        logger.info(
+            f"  ✅ Fixed: {device.device_name} - expires: {device.cache_valid_until}"
+        )
         print(f"  ✅ Fixed: {device.device_name} - expires: {device.cache_valid_until}")
 
     db.commit()
@@ -60,7 +71,7 @@ def fix_null_cache_expirations(
     return {
         "message": f"Fixed {len(null_devices)} devices with NULL cache_valid_until",
         "devices_fixed": [d.device_name for d in null_devices],
-        "new_expiration": (now + timedelta(minutes=ttl_minutes)).isoformat()
+        "new_expiration": (now + timedelta(minutes=ttl_minutes)).isoformat(),
     }
 
 
@@ -70,6 +81,7 @@ def get_cache_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
     now = datetime.now(timezone.utc)
 
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info(f"📊 Getting cache statistics. Current UTC time: {now}")
 
@@ -83,20 +95,29 @@ def get_cache_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
     total_bgp_routes = db.query(func.count(BGPRouteCache.id)).scalar()
     total_mac_table = db.query(func.count(MACAddressTableCache.id)).scalar()
     total_cdp_neighbors = db.query(func.count(CDPNeighborCache.id)).scalar()
-    
+
     # JSON Blob Cache count
     from app.models.device_cache import JSONBlobCache
+
     total_json_blobs = db.query(func.count(JSONBlobCache.id)).scalar()
 
     # Valid vs expired cache entries (handle NULL values)
-    valid_devices = db.query(func.count(DeviceCache.device_id)).filter(
-        DeviceCache.cache_valid_until.isnot(None),
-        DeviceCache.cache_valid_until > now
-    ).scalar()
-    expired_devices = db.query(func.count(DeviceCache.device_id)).filter(
-        DeviceCache.cache_valid_until.isnot(None),
-        DeviceCache.cache_valid_until <= now
-    ).scalar()
+    valid_devices = (
+        db.query(func.count(DeviceCache.device_id))
+        .filter(
+            DeviceCache.cache_valid_until.isnot(None),
+            DeviceCache.cache_valid_until > now,
+        )
+        .scalar()
+    )
+    expired_devices = (
+        db.query(func.count(DeviceCache.device_id))
+        .filter(
+            DeviceCache.cache_valid_until.isnot(None),
+            DeviceCache.cache_valid_until <= now,
+        )
+        .scalar()
+    )
 
     # Debug: Show all devices and their expiration times
     try:
@@ -105,7 +126,9 @@ def get_cache_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
         for device in all_devices:
             if device.cache_valid_until:
                 status = "✅ VALID" if device.cache_valid_until > now else "❌ EXPIRED"
-                logger.info(f"  {status} {device.device_name}: valid until {device.cache_valid_until}")
+                logger.info(
+                    f"  {status} {device.device_name}: valid until {device.cache_valid_until}"
+                )
             else:
                 logger.info(f"  ⚠️  {device.device_name}: NO EXPIRATION SET")
         logger.info(f"📊 Statistics: {valid_devices} valid, {expired_devices} expired")
@@ -113,25 +136,30 @@ def get_cache_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
         logger.error(f"❌ Error in debug logging: {e}")
 
     # Polling status
-    polling_enabled = db.query(func.count(DeviceCache.device_id)).filter(
-        DeviceCache.polling_enabled == True
-    ).scalar()
+    polling_enabled = (
+        db.query(func.count(DeviceCache.device_id))
+        .filter(DeviceCache.polling_enabled)
+        .scalar()
+    )
     polling_disabled = total_devices - polling_enabled
 
     # Most recently updated
-    recent_updates = db.query(DeviceCache).order_by(
-        DeviceCache.last_updated.desc()
-    ).limit(5).all()
+    recent_updates = (
+        db.query(DeviceCache).order_by(DeviceCache.last_updated.desc()).limit(5).all()
+    )
 
     # Devices with most interfaces
-    top_devices = db.query(
-        DeviceCache.device_name,
-        func.count(InterfaceCache.id).label('interface_count')
-    ).join(InterfaceCache).group_by(
-        DeviceCache.device_id, DeviceCache.device_name
-    ).order_by(
-        func.count(InterfaceCache.id).desc()
-    ).limit(5).all()
+    top_devices = (
+        db.query(
+            DeviceCache.device_name,
+            func.count(InterfaceCache.id).label("interface_count"),
+        )
+        .join(InterfaceCache)
+        .group_by(DeviceCache.device_id, DeviceCache.device_name)
+        .order_by(func.count(InterfaceCache.id).desc())
+        .limit(5)
+        .all()
+    )
 
     return {
         "total": {
@@ -149,7 +177,9 @@ def get_cache_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
         "cache_status": {
             "valid": valid_devices,
             "expired": expired_devices,
-            "valid_percentage": round((valid_devices / total_devices * 100) if total_devices > 0 else 0, 1),
+            "valid_percentage": round(
+                (valid_devices / total_devices * 100) if total_devices > 0 else 0, 1
+            ),
         },
         "polling": {
             "enabled": polling_enabled,
@@ -233,7 +263,9 @@ def get_devices_by_ip(
     return devices
 
 
-@router.get("/interfaces/{device_id}/{interface_name}", response_model=InterfaceCacheResponse)
+@router.get(
+    "/interfaces/{device_id}/{interface_name}", response_model=InterfaceCacheResponse
+)
 def get_interface(
     device_id: str,
     interface_name: str,
@@ -246,7 +278,9 @@ def get_interface(
     return interface
 
 
-@router.get("/interfaces/by-mac/{mac_address}", response_model=List[InterfaceCacheResponse])
+@router.get(
+    "/interfaces/by-mac/{mac_address}", response_model=List[InterfaceCacheResponse]
+)
 def get_interfaces_by_mac(
     mac_address: str,
     db: Session = Depends(get_db),
@@ -326,7 +360,7 @@ def bulk_update_device_cache(
     if cache_data.device.device_id != device_id:
         raise HTTPException(
             status_code=400,
-            detail="Device ID in path must match device ID in request body"
+            detail="Device ID in path must match device ID in request body",
         )
 
     updated_device = DeviceCacheService.bulk_update_device_cache(
@@ -367,6 +401,7 @@ def clear_all_cache(
 ):
     """Clear ALL cache entries (devices and all related data)."""
     import logging
+
     logger = logging.getLogger(__name__)
 
     # Count before deletion
@@ -380,7 +415,17 @@ def clear_all_cache(
     mac_count = db.query(func.count(MACAddressTableCache.id)).scalar()
     cdp_count = db.query(func.count(CDPNeighborCache.id)).scalar()
 
-    total = device_count + interface_count + ip_count + arp_count + static_route_count + ospf_route_count + bgp_route_count + mac_count + cdp_count
+    total = (
+        device_count
+        + interface_count
+        + ip_count
+        + arp_count
+        + static_route_count
+        + ospf_route_count
+        + bgp_route_count
+        + mac_count
+        + cdp_count
+    )
 
     logger.info(f"🗑️  Clearing ALL cache: {total} total entries")
     print(f"\n🗑️  Clearing ALL cache: {total} total entries")
@@ -389,11 +434,11 @@ def clear_all_cache(
     db.query(DeviceCache).delete()
     db.commit()
 
-    logger.info(f"✅ All cache cleared successfully")
-    print(f"✅ All cache cleared successfully")
+    logger.info("✅ All cache cleared successfully")
+    print("✅ All cache cleared successfully")
 
     return {
-        "message": f"Cleared all cache entries",
+        "message": "Cleared all cache entries",
         "total_cleared": total,
         "breakdown": {
             "devices": device_count,
@@ -405,7 +450,7 @@ def clear_all_cache(
             "bgp_routes": bgp_route_count,
             "mac_table": mac_count,
             "cdp_neighbors": cdp_count,
-        }
+        },
     }
 
 
@@ -416,6 +461,7 @@ def clean_all_expired_cache(
 ):
     """Clean all expired cache entries."""
     import logging
+
     logger = logging.getLogger(__name__)
 
     # Debug: Check what's in the database before cleaning
@@ -424,7 +470,7 @@ def clean_all_expired_cache(
     print(f"\n🧹 Clean endpoint called. Current UTC: {now}")
     print(f"📋 All devices in cache ({len(all_devices)} total):")
     logger.info(f"🧹 Clean endpoint called. Current UTC: {now}")
-    logger.info(f"📋 All devices in cache:")
+    logger.info("📋 All devices in cache:")
     for d in all_devices:
         if d.cache_valid_until:
             is_expired = d.cache_valid_until <= now
@@ -466,11 +512,16 @@ def get_static_routes(
         query = query.filter(StaticRouteCache.device_id == device_id)
 
     total = query.count()
-    routes = query.order_by(StaticRouteCache.last_updated.desc()).offset(offset).limit(limit).all()
+    routes = (
+        query.order_by(StaticRouteCache.last_updated.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
     return {
         "count": total,
-        "results": [StaticRouteCacheResponse.model_validate(r) for r in routes]
+        "results": [StaticRouteCacheResponse.model_validate(r) for r in routes],
     }
 
 
@@ -488,11 +539,16 @@ def get_ospf_routes(
         query = query.filter(OSPFRouteCache.device_id == device_id)
 
     total = query.count()
-    routes = query.order_by(OSPFRouteCache.last_updated.desc()).offset(offset).limit(limit).all()
+    routes = (
+        query.order_by(OSPFRouteCache.last_updated.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
     return {
         "count": total,
-        "results": [OSPFRouteCacheResponse.model_validate(r) for r in routes]
+        "results": [OSPFRouteCacheResponse.model_validate(r) for r in routes],
     }
 
 
@@ -510,11 +566,16 @@ def get_bgp_routes(
         query = query.filter(BGPRouteCache.device_id == device_id)
 
     total = query.count()
-    routes = query.order_by(BGPRouteCache.last_updated.desc()).offset(offset).limit(limit).all()
+    routes = (
+        query.order_by(BGPRouteCache.last_updated.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
     return {
         "count": total,
-        "results": [BGPRouteCacheResponse.model_validate(r) for r in routes]
+        "results": [BGPRouteCacheResponse.model_validate(r) for r in routes],
     }
 
 
@@ -532,11 +593,16 @@ def get_mac_address_table_cache(
         query = query.filter(MACAddressTableCache.device_id == device_id)
 
     total = query.count()
-    entries = query.order_by(MACAddressTableCache.last_updated.desc()).offset(offset).limit(limit).all()
+    entries = (
+        query.order_by(MACAddressTableCache.last_updated.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
     return {
         "count": total,
-        "results": [MACAddressTableCacheResponse.model_validate(e) for e in entries]
+        "results": [MACAddressTableCacheResponse.model_validate(e) for e in entries],
     }
 
 
@@ -554,11 +620,16 @@ def get_cdp_neighbors_cache(
         query = query.filter(CDPNeighborCache.device_id == device_id)
 
     total = query.count()
-    neighbors = query.order_by(CDPNeighborCache.last_updated.desc()).offset(offset).limit(limit).all()
+    neighbors = (
+        query.order_by(CDPNeighborCache.last_updated.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
     return {
         "count": total,
-        "results": [CDPNeighborCacheResponse.model_validate(n) for n in neighbors]
+        "results": [CDPNeighborCacheResponse.model_validate(n) for n in neighbors],
     }
 
 
@@ -573,21 +644,26 @@ def get_json_blobs(
     """Get JSON blob cache entries."""
     from app.models.device_cache import JSONBlobCache
     from app.schemas.device_cache import JSONBlobCacheResponse
-    
+
     query = db.query(JSONBlobCache)
 
     if device_id:
         query = query.filter(JSONBlobCache.device_id == device_id)
-    
+
     if command:
         query = query.filter(JSONBlobCache.command == command)
 
     total = query.count()
-    blobs = query.order_by(JSONBlobCache.updated_at.desc()).offset(offset).limit(limit).all()
+    blobs = (
+        query.order_by(JSONBlobCache.updated_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
     return {
         "count": total,
-        "results": [JSONBlobCacheResponse.model_validate(b) for b in blobs]
+        "results": [JSONBlobCacheResponse.model_validate(b) for b in blobs],
     }
 
 
@@ -598,30 +674,27 @@ def set_json_cache(
     command: str,
     json_data: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     """
     Create or update a JSON cache entry for a device command.
-    
+
     Args:
         device_id: Device UUID
         command: Command that was executed
         json_data: JSON string data to cache
-        
+
     Returns:
         The created or updated cache entry
     """
     from app.services.json_cache_service import JSONCacheService
     from app.schemas.device_cache import JSONBlobCacheResponse
-    
+
     try:
         cache_entry = JSONCacheService.set_cache(
-            db=db,
-            device_id=device_id,
-            command=command,
-            json_data=json_data
+            db=db, device_id=device_id, command=command, json_data=json_data
         )
-        
+
         return JSONBlobCacheResponse.model_validate(cache_entry)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to set cache: {str(e)}")
@@ -630,42 +703,41 @@ def set_json_cache(
 @router.get("/json/{device_id}")
 def get_json_cache(
     device_id: str,
-    command: Optional[str] = Query(None, description="Specific command to retrieve cache for"),
+    command: Optional[str] = Query(
+        None, description="Specific command to retrieve cache for"
+    ),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     """
     Get cached JSON data for a device.
-    
+
     Args:
         device_id: Device UUID
         command: Optional specific command. If not provided, returns all cache entries for the device.
-        
+
     Returns:
         Single entry or list of entries
     """
     from app.services.json_cache_service import JSONCacheService
     from app.schemas.device_cache import JSONBlobCacheResponse
-    
+
     try:
         cache_data = JSONCacheService.get_cache(
-            db=db,
-            device_id=device_id,
-            command=command
+            db=db, device_id=device_id, command=command
         )
-        
+
         if command and cache_data is None:
             raise HTTPException(
                 status_code=404,
-                detail=f"No cache found for device {device_id} and command '{command}'"
+                detail=f"No cache found for device {device_id} and command '{command}'",
             )
-        
+
         if not command and (cache_data is None or len(cache_data) == 0):
             raise HTTPException(
-                status_code=404,
-                detail=f"No cache entries found for device {device_id}"
+                status_code=404, detail=f"No cache entries found for device {device_id}"
             )
-        
+
         # Return single item or list based on whether command was specified
         if command:
             return JSONBlobCacheResponse.model_validate(cache_data)
@@ -680,45 +752,45 @@ def get_json_cache(
 @router.delete("/json/{device_id}")
 def delete_json_cache(
     device_id: str,
-    command: Optional[str] = Query(None, description="Specific command to delete cache for"),
+    command: Optional[str] = Query(
+        None, description="Specific command to delete cache for"
+    ),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     """
     Delete cached JSON data for a device.
-    
+
     Args:
         device_id: Device UUID
         command: Optional specific command. If not provided, deletes all cache entries for the device.
-        
+
     Returns:
         Success message with count of deleted entries
     """
     from app.services.json_cache_service import JSONCacheService
-    
+
     try:
         deleted_count = JSONCacheService.delete_cache(
-            db=db,
-            device_id=device_id,
-            command=command
+            db=db, device_id=device_id, command=command
         )
-        
+
         if deleted_count == 0:
             if command:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"No cache found for device {device_id} and command '{command}'"
+                    detail=f"No cache found for device {device_id} and command '{command}'",
                 )
             else:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"No cache entries found for device {device_id}"
+                    detail=f"No cache entries found for device {device_id}",
                 )
-        
+
         return {
             "success": True,
             "message": f"Deleted {deleted_count} cache entry(ies)",
-            "deleted_count": deleted_count
+            "deleted_count": deleted_count,
         }
     except HTTPException:
         raise
@@ -729,51 +801,53 @@ def delete_json_cache(
 @router.get("/json/devices/list")
 def list_cached_devices(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     """
     Get list of all device IDs that have cached JSON data.
-    
+
     Returns:
         List of device UUIDs
     """
     from app.services.json_cache_service import JSONCacheService
-    
+
     try:
         device_ids = JSONCacheService.get_all_cached_devices(db)
         return {"devices": device_ids}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list cached devices: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to list cached devices: {str(e)}"
+        )
 
 
 @router.get("/json/{device_id}/commands")
 def list_cached_commands(
     device_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     """
     Get list of all cached commands for a device.
-    
+
     Args:
         device_id: Device UUID
-        
+
     Returns:
         List of commands that have cached data
     """
     from app.services.json_cache_service import JSONCacheService
-    
+
     try:
         commands = JSONCacheService.get_cached_commands(db, device_id)
         if not commands:
             raise HTTPException(
                 status_code=404,
-                detail=f"No cached commands found for device {device_id}"
+                detail=f"No cached commands found for device {device_id}",
             )
         return {"commands": commands}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list cached commands: {str(e)}")
-
-
+        raise HTTPException(
+            status_code=500, detail=f"Failed to list cached commands: {str(e)}"
+        )

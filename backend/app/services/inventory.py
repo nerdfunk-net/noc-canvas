@@ -38,7 +38,9 @@ class InventoryService:
         """Get all inventories for a user."""
         return db.query(Inventory).filter(Inventory.owner_id == user.id).all()
 
-    def get_inventory(self, db: Session, inventory_id: int, user: User) -> Optional[Inventory]:
+    def get_inventory(
+        self, db: Session, inventory_id: int, user: User
+    ) -> Optional[Inventory]:
         """Get a specific inventory by ID."""
         return (
             db.query(Inventory)
@@ -47,18 +49,23 @@ class InventoryService:
         )
 
     def create_inventory(
-        self, db: Session, name: str, description: Optional[str], operations: List[LogicalOperation], user: User
+        self,
+        db: Session,
+        name: str,
+        description: Optional[str],
+        operations: List[LogicalOperation],
+        user: User,
     ) -> Inventory:
         """Create a new inventory."""
         operations_json = json.dumps([op.model_dump() for op in operations])
-        
+
         inventory = Inventory(
             name=name,
             description=description,
             operations_json=operations_json,
             owner_id=user.id,
         )
-        
+
         db.add(inventory)
         db.commit()
         db.refresh(inventory)
@@ -83,7 +90,9 @@ class InventoryService:
         if description is not None:
             inventory.description = description
         if operations is not None:
-            inventory.operations_json = json.dumps([op.model_dump() for op in operations])
+            inventory.operations_json = json.dumps(
+                [op.model_dump() for op in operations]
+            )
 
         db.commit()
         db.refresh(inventory)
@@ -99,7 +108,9 @@ class InventoryService:
         db.commit()
         return True
 
-    def parse_operations_from_json(self, operations_json: str) -> List[LogicalOperation]:
+    def parse_operations_from_json(
+        self, operations_json: str
+    ) -> List[LogicalOperation]:
         """Parse operations from JSON string."""
         try:
             operations_data = json.loads(operations_json)
@@ -834,7 +845,7 @@ class InventoryService:
                 """
                 result = await nautobot_service.graphql_query(query, {})
                 locations = result.get("data", {}).get("locations", [])
-                
+
                 # Build hierarchical paths
                 location_map = {loc["id"]: loc for loc in locations}
                 for location in locations:
@@ -842,18 +853,25 @@ class InventoryService:
                     current = location
                     while current:
                         path.insert(0, current["name"])
-                        parent_id = current.get("parent", {}).get("id") if current.get("parent") else None
+                        parent_id = (
+                            current.get("parent", {}).get("id")
+                            if current.get("parent")
+                            else None
+                        )
                         current = location_map.get(parent_id) if parent_id else None
                     location["hierarchicalPath"] = " → ".join(path)
-                
+
                 # Sort by hierarchical path
                 locations.sort(key=lambda x: x.get("hierarchicalPath", ""))
-                
+
                 return [
-                    {"value": loc["name"], "label": loc.get("hierarchicalPath", loc["name"])}
+                    {
+                        "value": loc["name"],
+                        "label": loc.get("hierarchicalPath", loc["name"]),
+                    }
                     for loc in locations
                 ]
-            
+
             elif field_name == "role":
                 query = """
                 query {
@@ -864,8 +882,10 @@ class InventoryService:
                 """
                 result = await nautobot_service.graphql_query(query, {})
                 roles = result.get("data", {}).get("roles", [])
-                return [{"value": role["name"], "label": role["name"]} for role in roles]
-            
+                return [
+                    {"value": role["name"], "label": role["name"]} for role in roles
+                ]
+
             elif field_name == "tag":
                 query = """
                 query {
@@ -877,7 +897,7 @@ class InventoryService:
                 result = await nautobot_service.graphql_query(query, {})
                 tags = result.get("data", {}).get("tags", [])
                 return [{"value": tag["name"], "label": tag["name"]} for tag in tags]
-            
+
             elif field_name == "device_type":
                 query = """
                 query {
@@ -888,8 +908,10 @@ class InventoryService:
                 """
                 result = await nautobot_service.graphql_query(query, {})
                 device_types = result.get("data", {}).get("device_types", [])
-                return [{"value": dt["model"], "label": dt["model"]} for dt in device_types]
-            
+                return [
+                    {"value": dt["model"], "label": dt["model"]} for dt in device_types
+                ]
+
             elif field_name == "manufacturer":
                 query = """
                 query {
@@ -900,8 +922,11 @@ class InventoryService:
                 """
                 result = await nautobot_service.graphql_query(query, {})
                 manufacturers = result.get("data", {}).get("manufacturers", [])
-                return [{"value": mfr["name"], "label": mfr["name"]} for mfr in manufacturers]
-            
+                return [
+                    {"value": mfr["name"], "label": mfr["name"]}
+                    for mfr in manufacturers
+                ]
+
             elif field_name == "platform":
                 query = """
                 query {
@@ -912,8 +937,10 @@ class InventoryService:
                 """
                 result = await nautobot_service.graphql_query(query, {})
                 platforms = result.get("data", {}).get("platforms", [])
-                return [{"value": plat["name"], "label": plat["name"]} for plat in platforms]
-            
+                return [
+                    {"value": plat["name"], "label": plat["name"]} for plat in platforms
+                ]
+
             else:
                 return []
 

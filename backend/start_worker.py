@@ -13,7 +13,6 @@ Usage:
 """
 
 import sys
-import os
 import logging
 from pathlib import Path
 
@@ -23,8 +22,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 
 logger = logging.getLogger(__name__)
@@ -34,14 +33,16 @@ def check_dependencies():
     """Check if required dependencies are installed."""
     try:
         import celery
+
         logger.info(f"✓ Celery version: {celery.__version__}")
     except ImportError:
         logger.error("✗ Celery is not installed. Run: pip install celery")
         return False
 
     try:
-        import redis
-        logger.info(f"✓ Redis client installed")
+        import redis  # noqa: F401
+
+        logger.info("✓ Redis client installed")
     except ImportError:
         logger.error("✗ Redis client is not installed. Run: pip install redis")
         return False
@@ -75,7 +76,7 @@ def list_registered_tasks():
 
         tasks = sorted(celery_app.tasks.keys())
         # Filter out celery internal tasks
-        tasks = [t for t in tasks if not t.startswith('celery.')]
+        tasks = [t for t in tasks if not t.startswith("celery.")]
         return tasks
     except Exception as e:
         logger.warning(f"Could not list tasks: {e}")
@@ -118,9 +119,9 @@ def start_worker():
         # Parse command line arguments
         argv = sys.argv[1:]
         if not argv:
-            argv = ['worker', '--loglevel=info']
-        elif 'worker' not in argv:
-            argv.insert(0, 'worker')
+            argv = ["worker", "--loglevel=info"]
+        elif "worker" not in argv:
+            argv.insert(0, "worker")
 
         # Start Celery Worker
         celery_app.start(argv=argv)
@@ -133,6 +134,7 @@ def start_worker():
     except Exception as e:
         logger.error(f"✗ Failed to start Celery Worker: {e}")
         import traceback
+
         logger.error(traceback.format_exc())
         return False
 

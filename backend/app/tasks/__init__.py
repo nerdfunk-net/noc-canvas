@@ -10,12 +10,7 @@ This package contains all Celery background tasks organized by functionality:
 - baseline_tasks: Device configuration baseline and drift detection
 - topology_tasks: Network topology discovery tasks
 """
-from .topology_tasks import (
-    discover_topology_task,
-    discover_single_device_task
-)
 
-__all__ = [
-    'discover_topology_task',
-    'discover_single_device_task'
-]
+from .topology_tasks import discover_topology_task, discover_single_device_task
+
+__all__ = ["discover_topology_task", "discover_single_device_task"]

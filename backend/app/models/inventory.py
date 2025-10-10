@@ -15,13 +15,15 @@ def _get_utc_now():
 
 class Inventory(Base):
     """Database model for storing inventory definitions."""
-    
+
     __tablename__ = "inventories"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, index=True)
     description = Column(Text, nullable=True)
-    operations_json = Column(Text, nullable=False)  # JSON string containing logical operations
+    operations_json = Column(
+        Text, nullable=False
+    )  # JSON string containing logical operations
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=_get_utc_now)
     updated_at = Column(DateTime, default=_get_utc_now, onupdate=_get_utc_now)

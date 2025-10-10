@@ -13,7 +13,6 @@ Usage:
 """
 
 import sys
-import os
 import logging
 from pathlib import Path
 
@@ -23,8 +22,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 
 logger = logging.getLogger(__name__)
@@ -34,21 +33,26 @@ def check_dependencies():
     """Check if required dependencies are installed."""
     try:
         import celery
+
         logger.info(f"✓ Celery version: {celery.__version__}")
     except ImportError:
         logger.error("✗ Celery is not installed. Run: pip install celery")
         return False
 
     try:
-        import celery_sqlalchemy_scheduler
-        logger.info(f"✓ celery-sqlalchemy-scheduler installed")
+        import celery_sqlalchemy_scheduler  # noqa: F401
+
+        logger.info("✓ celery-sqlalchemy-scheduler installed")
     except ImportError:
-        logger.error("✗ celery-sqlalchemy-scheduler is not installed. Run: pip install celery-sqlalchemy-scheduler")
+        logger.error(
+            "✗ celery-sqlalchemy-scheduler is not installed. Run: pip install celery-sqlalchemy-scheduler"
+        )
         return False
 
     try:
-        import redis
-        logger.info(f"✓ Redis client installed")
+        import redis  # noqa: F401
+
+        logger.info("✓ Redis client installed")
     except ImportError:
         logger.error("✗ Redis client is not installed. Run: pip install redis")
         return False
@@ -81,7 +85,7 @@ def check_database_connection():
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
 
-        logger.info(f"✓ Database is accessible")
+        logger.info("✓ Database is accessible")
         return True
     except Exception as e:
         logger.error(f"✗ Cannot connect to database: {e}")
@@ -117,9 +121,9 @@ def start_beat():
         # Parse command line arguments
         argv = sys.argv[1:]
         if not argv:
-            argv = ['beat', '--loglevel=info']
-        elif 'beat' not in argv:
-            argv.insert(0, 'beat')
+            argv = ["beat", "--loglevel=info"]
+        elif "beat" not in argv:
+            argv.insert(0, "beat")
 
         # Start Celery Beat
         celery_app.start(argv=argv)
@@ -132,6 +136,7 @@ def start_beat():
     except Exception as e:
         logger.error(f"✗ Failed to start Celery Beat: {e}")
         import traceback
+
         logger.error(traceback.format_exc())
         return False
 

@@ -8,8 +8,7 @@ import asyncio
 import json
 import logging
 import uuid
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
-from typing import Optional
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from ..core.security import get_current_user_ws
 from ..services.ssh_terminal_service import ssh_terminal_service
@@ -73,26 +72,33 @@ async def ssh_terminal_websocket(
         try:
             user = await get_current_user_ws(token)
             username = user.get("username") if isinstance(user, dict) else user.username
-            logger.info(f"User {username} authenticated for SSH terminal to device {device_id}")
+            logger.info(
+                f"User {username} authenticated for SSH terminal to device {device_id}"
+            )
         except Exception as e:
             logger.error(f"Authentication failed: {str(e)}")
-            await websocket.send_json({
-                "type": "error",
-                "message": "Authentication failed. Please log in again."
-            })
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "message": "Authentication failed. Please log in again.",
+                }
+            )
             await websocket.close(code=1008)  # Policy violation
             return
 
         # Get device information from Nautobot
         try:
-            logger.info(f"🔍 Fetching device info from Nautobot for device_id: {device_id}")
-            device_data = await nautobot_service.get_device(device_id, username=username)
+            logger.info(
+                f"🔍 Fetching device info from Nautobot for device_id: {device_id}"
+            )
+            device_data = await nautobot_service.get_device(
+                device_id, username=username
+            )
             if not device_data:
                 logger.error(f"❌ Device {device_id} not found in Nautobot")
-                await websocket.send_json({
-                    "type": "error",
-                    "message": f"Device {device_id} not found"
-                })
+                await websocket.send_json(
+                    {"type": "error", "message": f"Device {device_id} not found"}
+                )
                 await websocket.close(code=1008)
                 return
 
@@ -104,11 +110,15 @@ async def ssh_terminal_websocket(
             logger.debug(f"   Primary IP4 data: {primary_ip4}")
 
             if not primary_ip4 or not primary_ip4.get("address"):
-                logger.error(f"❌ Device {device_name} does not have a primary IP address configured")
-                await websocket.send_json({
-                    "type": "error",
-                    "message": "Device does not have a primary IP address configured"
-                })
+                logger.error(
+                    f"❌ Device {device_name} does not have a primary IP address configured"
+                )
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "message": "Device does not have a primary IP address configured",
+                    }
+                )
                 await websocket.close(code=1008)
                 return
 
@@ -117,16 +127,24 @@ async def ssh_terminal_websocket(
 
             # Get platform/network driver
             platform_info = device_data.get("platform")
-            network_driver = platform_info.get("network_driver", "cisco_ios") if platform_info else "cisco_ios"
-            logger.info(f"🖥️  Platform/Driver: {platform_info.get('name') if platform_info else 'Unknown'} / {network_driver}")
+            network_driver = (
+                platform_info.get("network_driver", "cisco_ios")
+                if platform_info
+                else "cisco_ios"
+            )
+            logger.info(
+                f"🖥️  Platform/Driver: {platform_info.get('name') if platform_info else 'Unknown'} / {network_driver}"
+            )
 
         except Exception as e:
             logger.error(f"❌ Error getting device info: {str(e)}")
             logger.exception("Full exception:")
-            await websocket.send_json({
-                "type": "error",
-                "message": f"Failed to get device information: {str(e)}"
-            })
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "message": f"Failed to get device information: {str(e)}",
+                }
+            )
             await websocket.close(code=1011)  # Internal error
             return
 
@@ -149,19 +167,23 @@ async def ssh_terminal_websocket(
 
         if not result["success"]:
             logger.error(f"Failed to create SSH session: {result.get('error')}")
-            await websocket.send_json({
-                "type": "error",
-                "message": result.get("error", "Failed to connect to device")
-            })
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "message": result.get("error", "Failed to connect to device"),
+                }
+            )
             await websocket.close(code=1011)
             return
 
         # Send connection success message
-        await websocket.send_json({
-            "type": "connected",
-            "device_name": device_name,
-            "device_ip": device_ip,
-        })
+        await websocket.send_json(
+            {
+                "type": "connected",
+                "device_name": device_name,
+                "device_ip": device_ip,
+            }
+        )
         logger.info(f"SSH session {session_id} established for device {device_name}")
 
         # Start output reading task
@@ -171,21 +193,20 @@ async def ssh_terminal_websocket(
                 try:
                     output = await ssh_terminal_service.read_output(session_id)
                     if output:
-                        await websocket.send_json({
-                            "type": "output",
-                            "data": output
-                        })
+                        await websocket.send_json({"type": "output", "data": output})
 
                     # Check if SSH channel is closed
                     session_info = ssh_terminal_service.get_session_info(session_id)
                     if session_info and not session_info.get("is_active"):
                         logger.info(f"SSH channel closed for session {session_id}")
                         # Send disconnected message with reason
-                        await websocket.send_json({
-                            "type": "disconnected",
-                            "reason": "normal",
-                            "message": "SSH session ended"
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "disconnected",
+                                "reason": "normal",
+                                "message": "SSH session ended",
+                            }
+                        )
                         break
 
                     await asyncio.sleep(0.05)  # 50ms polling interval
@@ -193,12 +214,14 @@ async def ssh_terminal_websocket(
                     logger.error(f"Error reading SSH output: {str(e)}")
                     # Send disconnected message with error
                     try:
-                        await websocket.send_json({
-                            "type": "disconnected",
-                            "reason": "error",
-                            "message": str(e)
-                        })
-                    except:
+                        await websocket.send_json(
+                            {
+                                "type": "disconnected",
+                                "reason": "error",
+                                "message": str(e),
+                            }
+                        )
+                    except Exception:
                         pass
                     break
 
@@ -218,15 +241,21 @@ async def ssh_terminal_websocket(
                     if msg_type == "input":
                         # Send user input to SSH session
                         input_data = data.get("data", "")
-                        success = await ssh_terminal_service.send_input(session_id, input_data)
+                        success = await ssh_terminal_service.send_input(
+                            session_id, input_data
+                        )
                         if not success:
-                            logger.warning(f"Failed to send input to session {session_id}")
+                            logger.warning(
+                                f"Failed to send input to session {session_id}"
+                            )
 
                     elif msg_type == "resize":
                         # Resize terminal
                         cols = data.get("cols", 80)
                         rows = data.get("rows", 24)
-                        await ssh_terminal_service.resize_terminal(session_id, cols, rows)
+                        await ssh_terminal_service.resize_terminal(
+                            session_id, cols, rows
+                        )
 
                     else:
                         logger.warning(f"Unknown message type: {msg_type}")
@@ -252,11 +281,10 @@ async def ssh_terminal_websocket(
         logger.error(f"Unexpected error in SSH terminal WebSocket: {str(e)}")
         logger.exception("Full exception:")
         try:
-            await websocket.send_json({
-                "type": "error",
-                "message": f"Unexpected error: {str(e)}"
-            })
-        except:
+            await websocket.send_json(
+                {"type": "error", "message": f"Unexpected error: {str(e)}"}
+            )
+        except Exception:
             pass
 
     finally:
@@ -268,7 +296,7 @@ async def ssh_terminal_websocket(
         # Close WebSocket if still open
         try:
             await websocket.close()
-        except:
+        except Exception:
             pass
 
         logger.info(f"SSH terminal WebSocket closed for device {device_id}")

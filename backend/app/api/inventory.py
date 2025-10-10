@@ -18,7 +18,6 @@ from ..schemas.inventory import (
     InventoryUpdate,
     InventoryResponse,
     InventoryListItem,
-    LogicalOperation,
 )
 from ..services.inventory import inventory_service
 
@@ -35,7 +34,9 @@ async def preview_inventory(
     Preview inventory by executing logical operations and returning matching devices.
     """
     try:
-        logger.debug(f"Preview inventory request received from user: {current_user.username}")
+        logger.debug(
+            f"Preview inventory request received from user: {current_user.username}"
+        )
         logger.debug(f"Request operations: {request.operations}")
 
         if not request.operations:
@@ -211,7 +212,12 @@ async def update_inventory(
     """
     try:
         inventory = inventory_service.update_inventory(
-            db, inventory_id, current_user, request.name, request.description, request.operations
+            db,
+            inventory_id,
+            current_user,
+            request.name,
+            request.description,
+            request.operations,
         )
 
         if not inventory:

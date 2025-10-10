@@ -5,10 +5,7 @@ This service manages SSH connections to network devices using paramiko,
 allowing real-time terminal interaction through WebSocket connections.
 """
 
-import asyncio
 import logging
-import threading
-import time
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -24,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SSHSession:
     """Represents an active SSH session."""
+
     session_id: str
     device_id: str
     device_name: str
@@ -83,7 +81,9 @@ class SSHTerminalService:
                     "error": "No valid credentials found. Please add SSH or TACACS credentials in Settings.",
                 }
 
-            logger.info(f"✅ Found {credentials['type'].upper()} credentials: {credentials['name']}")
+            logger.info(
+                f"✅ Found {credentials['type'].upper()} credentials: {credentials['name']}"
+            )
             logger.info(f"   SSH Username: {credentials['username']}")
 
             # Create SSH client
@@ -92,7 +92,9 @@ class SSHTerminalService:
 
             # Connect to device
             try:
-                logger.info(f"🔌 Connecting to {device_ip} as {credentials['username']}...")
+                logger.info(
+                    f"🔌 Connecting to {device_ip} as {credentials['username']}..."
+                )
                 ssh_client.connect(
                     hostname=device_ip,
                     username=credentials["username"],

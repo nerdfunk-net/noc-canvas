@@ -3,7 +3,7 @@ Background job service for long-running tasks.
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 from ..core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ if CELERY_AVAILABLE and celery_app:
         db_uri = engine.url.render_as_string(hide_password=False)
     except AttributeError:
         # Fallback for older SQLAlchemy versions
-        db_uri = str(engine.url).replace('***', engine.url.password or '')
+        db_uri = str(engine.url).replace("***", engine.url.password or "")
 
     celery_app.conf.update(
         task_serializer="json",
@@ -59,9 +59,9 @@ if CELERY_AVAILABLE and celery_app:
         worker_max_tasks_per_child=1000,
         result_extended=True,  # Store task name and other metadata in results
         # Configure Celery Beat with SQLAlchemy scheduler
-        beat_scheduler='celery_sqlalchemy_scheduler.schedulers:DatabaseScheduler',
+        beat_scheduler="celery_sqlalchemy_scheduler.schedulers:DatabaseScheduler",
         beat_dburi=db_uri,  # Use the same database as the app with password
-        beat_schema='celerybeat',  # Schema for beat tables (optional)
+        beat_schema="celerybeat",  # Schema for beat tables (optional)
     )
 
 
@@ -131,8 +131,6 @@ class BackgroundJobService:
             return False
 
 
-
-
 # Register all tasks
 if CELERY_AVAILABLE and celery_app:
     # Import and register tasks from task modules
@@ -142,7 +140,7 @@ if CELERY_AVAILABLE and celery_app:
     from ..tasks import cleanup_tasks
     from ..tasks import test_tasks
     from ..tasks import baseline_tasks
-    
+
     # Register tasks with the Celery app
     nautobot_tasks.register_tasks(celery_app)
     checkmk_tasks.register_tasks(celery_app)

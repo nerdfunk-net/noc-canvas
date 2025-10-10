@@ -28,7 +28,8 @@ def register_tasks(celery_app):
         inventory_id: Optional[int] = None,
         commands: Optional[List[str]] = None,
         notes: Optional[str] = None,
-        auth_token: str = ""
+        auth_token: str = "",
+        username: Optional[str] = None
     ):
         """
         Create or update baseline configurations for devices.
@@ -51,7 +52,8 @@ def register_tasks(celery_app):
             inventory_id: ID of inventory to use for device selection. Takes precedence over device_ids.
             commands: List of specific commands to execute. If None, runs all default commands.
             notes: Optional notes to store with baseline (e.g., "Pre-upgrade baseline")
-            auth_token: Authentication token for device access
+            auth_token: Authentication token for device access (deprecated, use username instead)
+            username: Username to use for credential lookup. If not provided, extracts from auth_token or defaults to 'admin'
             
         Returns:
             Dictionary with baseline creation results:
@@ -67,7 +69,9 @@ def register_tasks(celery_app):
         from ..models.inventory import Inventory
         from ..services.nautobot import nautobot_service
         from ..services.device_communication import DeviceCommunicationService
-        from ..services.inventory import preview_inventory
+        from ..services.inventory import InventoryService
+        from ..services.task_security import validate_task_username
+        from ..schemas.inventory import LogicalOperation
         
         logger.info(f"Starting baseline creation task")
         
@@ -88,13 +92,49 @@ def register_tasks(celery_app):
             # Use provided commands or default
             commands_to_run = commands if commands else default_commands
             
-            # Get username from token
-            username = _get_username_from_token(auth_token)
+            # Get username - priority: explicit username parameter > extract from token > default to 'admin'
+            if username:
+                task_username = username
+            else:
+                task_username = _get_username_from_token(auth_token)
             
             # Initialize database session
             db = SessionLocal()
             
             try:
+                # Security validation: Verify username matches task owner
+                # Get periodic_task_id from Celery request context if available
+                periodic_task_id = None
+                try:
+                    # Celery provides request context with task metadata
+                    if hasattr(self, 'request') and hasattr(self.request, 'properties'):
+                        # Try to extract periodic task ID from task properties/headers
+                        # This is set by celery-beat when running scheduled tasks
+                        periodic_task_id = self.request.properties.get('periodic_task_name')
+                        if periodic_task_id:
+                            # Extract numeric ID if it's in format "celery.backend_cleanup_123"
+                            import re
+                            match = re.search(r'_(\d+)$', str(periodic_task_id))
+                            if match:
+                                periodic_task_id = int(match.group(1))
+                            else:
+                                periodic_task_id = None
+                except Exception as e:
+                    logger.debug(f"Could not extract periodic_task_id: {e}")
+                
+                # Validate and get the correct username to use
+                is_valid, validated_username = validate_task_username(
+                    db, periodic_task_id, task_username
+                )
+                
+                if not is_valid:
+                    logger.warning(
+                        f"Username mismatch detected! Using validated username: {validated_username}"
+                    )
+                
+                task_username = validated_username
+                logger.info(f"Running baseline task for validated user: {task_username}")
+                
                 # Get devices to baseline
                 # Priority: inventory_id > device_ids > all devices
                 if inventory_id:
@@ -108,14 +148,19 @@ def register_tasks(celery_app):
                     if not inventory:
                         raise ValueError(f"Inventory {inventory_id} not found")
                     
+                    # Parse operations from JSON
+                    operations_data = json.loads(inventory.operations_json)
+                    operations = [LogicalOperation(**op) for op in operations_data]
+                    
                     # Use inventory service to preview devices
+                    inventory_service = InventoryService()
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                     try:
-                        devices_result = loop.run_until_complete(
-                            preview_inventory(db, inventory.id, username)
+                        devices_list, ops_count = loop.run_until_complete(
+                            inventory_service.preview_inventory(operations)
                         )
-                        device_ids = [d['id'] for d in devices_result.get('devices', [])]
+                        device_ids = [d.id for d in devices_list]
                         logger.info(f"Resolved inventory '{inventory.name}' to {len(device_ids)} devices")
                     finally:
                         loop.close()
@@ -144,7 +189,7 @@ def register_tasks(celery_app):
                     asyncio.set_event_loop(loop)
                     try:
                         devices_result = loop.run_until_complete(
-                            nautobot_service.get_devices_async(username, limit=1000)
+                            nautobot_service.get_devices_async(task_username, limit=1000)
                         )
                         device_ids = [d['id'] for d in devices_result.get('devices', [])]
                     finally:
@@ -180,7 +225,7 @@ def register_tasks(celery_app):
                         asyncio.set_event_loop(loop)
                         try:
                             device_data = loop.run_until_complete(
-                                nautobot_service.get_device(device_id, username)
+                                nautobot_service.get_device(device_id, task_username)
                             )
                         finally:
                             loop.close()
@@ -231,7 +276,7 @@ def register_tasks(celery_app):
                                         device_service.execute_command(
                                             device_info=device_info,
                                             command=command,
-                                            username=username,
+                                            username=task_username,
                                             parser="TEXTFSM"
                                         )
                                     )

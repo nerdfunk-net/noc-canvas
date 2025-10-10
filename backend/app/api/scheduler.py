@@ -14,6 +14,7 @@ from datetime import datetime
 from ..core.database import get_db
 from ..core.security import verify_token
 from ..models.user import User
+from ..models.scheduled_task_owner import ScheduledTaskOwner
 from ..services.background_jobs import celery_app, CELERY_AVAILABLE
 
 logger = logging.getLogger(__name__)
@@ -114,6 +115,7 @@ class PeriodicTaskResponse(BaseModel):
     total_run_count: int
     date_changed: datetime
     expires: Optional[datetime]
+    owner_username: Optional[str] = None  # Owner of the scheduled task
 
 
 # Helper functions
@@ -182,6 +184,11 @@ async def list_periodic_tasks(
 
             result = []
             for task in tasks:
+                # Look up owner from our tracking table
+                owner = db.query(ScheduledTaskOwner).filter(
+                    ScheduledTaskOwner.periodic_task_id == task.id
+                ).first()
+                
                 task_data = {
                     "id": task.id,
                     "name": task.name,
@@ -198,6 +205,7 @@ async def list_periodic_tasks(
                     "total_run_count": task.total_run_count if task.total_run_count is not None else 0,
                     "date_changed": task.date_changed,
                     "expires": task.expires,
+                    "owner_username": owner.owner_username if owner else None,
                 }
 
                 # Determine schedule type and data
@@ -303,6 +311,12 @@ async def create_periodic_task(
                     detail="Schedule type must be 'crontab' or 'interval'"
                 )
 
+            # Prepare kwargs - inject username for credential lookup
+            task_kwargs = task_data.kwargs.copy() if task_data.kwargs else {}
+            # Add username to kwargs so background tasks can look up the correct user's credentials
+            if 'username' not in task_kwargs:
+                task_kwargs['username'] = current_user.username
+            
             # Create periodic task
             periodic_task = PeriodicTask(
                 name=task_data.name,
@@ -312,7 +326,7 @@ async def create_periodic_task(
                 one_off=task_data.one_off,
                 expires=task_data.expires,
                 args=json.dumps(task_data.args) if task_data.args else '[]',
-                kwargs=json.dumps(task_data.kwargs) if task_data.kwargs else '{}',
+                kwargs=json.dumps(task_kwargs),
             )
 
             # Set the schedule
@@ -324,6 +338,21 @@ async def create_periodic_task(
             session.add(periodic_task)
             session.commit()
             session.refresh(periodic_task)
+            
+            # Record task ownership in our tracking table
+            try:
+                task_owner = ScheduledTaskOwner(
+                    periodic_task_id=periodic_task.id,
+                    owner_username=current_user.username,
+                    owner_id=current_user.id
+                )
+                db.add(task_owner)
+                db.commit()
+                logger.info(f"Recorded ownership: task {periodic_task.id} owned by {current_user.username}")
+            except Exception as e:
+                logger.error(f"Failed to record task ownership: {e}")
+                # Don't fail the entire operation, but log the error
+                db.rollback()
 
             # Build response
             response_data = {
@@ -342,6 +371,7 @@ async def create_periodic_task(
                 "total_run_count": periodic_task.total_run_count if periodic_task.total_run_count is not None else 0,
                 "date_changed": periodic_task.date_changed,
                 "expires": periodic_task.expires,
+                "owner_username": current_user.username,  # Include owner in response
             }
 
             logger.info(f"Created periodic task: {periodic_task.name}")
@@ -388,6 +418,11 @@ async def get_periodic_task(
             if not task:
                 raise HTTPException(status_code=404, detail=f"Task with ID {task_id} not found")
 
+            # Look up owner from our tracking table
+            owner = db.query(ScheduledTaskOwner).filter(
+                ScheduledTaskOwner.periodic_task_id == task.id
+            ).first()
+
             task_data = {
                 "id": task.id,
                 "name": task.name,
@@ -404,6 +439,7 @@ async def get_periodic_task(
                 "total_run_count": task.total_run_count if task.total_run_count is not None else 0,
                 "date_changed": task.date_changed,
                 "expires": task.expires,
+                "owner_username": owner.owner_username if owner else None,
             }
 
             if task.crontab:
@@ -619,6 +655,19 @@ async def delete_periodic_task(
             task_name = task.name
             session.delete(task)
             session.commit()
+            
+            # Also delete the ownership record
+            try:
+                owner = db.query(ScheduledTaskOwner).filter(
+                    ScheduledTaskOwner.periodic_task_id == task_id
+                ).first()
+                if owner:
+                    db.delete(owner)
+                    db.commit()
+                    logger.info(f"Deleted ownership record for task {task_id}")
+            except Exception as e:
+                logger.error(f"Failed to delete ownership record: {e}")
+                db.rollback()
 
             logger.info(f"Deleted periodic task: {task_name}")
             return {"message": f"Periodic task '{task_name}' deleted successfully"}
@@ -719,6 +768,7 @@ async def get_available_tasks(
                 "inventory_id": "int (optional) - Use devices from this inventory",
                 "commands": "array of commands (optional) - Specific commands to execute. If not provided, runs all default commands",
                 "notes": "string (optional) - Notes about this baseline (e.g., 'Pre-upgrade baseline')",
+                "username": "string (auto-injected) - Username for credential lookup. Automatically set to the user who created the scheduled task",
             }
         },
         {

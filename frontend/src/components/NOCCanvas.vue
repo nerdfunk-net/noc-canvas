@@ -1327,6 +1327,7 @@ const pendingCanvasId = ref<number | null>(null)
 // Auto-save restore dialog state
 const showAutosaveRestoreDialog = ref(false)
 const autosaveCanvasId = ref<number | null>(null)
+const hasCheckedAutosaveThisSession = ref(false) // Track if we've already asked during this session
 
 // Duplicate Device Modal state
 const showDuplicateDialog = ref(false)
@@ -4111,6 +4112,11 @@ const handleAutosaveDiscard = async () => {
 
 // Function to check for autosave on startup
 const checkForAutosave = async () => {
+  // Only check once per session - don't prompt again when navigating back to Dashboard
+  if (hasCheckedAutosaveThisSession.value) {
+    return
+  }
+
   if (!authStore.user?.username) {
     return
   }
@@ -4126,6 +4132,9 @@ const checkForAutosave = async () => {
       showAutosaveRestoreDialog.value = true
       console.log('💾 Auto-save found:', autoSaveName)
     }
+    
+    // Mark that we've checked for autosave this session
+    hasCheckedAutosaveThisSession.value = true
   } catch (error) {
     console.error('❌ Failed to check for auto-save:', error)
   }

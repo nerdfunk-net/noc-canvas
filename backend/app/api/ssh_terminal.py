@@ -175,9 +175,31 @@ async def ssh_terminal_websocket(
                             "type": "output",
                             "data": output
                         })
+
+                    # Check if SSH channel is closed
+                    session_info = ssh_terminal_service.get_session_info(session_id)
+                    if session_info and not session_info.get("is_active"):
+                        logger.info(f"SSH channel closed for session {session_id}")
+                        # Send disconnected message with reason
+                        await websocket.send_json({
+                            "type": "disconnected",
+                            "reason": "normal",
+                            "message": "SSH session ended"
+                        })
+                        break
+
                     await asyncio.sleep(0.05)  # 50ms polling interval
                 except Exception as e:
                     logger.error(f"Error reading SSH output: {str(e)}")
+                    # Send disconnected message with error
+                    try:
+                        await websocket.send_json({
+                            "type": "disconnected",
+                            "reason": "error",
+                            "message": str(e)
+                        })
+                    except:
+                        pass
                     break
 
         # Start background task for reading output

@@ -213,6 +213,12 @@ class SSHTerminalService:
             return None
 
         try:
+            # Check if channel is closed
+            if session.ssh_channel.closed or session.ssh_channel.eof_received:
+                logger.info(f"SSH channel closed for session {session_id}")
+                session.is_active = False
+                return None
+
             # Check if there's data available
             if session.ssh_channel.recv_ready():
                 data = session.ssh_channel.recv(4096)
@@ -221,6 +227,7 @@ class SSHTerminalService:
             return None
         except Exception as e:
             logger.error(f"Error reading from session {session_id}: {str(e)}")
+            session.is_active = False
             return None
 
     async def resize_terminal(self, session_id: str, width: int, height: int) -> bool:

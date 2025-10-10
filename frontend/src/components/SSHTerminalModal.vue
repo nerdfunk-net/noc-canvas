@@ -254,10 +254,31 @@ const connectWebSocket = () => {
           break
 
         case 'disconnected':
+          const reason = message.reason || 'unknown'
+          const disconnectMessage = message.message || 'Connection closed'
+
           console.log('🔌 SSH Terminal: SSH session disconnected')
+          console.log('   Reason:', reason)
+          console.log('   Message:', disconnectMessage)
+
           connectionStatus.value = 'disconnected'
+
           if (terminal.value) {
-            terminal.value.write('\r\n\x1b[31mConnection closed by remote host.\x1b[0m\r\n')
+            if (reason === 'normal') {
+              // Normal exit (user typed exit)
+              terminal.value.write('\r\n\x1b[32mSession ended.\x1b[0m\r\n')
+              // Auto-close modal after 1 second
+              setTimeout(() => {
+                console.log('✅ SSH Terminal: Auto-closing modal after normal exit')
+                close()
+              }, 1000)
+            } else if (reason === 'error') {
+              // Connection error
+              terminal.value.write(`\r\n\x1b[31mConnection lost: ${disconnectMessage}\x1b[0m\r\n`)
+            } else {
+              // Unknown reason
+              terminal.value.write('\r\n\x1b[31mConnection closed by remote host.\x1b[0m\r\n')
+            }
           }
           break
 

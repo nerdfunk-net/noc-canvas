@@ -56,16 +56,18 @@ import '@xterm/xterm/css/xterm.css'
 
 const route = useRoute()
 
-// Get parameters from URL query
+// Get parameters from URL query (NO TOKEN - security fix)
 const deviceId = ref(route.query.deviceId as string)
 const deviceName = ref(route.query.deviceName as string)
-const token = ref(route.query.token as string)
+// Token will be received via postMessage
+const token = ref<string>('')
 
 const terminalContainer = ref<HTMLElement | null>(null)
 const terminal = ref<Terminal | null>(null)
 const fitAddon = ref<FitAddon | null>(null)
 const ws = ref<WebSocket | null>(null)
 const connectionStatus = ref<'connecting' | 'connected' | 'disconnected'>('connecting')
+const authReceived = ref(false)
 
 const closeWindow = () => {
   if (ws.value) {
@@ -84,17 +86,27 @@ const connectWebSocket = () => {
   console.log('🔌 SSH Terminal: Connecting to WebSocket')
   connectionStatus.value = 'connecting'
 
-  // Construct WebSocket URL - use current window location (works with Vite proxy in dev)
+  // Construct WebSocket URL WITHOUT token (security fix)
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const host = window.location.host // Use current host (e.g., localhost:3000 in dev)
-  const wsUrl = `${protocol}//${host}/api/ws/ssh/${deviceId.value}?token=${encodeURIComponent(token.value)}`
+  const host = window.location.host
+  const wsUrl = `${protocol}//${host}/api/ws/ssh/${deviceId.value}`
 
   console.log('🔗 WebSocket URL:', wsUrl)
   ws.value = new WebSocket(wsUrl)
 
   ws.value.onopen = () => {
     console.log('✅ SSH Terminal: WebSocket connection opened')
-    connectionStatus.value = 'connected'
+    // Send authentication token as first message
+    if (token.value && ws.value) {
+      ws.value.send(JSON.stringify({
+        type: 'auth',
+        token: token.value
+      }))
+      connectionStatus.value = 'connected'
+    } else {
+      console.error('❌ SSH Terminal: No token available for authentication')
+      connectionStatus.value = 'disconnected'
+    }
   }
 
   ws.value.onmessage = (event) => {
@@ -210,11 +222,43 @@ const initializeTerminal = () => {
   connectWebSocket()
 }
 
+// SECURITY: Receive authentication token via postMessage
+const handlePostMessage = (event: MessageEvent) => {
+  // Verify origin for security
+  if (event.origin !== window.location.origin) {
+    console.warn('⚠️ Ignored message from untrusted origin:', event.origin)
+    return
+  }
+
+  // Handle authentication message from parent window
+  if (event.data && event.data.type === 'terminal_auth') {
+    console.log('🔐 SSH Terminal: Received authentication token via postMessage')
+    token.value = event.data.token
+    authReceived.value = true
+
+    // Initialize terminal once we have authentication
+    initializeTerminal()
+  }
+}
+
 onMounted(() => {
-  initializeTerminal()
+  // Listen for authentication token from parent window
+  window.addEventListener('message', handlePostMessage)
+
+  // Signal to parent window that we're ready to receive token
+  if (window.opener) {
+    window.opener.postMessage({
+      type: 'terminal_ready'
+    }, window.location.origin)
+  } else {
+    console.error('❌ SSH Terminal: No parent window found')
+  }
 })
 
 onBeforeUnmount(() => {
+  // Clean up message listener
+  window.removeEventListener('message', handlePostMessage)
+
   if (ws.value) {
     ws.value.close()
   }

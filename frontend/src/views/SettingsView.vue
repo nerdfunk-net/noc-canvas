@@ -4326,8 +4326,8 @@ const saveTemplate = async () => {
     // Upload file if a new one is selected
     let filename = templateForm.filename
     if (selectedFile.value) {
-      // Get token for authentication - try secure storage first, fallback to localStorage
-      const token = secureStorage.getToken() || localStorage.getItem('token')
+      // SECURITY: Get token for authentication from secure storage only
+      const token = secureStorage.getToken()
 
       if (!token) {
         throw new Error('Authentication token not found')
@@ -4410,8 +4410,8 @@ const saveTemplate = async () => {
 
     const method = editingTemplate.value ? 'PUT' : 'POST'
 
-    // Get token to verify it exists
-    const token = secureStorage.getToken() || localStorage.getItem('token')
+    // SECURITY: Get token to verify it exists from secure storage only
+    const token = secureStorage.getToken()
     console.log('📤 Saving template:', {
       isEditing: !!editingTemplate.value,
       editingTemplateId: editingTemplate.value?.id,

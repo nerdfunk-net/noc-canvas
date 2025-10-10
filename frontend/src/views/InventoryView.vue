@@ -336,6 +336,7 @@ import { ref } from 'vue'
 import MainLayout from '@/layouts/MainLayout.vue'
 import { useDevicesStore, type Device } from '@/stores/devices'
 import { useDeviceIcons } from '@/composables/useDeviceIcons'
+import secureStorage from '@/services/secureStorage'
 
 const deviceStore = useDevicesStore()
 const { getDeviceIconUrl } = useDeviceIcons()
@@ -416,7 +417,7 @@ const loadNautobotData = async (device: Device) => {
 
     const response = await fetch(`/api/nautobot/devices/${properties.nautobot_id}/details`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Authorization': `Bearer ${secureStorage.getToken()}`,
         'Content-Type': 'application/json'
       }
     })

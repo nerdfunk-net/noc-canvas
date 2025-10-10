@@ -30,6 +30,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import DOMPurify from 'dompurify'
 
 interface Props {
   code: string
@@ -47,8 +48,6 @@ const copied = ref(false)
 const lines = computed(() => {
   return props.code.split('\n')
 })
-
-const lineCount = computed(() => lines.value.length)
 
 // Simple syntax highlighting for network device configurations
 const highlightLine = (line: string): string => {
@@ -120,7 +119,16 @@ const highlightLine = (line: string): string => {
 }
 
 const highlightedLines = computed(() => {
-  return lines.value.map(line => highlightLine(line))
+  return lines.value.map(line => {
+    const highlighted = highlightLine(line)
+    // Sanitize with DOMPurify to prevent XSS attacks
+    // Allow only specific tags and attributes needed for syntax highlighting
+    return DOMPurify.sanitize(highlighted, {
+      ALLOWED_TAGS: ['span'],
+      ALLOWED_ATTR: ['class'],
+      KEEP_CONTENT: true
+    })
+  })
 })
 
 const copyToClipboard = async () => {

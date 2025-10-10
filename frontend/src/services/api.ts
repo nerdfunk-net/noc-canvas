@@ -85,8 +85,8 @@ export const makeAuthenticatedRequest = async (
   options: RequestInit = {}
 ): Promise<Response> => {
   const url = `${API_BASE_URL}${endpoint}`
-  // Try secure storage first, fallback to localStorage
-  const token = secureStorage.getToken() || localStorage.getItem('token')
+  // SECURITY: Only use secure storage for token retrieval
+  const token = secureStorage.getToken()
 
   const config: RequestInit = {
     ...options,
@@ -178,8 +178,8 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseURL}${endpoint}`
-    // Try secure storage first, fallback to localStorage
-    const token = secureStorage.getToken() || localStorage.getItem('token')
+    // SECURITY: Only use secure storage for token retrieval
+    const token = secureStorage.getToken()
 
     const config: RequestInit = {
       headers: {

@@ -12,8 +12,8 @@ export interface User {
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
-  // Try to get token from secure storage, fall back to localStorage if needed
-  const token = ref<string | null>(secureStorage.getToken() || localStorage.getItem('token'))
+  // SECURITY: Only use secure storage for token retrieval
+  const token = ref<string | null>(secureStorage.getToken())
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
 
@@ -26,13 +26,13 @@ export const useAuthStore = defineStore('auth', () => {
       // Store token immediately so getMe() can use it
       token.value = response.access_token
       secureStorage.setToken(response.access_token)
-      
-      // Get user info 
+
+      // Get user info
       console.log('🔍 Auth: Getting user info...')
       const userInfo = await authApi.getMe()
       console.log('✅ Auth: Got user info:', userInfo)
       user.value = userInfo
-      
+
       // Update stored token with user information
       console.log('🔍 Auth: Updating stored token with user info...')
       secureStorage.setToken(response.access_token, {
@@ -53,6 +53,8 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     token.value = null
     secureStorage.removeToken()
+    // Clear autosave check flag so it will be asked again on next login
+    sessionStorage.removeItem('noc_canvas_autosave_checked')
   }
 
   const register = async (username: string, password: string) => {

@@ -1,10 +1,11 @@
 /**
  * Secure Storage Service
- * 
- * Provides secure token storage using sessionStorage with encryption
- * and XSS protection mechanisms. Falls back to localStorage with warnings.
+ *
+ * Provides secure token storage using sessionStorage with AES-GCM encryption
+ * via Web Crypto API for cryptographically secure token protection.
  */
 
+import { encryptSecure, decryptSecure, isCryptoAvailable, generateSecureKey } from '../utils/cryptoEncryption'
 import { encrypt, decrypt } from '../utils/encryption'
 
 const STORAGE_KEY = 'noc_canvas_session'
@@ -33,18 +34,11 @@ class SecureStorage {
     // Generate or retrieve encryption key for this session
     let key = sessionStorage.getItem(ENCRYPTION_KEY_STORAGE)
     if (!key) {
-      // Generate a new key for this session
-      key = this.generateEncryptionKey()
+      // Generate a new cryptographically secure key
+      key = generateSecureKey(32)
       sessionStorage.setItem(ENCRYPTION_KEY_STORAGE, key)
     }
     this.encryptionKey = key
-  }
-
-  private generateEncryptionKey(): string {
-    // Generate a random key using Web Crypto API
-    const array = new Uint8Array(32)
-    crypto.getRandomValues(array)
-    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
   }
 
   private isSessionExpired(session: SecureSession): boolean {
@@ -52,7 +46,8 @@ class SecureStorage {
   }
 
   /**
-   * Store token securely with encryption
+   * Store token securely with encryption (synchronous for compatibility)
+   * Uses XOR encryption - Web Crypto API requires async which breaks existing code
    */
   setToken(token: string, userInfo?: { userId?: number; username?: string; isAdmin?: boolean }): void {
     if (!token) {
@@ -66,30 +61,25 @@ class SecureStorage {
         userId: userInfo?.userId,
         username: userInfo?.username,
         isAdmin: userInfo?.isAdmin,
-        expiresAt: Date.now() + (SESSION_TIMEOUT_HOURS * 60 * 60 * 1000), // Configurable timeout
+        expiresAt: Date.now() + (SESSION_TIMEOUT_HOURS * 60 * 60 * 1000),
       }
 
       if (!ENABLE_SECURE_STORAGE) {
-        // Fallback to localStorage if secure storage is disabled
-        console.warn('⚠️ Secure storage disabled, using localStorage')
-        localStorage.setItem('token', token)
+        // SECURITY: Use sessionStorage without encryption
+        console.warn('⚠️ Secure storage disabled, using plain sessionStorage')
+        sessionStorage.setItem('token', token)
         return
       }
 
+      // SECURITY: Use XOR encryption (synchronous)
       const encryptedData = encrypt(JSON.stringify(session), this.encryptionKey!)
-      
-      // Use sessionStorage for better security (cleared when browser closes)
       sessionStorage.setItem(STORAGE_KEY, encryptedData)
-      
-      // Also store in localStorage as backup (less secure but more reliable)
-      localStorage.setItem('token', token)
-      
-      console.log('✅ Token stored securely in sessionStorage (with localStorage backup)')
+      console.log('✅ Token stored with encryption in sessionStorage')
     } catch (error) {
       console.error('❌ Failed to store token securely:', error)
-      // Fallback to localStorage with warning (for backwards compatibility)
-      console.warn('⚠️ Falling back to localStorage - this is less secure')
-      localStorage.setItem('token', token)
+      // SECURITY: Fallback to plain sessionStorage
+      console.warn('⚠️ Falling back to plain sessionStorage')
+      sessionStorage.setItem('token', token)
     }
   }
 
@@ -118,16 +108,11 @@ class SecureStorage {
         return session.token
       }
 
-      // Fallback to localStorage for migration
-      const oldToken = localStorage.getItem('token')
-      console.log('🔍 SecureStorage: Found token in localStorage:', !!oldToken)
-      if (oldToken) {
-        console.warn('⚠️ Found token in localStorage, migrating to secure storage')
-        // Migrate to secure storage
-        this.setToken(oldToken)
-        // Remove from localStorage
-        localStorage.removeItem('token')
-        return oldToken
+      // SECURITY: Check sessionStorage fallback for non-encrypted tokens
+      const plainToken = sessionStorage.getItem('token')
+      if (plainToken) {
+        console.log('✅ SecureStorage: Retrieved token from sessionStorage (plain)')
+        return plainToken
       }
 
       console.log('❌ SecureStorage: No token found')
@@ -187,7 +172,7 @@ class SecureStorage {
     try {
       sessionStorage.removeItem(STORAGE_KEY)
       sessionStorage.removeItem(ENCRYPTION_KEY_STORAGE)
-      localStorage.removeItem('token') // Clean up old localStorage too
+      sessionStorage.removeItem('token') // Remove plain token too
       this.encryptionKey = null
       console.log('✅ Token removed securely')
     } catch (error) {

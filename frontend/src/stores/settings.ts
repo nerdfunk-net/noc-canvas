@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 import { makeAuthenticatedRequest } from '@/services/api'
+import secureStorage from '@/services/secureStorage'
 
 export interface NautobotSettings {
   url: string
@@ -106,7 +107,7 @@ export const useSettingsStore = defineStore('settings', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+          Authorization: `Bearer ${secureStorage.getToken() || ''}`,
         },
         body: JSON.stringify(settings),
       })

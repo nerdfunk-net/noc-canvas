@@ -209,22 +209,28 @@ const connectWebSocket = () => {
   connectionStatus.value = 'connecting'
   error.value = null
 
-  // Determine WebSocket protocol (ws or wss based on current protocol)
+  // SECURITY: Construct WebSocket URL WITHOUT token in query params
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = `${protocol}//${window.location.host}/api/ws/ssh/${props.deviceId}?token=${token}`
+  const wsUrl = `${protocol}//${window.location.host}/api/ws/ssh/${props.deviceId}`
 
   console.log('🔌 SSH Terminal: Connecting to WebSocket')
   console.log('   Device ID:', props.deviceId)
   console.log('   Device Name:', props.deviceName)
   console.log('   Protocol:', protocol)
   console.log('   Host:', window.location.host)
-  console.log('   Full URL:', wsUrl.replace(token, token.substring(0, 20) + '...'))
 
   websocket.value = new WebSocket(wsUrl)
 
   websocket.value.onopen = () => {
     console.log('✅ SSH Terminal: WebSocket connection opened')
-    connectionStatus.value = 'connected'
+    // SECURITY: Send authentication as first message instead of URL param
+    if (websocket.value && token) {
+      websocket.value.send(JSON.stringify({
+        type: 'auth',
+        token: token
+      }))
+      connectionStatus.value = 'connected'
+    }
   }
 
   websocket.value.onmessage = (event) => {

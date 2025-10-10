@@ -42,9 +42,9 @@ export function openTerminalWindow(options: TerminalWindowOptions): Window | nul
     height = 700,
   } = options
 
-  // Get authentication token from secure storage (falls back to localStorage)
-  const token = secureStorage.getToken() || localStorage.getItem('token')
-  
+  // Get authentication token from secure storage
+  const token = secureStorage.getToken()
+
   if (!token) {
     console.error('❌ Terminal Window: No authentication token found')
     return null
@@ -54,12 +54,11 @@ export function openTerminalWindow(options: TerminalWindowOptions): Window | nul
   const left = (window.screen.width - width) / 2
   const top = (window.screen.height - height) / 2
 
-  // Build URL with query parameters
+  // Build URL WITHOUT token (security fix)
   const baseUrl = window.location.origin
   const params = new URLSearchParams({
     deviceId,
     deviceName,
-    token,
   })
   const url = `${baseUrl}/terminal?${params.toString()}`
 
@@ -85,11 +84,32 @@ export function openTerminalWindow(options: TerminalWindowOptions): Window | nul
     return null
   }
 
-  // Set window title
-  terminalWindow.document.title = `SSH Terminal - ${deviceName}`
+  // SECURITY: Send token via postMessage instead of URL
+  // Wait for child window to load before sending message
+  const messageListener = (event: MessageEvent) => {
+    // Verify origin for security
+    if (event.origin !== window.location.origin) {
+      return
+    }
+
+    // Child window signals it's ready to receive token
+    if (event.data && event.data.type === 'terminal_ready') {
+      terminalWindow.postMessage({
+        type: 'terminal_auth',
+        token: token,
+        deviceId: deviceId,
+        deviceName: deviceName
+      }, window.location.origin)
+
+      // Clean up listener after sending token
+      window.removeEventListener('message', messageListener)
+    }
+  }
+
+  window.addEventListener('message', messageListener)
 
   console.log(`✅ Terminal Window: Opened for device ${deviceName}`)
-  
+
   return terminalWindow
 }
 

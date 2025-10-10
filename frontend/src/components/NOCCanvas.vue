@@ -812,6 +812,7 @@ import { useCanvasStore } from '@/stores/canvas'
 import { useShapesStore } from '@/stores/shapes'
 import { useAuthStore } from '@/stores/auth'
 import { type NautobotDevice, canvasApi, nautobotApi, makeAuthenticatedRequest } from '@/services/api'
+import secureStorage from '@/services/secureStorage'
 import { useDeviceIcons } from '@/composables/useDeviceIcons'
 import { templateService } from '@/services/templateService'
 import { useCanvasControls } from '@/composables/useCanvasControls'
@@ -2238,7 +2239,7 @@ const showCommandExecution = async (device: Device, command: any) => {
     const response = await fetch(`/api/devices/${nautobotId}/send/${command.id}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Authorization': `Bearer ${secureStorage.getToken()}`,
         'Content-Type': 'application/json',
       },
     })
@@ -4138,7 +4139,9 @@ const handleAutosaveDiscard = async () => {
 // Function to check for autosave on startup
 const checkForAutosave = async () => {
   // Only check once per session - don't prompt again when navigating back to Dashboard
-  if (hasCheckedAutosaveThisSession.value) {
+  // Use sessionStorage to persist across component remounts
+  const sessionKey = 'noc_canvas_autosave_checked'
+  if (hasCheckedAutosaveThisSession.value || sessionStorage.getItem(sessionKey)) {
     return
   }
 
@@ -4157,9 +4160,10 @@ const checkForAutosave = async () => {
       showAutosaveRestoreDialog.value = true
       console.log('💾 Auto-save found:', autoSaveName)
     }
-    
+
     // Mark that we've checked for autosave this session
     hasCheckedAutosaveThisSession.value = true
+    sessionStorage.setItem(sessionKey, 'true')
   } catch (error) {
     console.error('❌ Failed to check for auto-save:', error)
   }

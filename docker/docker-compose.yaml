@@ -92,6 +92,7 @@ services:
       context: ../
       dockerfile: docker/Dockerfile.worker
     container_name: noc-worker
+    command: ["python", "start_worker.py"]
     environment:
       # Database settings
       NOC_DATABASE: postgres
@@ -116,12 +117,67 @@ services:
     volumes:
       - app_data:/app/data
     depends_on:
-      - redis
-      - postgres
-      - noc-backend
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      noc-backend:
+        condition: service_healthy
     networks:
       - noc-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'from celery.app.control import Inspect; i = Inspect(); print(i.active())' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  noc-beat:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.worker
+    container_name: noc-beat
+    command: ["python", "start_beat.py"]
+    environment:
+      # Database settings
+      NOC_DATABASE: postgres
+      NOC_USERNAME: ${NOC_USERNAME:-postgres}
+      NOC_PASSWORD: ${NOC_PASSWORD:-postgres}
+      NOC_DATABASE_PORT: 5432
+      NOC_DATABASE_NAME: ${NOC_DATABASE_NAME:-noc}
+      NOC_DATABASE_SSL: "false"
+
+      # Redis settings
+      NOC_REDIS_HOST: redis
+      NOC_REDIS_PORT: 6379
+      NOC_REDIS_PASSWORD: ${NOC_REDIS_PASSWORD:-changeme}
+      NOC_REDIS_SSL: "false"
+
+      # App settings
+      SECRET_KEY: ${SECRET_KEY:-your-production-secret-key-change-this}
+      ALGORITHM: ${ALGORITHM:-HS256}
+
+      # Internal API URL (for beat to call backend)
+      INTERNAL_API_URL: http://noc-backend:8000
+    volumes:
+      - app_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      noc-backend:
+        condition: service_healthy
+    networks:
+      - noc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep 'celery.*beat' | grep -v grep || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   noc-frontend:
     build:

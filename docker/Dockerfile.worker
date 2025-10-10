@@ -43,5 +43,6 @@ RUN chmod +x /app/entrypoint.sh
 # Set entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]
 
-# Default command - start celery worker
-CMD ["python", "-m", "celery", "-A", "app.services.background_jobs", "worker", "--loglevel=info", "--concurrency=2"]
+# Default command - can be overridden by docker-compose
+# Default to worker if no command specified
+CMD ["python", "start_worker.py"]

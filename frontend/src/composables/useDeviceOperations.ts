@@ -96,13 +96,19 @@ export function useDeviceOperations() {
 
     try {
       for (const target of selectedTargets) {
+        // SECURITY: Use crypto.getRandomValues() for unpredictable positioning
+        const getRandomPosition = (range: number, offset: number): number => {
+          const randomValue = crypto.getRandomValues(new Uint32Array(1))[0]
+          return (randomValue / 0xFFFFFFFF) * range + offset
+        }
+
         // Create device data
         const deviceData = {
           name: target.hostname,
           device_type: target.type as Device['device_type'],
           ip_address: target.ip,
-          position_x: Math.random() * 400 + 100, // Random position
-          position_y: Math.random() * 300 + 100,
+          position_x: getRandomPosition(400, 100),
+          position_y: getRandomPosition(300, 100),
           properties: JSON.stringify(target.credentials),
         }
 

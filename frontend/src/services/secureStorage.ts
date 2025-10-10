@@ -7,6 +7,7 @@
 
 import { encryptSecure, decryptSecure, isCryptoAvailable, generateSecureKey } from '../utils/cryptoEncryption'
 import { encrypt, decrypt } from '../utils/encryption'
+import { logger } from '../utils/logger'
 
 const STORAGE_KEY = 'noc_canvas_session'
 const ENCRYPTION_KEY_STORAGE = 'noc_canvas_key'
@@ -66,7 +67,7 @@ class SecureStorage {
 
       if (!ENABLE_SECURE_STORAGE) {
         // SECURITY: Use sessionStorage without encryption
-        console.warn('⚠️ Secure storage disabled, using plain sessionStorage')
+        logger.warn('⚠️ Secure storage disabled, using plain sessionStorage')
         sessionStorage.setItem('token', token)
         return
       }
@@ -74,11 +75,11 @@ class SecureStorage {
       // SECURITY: Use XOR encryption (synchronous)
       const encryptedData = encrypt(JSON.stringify(session), this.encryptionKey!)
       sessionStorage.setItem(STORAGE_KEY, encryptedData)
-      console.log('✅ Token stored with encryption in sessionStorage')
+      logger.debug('✅ Token stored with encryption in sessionStorage')
     } catch (error) {
-      console.error('❌ Failed to store token securely:', error)
+      logger.error('❌ Failed to store token securely:', error)
       // SECURITY: Fallback to plain sessionStorage
-      console.warn('⚠️ Falling back to plain sessionStorage')
+      logger.warn('⚠️ Falling back to plain sessionStorage')
       sessionStorage.setItem('token', token)
     }
   }
@@ -87,38 +88,38 @@ class SecureStorage {
    * Retrieve token securely with decryption
    */
   getToken(): string | null {
-    console.log('🔍 SecureStorage: Getting token...')
+    logger.debug('🔍 SecureStorage: Getting token...')
     try {
       // Try sessionStorage first
       const encryptedData = sessionStorage.getItem(STORAGE_KEY)
-      console.log('🔍 SecureStorage: Encrypted data from sessionStorage:', !!encryptedData)
-      console.log('🔍 SecureStorage: Has encryption key:', !!this.encryptionKey)
-      
+      logger.debug('🔍 SecureStorage: Encrypted data from sessionStorage:', !!encryptedData)
+      logger.debug('🔍 SecureStorage: Has encryption key:', !!this.encryptionKey)
+
       if (encryptedData && this.encryptionKey) {
         const decryptedData = decrypt(encryptedData, this.encryptionKey)
         const session: SecureSession = JSON.parse(decryptedData)
 
         if (this.isSessionExpired(session)) {
-          console.warn('⚠️ Session expired, removing token')
+          logger.warn('⚠️ Session expired, removing token')
           this.removeToken()
           return null
         }
 
-        console.log('✅ SecureStorage: Retrieved token from sessionStorage')
+        logger.debug('✅ SecureStorage: Retrieved token from sessionStorage')
         return session.token
       }
 
       // SECURITY: Check sessionStorage fallback for non-encrypted tokens
       const plainToken = sessionStorage.getItem('token')
       if (plainToken) {
-        console.log('✅ SecureStorage: Retrieved token from sessionStorage (plain)')
+        logger.debug('✅ SecureStorage: Retrieved token from sessionStorage (plain)')
         return plainToken
       }
 
-      console.log('❌ SecureStorage: No token found')
+      logger.debug('❌ SecureStorage: No token found')
       return null
     } catch (error) {
-      console.error('❌ Failed to retrieve token securely:', error)
+      logger.error('❌ Failed to retrieve token securely:', error)
       // Clear corrupted data
       this.removeToken()
       return null
@@ -144,7 +145,7 @@ class SecureStorage {
       }
       return null
     } catch (error) {
-      console.error('❌ Failed to retrieve session:', error)
+      logger.error('❌ Failed to retrieve session:', error)
       this.removeToken()
       return null
     }
@@ -174,9 +175,9 @@ class SecureStorage {
       sessionStorage.removeItem(ENCRYPTION_KEY_STORAGE)
       sessionStorage.removeItem('token') // Remove plain token too
       this.encryptionKey = null
-      console.log('✅ Token removed securely')
+      logger.debug('✅ Token removed securely')
     } catch (error) {
-      console.error('❌ Failed to remove token:', error)
+      logger.error('❌ Failed to remove token:', error)
     }
   }
 
@@ -199,7 +200,7 @@ class SecureStorage {
     const expiresIn = session.expiresAt - Date.now()
 
     if (expiresIn < fiveMinutes && expiresIn > 0) {
-      console.log('🔄 Session expiring soon, extending...')
+      logger.debug('🔄 Session expiring soon, extending...')
       // Extend session by configured timeout
       this.updateSession({ expiresAt: Date.now() + (SESSION_TIMEOUT_HOURS * 60 * 60 * 1000) })
     }

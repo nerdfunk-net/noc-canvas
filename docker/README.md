@@ -7,7 +7,7 @@ This directory contains all the necessary Docker configuration files for deployi
 ### Core Docker Files
 - `docker-compose.yaml` - Main Docker Compose configuration for development/testing
 - `Dockerfile.backend` - Backend application container
-- `Dockerfile.worker` - Celery worker container  
+- `Dockerfile.worker` - Celery worker and beat container (shared)
 - `Dockerfile.frontend` - Frontend application container
 - `nginx.conf` - Nginx web server configuration
 - `default.conf` - Nginx site configuration
@@ -293,9 +293,187 @@ For production environments:
 6. Implement proper network segmentation
 7. Set up centralized log collection
 
+## Services Architecture
+
+The Docker Compose deployment includes 6 services:
+
+### 1. PostgreSQL (`noc-postgres`)
+- **Purpose**: Primary database for persistent storage
+- **Port**: 5432 (configurable via `NOC_DATABASE_PORT`)
+- **Volume**: `postgres_data` for data persistence
+- **Health Check**: `pg_isready` command
+
+### 2. Redis (`noc-redis`)
+- **Purpose**: Message broker for Celery and caching
+- **Port**: 6379 (configurable via `NOC_REDIS_PORT`)
+- **Volume**: `redis_data` for persistence
+- **Health Check**: `redis-cli ping`
+- **Authentication**: Password-protected (set via `NOC_REDIS_PASSWORD`)
+
+### 3. Backend (`noc-backend`)
+- **Purpose**: FastAPI REST API server
+- **Port**: 8000
+- **Volume**: `app_data` shared with workers
+- **Health Check**: HTTP GET to `/health`
+- **Dependencies**: PostgreSQL (healthy), Redis (healthy)
+
+### 4. Celery Worker (`noc-worker`)
+- **Purpose**: Executes background tasks
+  - Device discovery (CDP, LLDP, ARP)
+  - SSH command execution
+  - Data collection and processing
+  - Topology building
+  - Baseline comparisons
+- **Command**: `python start_worker.py`
+- **Volume**: Shared `app_data` with backend
+- **Health Check**: Celery inspect active workers
+- **Dependencies**: PostgreSQL, Redis, Backend (all healthy)
+- **Scaling**: Can run multiple instances (`docker-compose up -d --scale noc-worker=3`)
+
+### 5. Celery Beat (`noc-beat`)
+- **Purpose**: Schedules periodic tasks
+  - Auto-refresh cache
+  - Cleanup expired data
+  - Baseline checks
+  - Scheduled discoveries
+- **Command**: `python start_beat.py`
+- **Volume**: Shared `app_data` with backend
+- **Health Check**: Process check for celery beat
+- **Dependencies**: PostgreSQL, Redis, Backend (all healthy)
+- **⚠️ IMPORTANT**: Only ONE beat instance should run (do NOT scale)
+
+### 6. Frontend (`noc-frontend`)
+- **Purpose**: Vue.js SPA served via Nginx
+- **Port**: 3000
+- **Dependencies**: Backend (for API calls)
+
+## Celery Management
+
+### Monitor Worker Tasks
+
+```bash
+# Check active tasks
+docker exec noc-worker celery -A app.services.background_jobs inspect active
+
+# Check registered tasks
+docker exec noc-worker celery -A app.services.background_jobs inspect registered
+
+# Worker statistics
+docker exec noc-worker celery -A app.services.background_jobs inspect stats
+
+# Check worker queues
+docker exec noc-worker celery -A app.services.background_jobs inspect active_queues
+```
+
+### Monitor Beat Schedule
+
+```bash
+# View scheduled tasks from database
+docker exec noc-postgres psql -U postgres -d noc -c \
+  "SELECT name, task, enabled, crontab_id FROM celery_periodic_task;"
+
+# Check beat logs
+docker-compose logs -f noc-beat
+
+# Verify beat is running
+docker exec noc-beat ps aux | grep celery
+```
+
+### Scaling Workers
+
+```bash
+# Scale to 3 worker instances
+docker-compose up -d --scale noc-worker=3
+
+# Verify all workers are registered
+docker exec noc-worker celery -A app.services.background_jobs inspect ping
+```
+
+### Restart Workers/Beat
+
+```bash
+# Restart worker (graceful shutdown)
+docker-compose restart noc-worker
+
+# Restart beat (only one instance)
+docker-compose restart noc-beat
+
+# Force restart (immediate)
+docker-compose stop noc-worker noc-beat
+docker-compose start noc-worker noc-beat
+```
+
+## Troubleshooting Celery
+
+### Worker Not Processing Tasks
+
+1. **Check worker is running:**
+   ```bash
+   docker-compose ps noc-worker
+   docker-compose logs noc-worker
+   ```
+
+2. **Verify Redis connection:**
+   ```bash
+   docker exec noc-worker python -c \
+     "from app.core.celery_app import celery_app; print(celery_app.connection().connect())"
+   ```
+
+3. **Check registered tasks:**
+   ```bash
+   docker exec noc-worker celery -A app.services.background_jobs inspect registered
+   ```
+
+4. **Monitor task execution:**
+   ```bash
+   docker exec noc-worker celery -A app.services.background_jobs events
+   ```
+
+### Beat Not Scheduling Tasks
+
+1. **Ensure only ONE beat instance:**
+   ```bash
+   docker-compose ps noc-beat
+   # Should show exactly 1 running instance
+   ```
+
+2. **Check beat logs for errors:**
+   ```bash
+   docker-compose logs -f noc-beat | grep -i error
+   ```
+
+3. **Verify scheduler table exists:**
+   ```bash
+   docker exec noc-postgres psql -U postgres -d noc -c "\dt celery*"
+   ```
+
+4. **Check beat process:**
+   ```bash
+   docker exec noc-beat ps aux | grep celery.*beat
+   ```
+
+### Tasks Failing
+
+1. **Check worker logs:**
+   ```bash
+   docker-compose logs --tail=100 noc-worker | grep -i error
+   ```
+
+2. **Check task results in database:**
+   ```bash
+   docker exec noc-postgres psql -U postgres -d noc -c \
+     "SELECT task_id, status, result FROM celery_taskmeta ORDER BY date_done DESC LIMIT 10;"
+   ```
+
+3. **Verify environment variables:**
+   ```bash
+   docker exec noc-worker env | grep NOC_
+   ```
+
 ## Support
 
 - Check logs first: `docker-compose logs -f`
 - Verify service health: `docker-compose ps`
 - Test connectivity: `curl http://localhost:8000/health`
+- Check Celery workers: `docker exec noc-worker celery -A app.services.background_jobs inspect ping`
 - For application-specific issues, check the main project documentation

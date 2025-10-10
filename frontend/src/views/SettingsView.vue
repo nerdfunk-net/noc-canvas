@@ -2043,7 +2043,7 @@
                         <td class="px-4 py-3 text-sm text-gray-900">{{ getDeviceName(blob.device_id) }}</td>
                         <td class="px-4 py-3 text-sm font-mono text-gray-600">{{ blob.command }}</td>
                         <td class="px-4 py-3 text-sm text-gray-500">{{ new Date(blob.updated_at).toLocaleString() }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-500">{{ blob.json_data ? JSON.parse(blob.json_data).length : 0 }} items</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ blob.json_data ? safeJSONParseArray(blob.json_data).length : 0 }} items</td>
                       </tr>
                     </tbody>
                   </table>
@@ -3131,6 +3131,7 @@ import { canvasApi, type CanvasListItem, makeAuthenticatedRequest } from '@/serv
 import { useDevicesStore } from '@/stores/devices'
 import secureStorage from '@/services/secureStorage'
 import { useCommands } from '@/composables/useCommands'
+import { safeJSONParse, safeJSONParseArray, safeJSONParseObject } from '@/utils/jsonUtils'
 import inventoryService, { type LogicalOperation, type LogicalCondition } from '@/services/inventoryService'
 
 const notificationStore = useNotificationStore()
@@ -3742,16 +3743,12 @@ onMounted(() => {
   // Load cache settings from localStorage
   const savedCacheSettings = localStorage.getItem('cacheSettings')
   if (savedCacheSettings) {
-    try {
-      const parsed = JSON.parse(savedCacheSettings)
-      settings.cache.defaultTtlMinutes = parsed.defaultTtlMinutes ?? 60
-      settings.cache.autoRefreshEnabled = parsed.autoRefreshEnabled ?? false
-      settings.cache.autoRefreshIntervalMinutes = parsed.autoRefreshIntervalMinutes ?? 30
-      settings.cache.cleanExpiredOnStartup = parsed.cleanExpiredOnStartup ?? true
-      settings.cache.jsonBlobTtlMinutes = parsed.jsonBlobTtlMinutes ?? 30
-    } catch (error) {
-      console.error('Failed to load cache settings:', error)
-    }
+    const parsed = safeJSONParseObject(savedCacheSettings, {})
+    settings.cache.defaultTtlMinutes = parsed.defaultTtlMinutes ?? 60
+    settings.cache.autoRefreshEnabled = parsed.autoRefreshEnabled ?? false
+    settings.cache.autoRefreshIntervalMinutes = parsed.autoRefreshIntervalMinutes ?? 30
+    settings.cache.cleanExpiredOnStartup = parsed.cleanExpiredOnStartup ?? true
+    settings.cache.jsonBlobTtlMinutes = parsed.jsonBlobTtlMinutes ?? 30
   }
 })
 
@@ -5322,7 +5319,7 @@ const loadSettings = async () => {
       // Fallback to localStorage
       const saved = localStorage.getItem('noc-canvas-settings')
       if (saved) {
-        const savedData = JSON.parse(saved)
+        const savedData = safeJSONParseObject(saved, {})
         if (savedData.canvas) {
           Object.assign(settings.canvas, savedData.canvas)
         }
@@ -5348,7 +5345,7 @@ const loadSettings = async () => {
     // Fallback to localStorage
     const saved = localStorage.getItem('noc-canvas-settings')
     if (saved) {
-      const savedData = JSON.parse(saved)
+      const savedData = safeJSONParseObject(saved, {})
       if (savedData.canvas) {
         Object.assign(settings.canvas, savedData.canvas)
       }

@@ -14,7 +14,9 @@ export const useNotificationStore = defineStore('notification', () => {
   const notifications = ref<Notification[]>([])
 
   const addNotification = (notification: Omit<Notification, 'id' | 'timestamp'>) => {
-    const id = Math.random().toString(36).substr(2, 9)
+    // SECURITY: Use crypto.getRandomValues() for cryptographically secure ID generation
+    const id = crypto.getRandomValues(new Uint32Array(2))
+      .reduce((acc, val) => acc + val.toString(36), '')
     const newNotification: Notification = {
       ...notification,
       id,

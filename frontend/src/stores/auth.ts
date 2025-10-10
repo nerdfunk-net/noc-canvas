@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authApi } from '@/services/api'
 import secureStorage from '@/services/secureStorage'
+import { logger } from '@/utils/logger'
 
 export interface User {
   id: number
@@ -19,32 +20,32 @@ export const useAuthStore = defineStore('auth', () => {
 
   const login = async (username: string, password: string) => {
     try {
-      console.log('🔍 Auth: Starting login process...')
+      logger.debug('🔍 Auth: Starting login process...')
       const response = await authApi.login(username, password)
-      console.log('✅ Auth: Login API success, got token:', !!response.access_token)
-      
+      logger.debug('✅ Auth: Login API success, got token:', !!response.access_token)
+
       // Store token immediately so getMe() can use it
       token.value = response.access_token
       secureStorage.setToken(response.access_token)
 
       // Get user info
-      console.log('🔍 Auth: Getting user info...')
+      logger.debug('🔍 Auth: Getting user info...')
       const userInfo = await authApi.getMe()
-      console.log('✅ Auth: Got user info:', userInfo)
+      logger.debug('✅ Auth: Got user info:', userInfo)
       user.value = userInfo
 
       // Update stored token with user information
-      console.log('🔍 Auth: Updating stored token with user info...')
+      logger.debug('🔍 Auth: Updating stored token with user info...')
       secureStorage.setToken(response.access_token, {
         userId: userInfo.id,
         username: userInfo.username,
         isAdmin: userInfo.is_admin,
       })
-      console.log('✅ Auth: Login complete!')
+      logger.debug('✅ Auth: Login complete!')
 
       return true
     } catch (error) {
-      console.error('❌ Auth: Login failed:', error)
+      logger.error('❌ Auth: Login failed:', error)
       throw error
     }
   }

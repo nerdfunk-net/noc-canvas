@@ -190,6 +190,13 @@ class CommandParser(enum.Enum):
     SCRAPLI = "Scrapli"
 
 
+class CommandType(enum.Enum):
+    """Command types."""
+
+    SNAPSHOT = "snapshot"
+    GENERAL = "general"
+
+
 class DeviceCommand(Base):
     """Device commands stored in database."""
 
@@ -201,6 +208,7 @@ class DeviceCommand(Base):
     template = Column(Text, nullable=True)
     platform = Column(Enum(CommandPlatform), nullable=False)
     parser = Column(Enum(CommandParser), nullable=False, default=CommandParser.TEXTFSM)
+    type = Column(Enum(CommandType), nullable=False, default=CommandType.GENERAL)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -218,6 +226,7 @@ class DeviceCommandCreate(BaseModel):
     template: Optional[str] = None
     platform: CommandPlatform
     parser: CommandParser = CommandParser.TEXTFSM
+    type: CommandType = CommandType.GENERAL
 
 
 class DeviceCommandUpdate(BaseModel):
@@ -228,6 +237,7 @@ class DeviceCommandUpdate(BaseModel):
     template: Optional[str] = None
     platform: Optional[CommandPlatform] = None
     parser: Optional[CommandParser] = None
+    type: Optional[CommandType] = None
 
 
 class DeviceCommandResponse(BaseModel):
@@ -239,6 +249,7 @@ class DeviceCommandResponse(BaseModel):
     template: Optional[str] = None
     platform: str
     parser: str
+    type: str
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -259,6 +270,10 @@ class DeviceCommandResponse(BaseModel):
 
     @field_serializer("parser")
     def serialize_parser(self, value) -> str:
+        return value.value if hasattr(value, "value") else str(value)
+
+    @field_serializer("type")
+    def serialize_type(self, value) -> str:
         return value.value if hasattr(value, "value") else str(value)
 
 

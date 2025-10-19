@@ -721,6 +721,15 @@ cd<template>
       @cancel="showDeleteConfirmDialog = false"
     />
 
+    <!-- Baseline Exists Modal -->
+    <BaselineExistsModal
+      :show="showBaselineExistsModal"
+      :device-name="baselineModalData.device?.name || ''"
+      :baseline-data="baselineModalData.baselineData || {}"
+      @close="showBaselineExistsModal = false"
+      @overwrite="handleBaselineOverwrite"
+    />
+
     <!-- Neighbor Discovery Result Modal -->
     <NeighborDiscoveryResultModal
       :show="showNeighborDiscoveryModal"
@@ -836,6 +845,7 @@ import TopologyDiscoveryModal from './TopologyDiscoveryModal.vue'
 import DeviceInterfacesModal from './DeviceInterfacesModal.vue'
 import SSHTerminalModal from './SSHTerminalModal.vue'
 import DeviceOverviewModal from './DeviceOverviewModal.vue'
+import BaselineExistsModal from './BaselineExistsModal.vue'
 import type { TopologyGraph } from '@/services/api'
 import { openTerminalWindow, canOpenPopup } from '@/utils/terminalWindow'
 
@@ -1283,6 +1293,16 @@ const {
 // Neighbor Discovery Modal state
 const showNeighborDiscoveryModal = ref(false)
 const neighborDiscoveryResult = ref<NeighborDiscoveryResult | null>(null)
+
+// Baseline modal state
+const showBaselineExistsModal = ref(false)
+const baselineModalData = ref<{
+  device: Device | null
+  baselineData: any
+}>({
+  device: null,
+  baselineData: null
+})
 
 const handleNeighborDiscovery = async (device: Device, discoveryFn: (device: Device) => Promise<NeighborDiscoveryResult | null>) => {
   hideContextMenu()
@@ -1847,7 +1867,20 @@ const contextMenuItems = computed(() => {
         },
       ],
     },
-    { icon: '🔍', label: 'Analyze', action: () => { hideContextMenu(); analyzeDevice(contextMenu.target!) } },
+    {
+      icon: '🔍',
+      label: 'Analyze',
+      submenu: [
+        {
+          icon: '📊',
+          label: 'Baseline',
+          submenu: [
+            { icon: '➕', label: 'Create', action: () => { hideContextMenu(); createBaseline(contextMenu.target!) } },
+            { icon: '🔄', label: 'Compare', action: () => { hideContextMenu(); compareBaseline(contextMenu.target!) } },
+          ],
+        },
+      ],
+    },
     {
       icon: '✏️',
       label: 'Edit',
@@ -2457,6 +2490,167 @@ const connectTwoDevices = () => {
 }
 
 const analyzeDevice = (device: Device) => {
+}
+
+// Baseline management functions
+const createBaseline = async (device: Device) => {
+  try {
+    console.log('Creating baseline for device:', device.name, device.id)
+
+    // Check if baseline already exists
+    const token = secureStorage.getToken()
+    if (!token) {
+      alert('Not authenticated')
+      return
+    }
+
+    // Get Nautobot UUID from device properties
+    const deviceProps = device.properties ? JSON.parse(device.properties) : {}
+    const nautobotId = deviceProps.nautobot_id
+
+    if (!nautobotId) {
+      alert(`Device ${device.name} does not have a Nautobot ID. Cannot create baseline.`)
+      return
+    }
+
+    // Check for existing baseline using Nautobot UUID
+    const checkResponse = await fetch(`/api/snapshots/check?device_id=${nautobotId}&type=baseline`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+
+    if (!checkResponse.ok) {
+      throw new Error(`Failed to check for existing baseline: ${checkResponse.status} ${checkResponse.statusText}`)
+    }
+
+    const checkData = await checkResponse.json()
+
+    if (checkData.exists) {
+      // Baseline exists - show modal
+      baselineModalData.value = {
+        device: device,
+        baselineData: checkData
+      }
+      showBaselineExistsModal.value = true
+    } else {
+      // No baseline exists - create new
+      await scheduleBaselineCreation(device, 'Initial baseline')
+    }
+
+  } catch (error) {
+    console.error('Error creating baseline:', error)
+    alert(`Failed to create baseline: ${error}`)
+  }
+}
+
+const handleBaselineOverwrite = async () => {
+  if (baselineModalData.value.device) {
+    await scheduleBaselineCreation(baselineModalData.value.device, 'Baseline update - overwrite')
+  }
+}
+
+const scheduleBaselineCreation = async (device: Device, notes: string) => {
+  try {
+    const token = secureStorage.getToken()
+    if (!token) return
+
+    // Get Nautobot UUID from device properties
+    const deviceProps = device.properties ? JSON.parse(device.properties) : {}
+    const nautobotId = deviceProps.nautobot_id
+
+    if (!nautobotId) {
+      alert(`Device ${device.name} does not have a Nautobot ID. Cannot create baseline.`)
+      return
+    }
+
+    const requestBody = {
+      device_ids: [nautobotId],  // Use Nautobot UUID
+      notes: notes,
+    }
+
+    console.log('🔍 Sending baseline request:', requestBody)
+    console.log('🔍 Nautobot ID:', nautobotId)
+    console.log('🔍 Notes:', notes)
+
+    // Schedule baseline creation task
+    const response = await fetch(`/api/settings/jobs/baseline`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    console.log('🔍 Response status:', response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('🔍 Error response:', errorText)
+      throw new Error(`Failed to schedule baseline creation: ${response.status} - ${errorText}`)
+    }
+
+    const result = await response.json()
+    console.log('Baseline creation scheduled:', result)
+    alert(`Baseline creation scheduled for ${device.name}\nTask ID: ${result.task_id}`)
+  } catch (error) {
+    console.error('Error scheduling baseline:', error)
+    throw error
+  }
+}
+
+const compareBaseline = async (device: Device) => {
+  try {
+    console.log('Comparing baseline for device:', device.name, device.id)
+
+    const token = secureStorage.getToken()
+    if (!token) {
+      alert('Not authenticated')
+      return
+    }
+
+    // Get Nautobot UUID from device properties
+    const deviceProps = device.properties ? JSON.parse(device.properties) : {}
+    const nautobotId = deviceProps.nautobot_id
+
+    if (!nautobotId) {
+      alert(`Device ${device.name} does not have a Nautobot ID. Cannot compare baseline.`)
+      return
+    }
+
+    // Check if baseline exists using Nautobot UUID
+    const checkResponse = await fetch(`/api/snapshots/check?device_id=${nautobotId}&type=baseline`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+
+    if (!checkResponse.ok) {
+      throw new Error(`Failed to check for baseline: ${checkResponse.status} ${checkResponse.statusText}`)
+    }
+
+    const checkData = await checkResponse.json()
+
+    if (!checkData.exists) {
+      alert(`No baseline exists for ${device.name}.\n\nPlease create a baseline first.`)
+      return
+    }
+
+    // TODO: Implement comparison view
+    alert(
+      `Baseline comparison for ${device.name}\n\n` +
+      `Baseline found:\n` +
+      `Created: ${new Date(checkData.created_at).toLocaleString()}\n` +
+      `Version: ${checkData.version}\n` +
+      `Commands: ${checkData.command_count || 'N/A'}\n\n` +
+      `Comparison view coming soon!`
+    )
+
+  } catch (error) {
+    console.error('Error comparing baseline:', error)
+    alert(`Failed to compare baseline: ${error}`)
+  }
 }
 
 // Manage connection ports on a device

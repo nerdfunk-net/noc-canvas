@@ -12,64 +12,74 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 
-from ..models.device_cache import BaselineCache
+from ..models.device_cache import Snapshot, SnapshotType
 
 logger = logging.getLogger(__name__)
 
 
 class BaselineComparator:
-    """Utility class for comparing baseline configurations."""
+    """Utility class for comparing snapshots and baselines."""
 
     @staticmethod
     def get_latest_baseline(
-        db: Session, device_id: str, command: str
-    ) -> Optional[BaselineCache]:
+        db: Session, device_id: str, command: str, snapshot_type: str = "baseline"
+    ) -> Optional[Snapshot]:
         """
-        Get the most recent baseline for a device and command.
+        Get the most recent snapshot/baseline for a device and command.
 
         Args:
             db: Database session
             device_id: Device UUID
             command: Command name
+            snapshot_type: Type of snapshot to retrieve - "baseline" or "snapshot" (default: "baseline")
 
         Returns:
-            Latest BaselineCache record or None
+            Latest Snapshot record or None
         """
+        # Convert string to enum
+        type_enum = SnapshotType.BASELINE if snapshot_type.lower() == "baseline" else SnapshotType.SNAPSHOT
+
         return (
-            db.query(BaselineCache)
+            db.query(Snapshot)
             .filter(
                 and_(
-                    BaselineCache.device_id == device_id,
-                    BaselineCache.command == command,
+                    Snapshot.device_id == device_id,
+                    Snapshot.command == command,
+                    Snapshot.type == type_enum,
                 )
             )
-            .order_by(desc(BaselineCache.updated_at))
+            .order_by(desc(Snapshot.updated_at))
             .first()
         )
 
     @staticmethod
     def get_baseline_by_version(
-        db: Session, device_id: str, command: str, version: int
-    ) -> Optional[BaselineCache]:
+        db: Session, device_id: str, command: str, version: int, snapshot_type: str = "baseline"
+    ) -> Optional[Snapshot]:
         """
-        Get a specific baseline version.
+        Get a specific snapshot/baseline version.
 
         Args:
             db: Database session
             device_id: Device UUID
             command: Command name
-            version: Baseline version number
+            version: Snapshot version number
+            snapshot_type: Type of snapshot to retrieve - "baseline" or "snapshot" (default: "baseline")
 
         Returns:
-            BaselineCache record or None
+            Snapshot record or None
         """
+        # Convert string to enum
+        type_enum = SnapshotType.BASELINE if snapshot_type.lower() == "baseline" else SnapshotType.SNAPSHOT
+
         return (
-            db.query(BaselineCache)
+            db.query(Snapshot)
             .filter(
                 and_(
-                    BaselineCache.device_id == device_id,
-                    BaselineCache.command == command,
-                    BaselineCache.baseline_version == version,
+                    Snapshot.device_id == device_id,
+                    Snapshot.command == command,
+                    Snapshot.version == version,
+                    Snapshot.type == type_enum,
                 )
             )
             .first()
@@ -77,37 +87,42 @@ class BaselineComparator:
 
     @staticmethod
     def get_baseline_history(
-        db: Session, device_id: str, command: str, limit: int = 10
-    ) -> List[BaselineCache]:
+        db: Session, device_id: str, command: str, limit: int = 10, snapshot_type: str = "baseline"
+    ) -> List[Snapshot]:
         """
-        Get baseline history for a device and command.
+        Get snapshot/baseline history for a device and command.
 
         Args:
             db: Database session
             device_id: Device UUID
             command: Command name
             limit: Maximum number of records to return
+            snapshot_type: Type of snapshot to retrieve - "baseline" or "snapshot" (default: "baseline")
 
         Returns:
-            List of BaselineCache records ordered by version desc
+            List of Snapshot records ordered by version desc
         """
+        # Convert string to enum
+        type_enum = SnapshotType.BASELINE if snapshot_type.lower() == "baseline" else SnapshotType.SNAPSHOT
+
         return (
-            db.query(BaselineCache)
+            db.query(Snapshot)
             .filter(
                 and_(
-                    BaselineCache.device_id == device_id,
-                    BaselineCache.command == command,
+                    Snapshot.device_id == device_id,
+                    Snapshot.command == command,
+                    Snapshot.type == type_enum,
                 )
             )
-            .order_by(desc(BaselineCache.baseline_version))
+            .order_by(desc(Snapshot.version))
             .limit(limit)
             .all()
         )
 
     @staticmethod
     def compare_baselines(
-        baseline_old: BaselineCache,
-        baseline_new: BaselineCache,
+        baseline_old: Snapshot,
+        baseline_new: Snapshot,
         use_normalized: bool = True,
     ) -> Dict[str, Any]:
         """
@@ -140,15 +155,17 @@ class BaselineComparator:
         return {
             "baseline_old": {
                 "id": baseline_old.id,
-                "version": baseline_old.baseline_version,
+                "version": baseline_old.version,
                 "updated_at": baseline_old.updated_at.isoformat(),
                 "notes": baseline_old.notes,
+                "type": baseline_old.type.value,
             },
             "baseline_new": {
                 "id": baseline_new.id,
-                "version": baseline_new.baseline_version,
+                "version": baseline_new.version,
                 "updated_at": baseline_new.updated_at.isoformat(),
                 "notes": baseline_new.notes,
+                "type": baseline_new.type.value,
             },
             "command": baseline_old.command,
             "device_id": baseline_old.device_id,
@@ -217,9 +234,10 @@ class BaselineComparator:
         return {
             "baseline": {
                 "id": baseline.id,
-                "version": baseline.baseline_version,
+                "version": baseline.version,
                 "updated_at": baseline.updated_at.isoformat(),
                 "notes": baseline.notes,
+                "type": baseline.type.value,
             },
             "current": {"timestamp": datetime.utcnow().isoformat(), "command": command},
             "command": command,

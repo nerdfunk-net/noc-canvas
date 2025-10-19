@@ -3,10 +3,11 @@ Device cache models for storing network device discovery data.
 Phase 1: Device, Interface, IP Address, and ARP cache tables.
 """
 
-from sqlalchemy import Column, String, DateTime, Boolean, Integer, ForeignKey, Index
+from sqlalchemy import Column, String, DateTime, Boolean, Integer, ForeignKey, Index, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from ..core.database import Base
+import enum
 
 
 class DeviceCache(Base):
@@ -324,10 +325,21 @@ class JSONBlobCache(Base):
     __table_args__ = (Index("ix_json_blob_device_command", "device_id", "command"),)
 
 
-class BaselineCache(Base):
+class SnapshotType(enum.Enum):
+    """Snapshot types."""
+
+    BASELINE = "baseline"
+    SNAPSHOT = "snapshot"
+
+
+class Snapshot(Base):
     """
-    Baseline cache table for storing device configuration snapshots.
-    Stores command outputs as baseline data for comparison with future states.
+    Snapshot table for storing device configuration snapshots and baselines.
+    Stores command outputs as snapshot/baseline data for comparison with future states.
+
+    Types:
+    - BASELINE: Long-term reference snapshot, typically taken once and stored
+    - SNAPSHOT: Current state snapshot, typically used for comparison against baseline
 
     This table stores both raw and normalized output for efficient comparison:
     - raw_output: Original parsed JSON from TextFSM
@@ -336,7 +348,7 @@ class BaselineCache(Base):
     Use case: Configuration drift detection, compliance checking, change management
     """
 
-    __tablename__ = "baseline_cache"
+    __tablename__ = "snapshots"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     device_id = Column(String, nullable=False, index=True)  # Nautobot device UUID
@@ -346,6 +358,9 @@ class BaselineCache(Base):
     command = Column(
         String, nullable=False
     )  # Command executed (e.g., "show interfaces")
+    type = Column(
+        Enum(SnapshotType), nullable=False, default=SnapshotType.SNAPSHOT
+    )  # Type: baseline or snapshot
     raw_output = Column(
         String, nullable=False
     )  # Original JSON serialized data from TextFSM
@@ -354,20 +369,25 @@ class BaselineCache(Base):
     )  # Normalized JSON for comparison (optional, can be generated on-demand)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now()
-    )  # When baseline was first created
+    )  # When snapshot was first created
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )  # Last update
-    baseline_version = Column(
+    version = Column(
         Integer, default=1
-    )  # Version number for tracking baseline updates
+    )  # Version number for tracking snapshot updates
     notes = Column(
         String
-    )  # Optional notes about this baseline (e.g., "Pre-upgrade baseline")
+    )  # Optional notes about this snapshot (e.g., "Pre-upgrade baseline")
 
     # Composite indexes for common queries
     __table_args__ = (
-        Index("ix_baseline_device_command", "device_id", "command"),
-        Index("ix_baseline_device_updated", "device_id", "updated_at"),
-        Index("ix_baseline_device_name", "device_name"),
+        Index("ix_snapshot_device_command", "device_id", "command"),
+        Index("ix_snapshot_device_updated", "device_id", "updated_at"),
+        Index("ix_snapshot_device_name", "device_name"),
+        Index("ix_snapshot_device_type", "device_id", "type"),
     )
+
+
+# Backward compatibility alias
+BaselineCache = Snapshot

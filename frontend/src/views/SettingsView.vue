@@ -67,7 +67,7 @@
       <!-- Main Content Area -->
       <div class="flex-1 overflow-y-auto">
         <div class="p-4 md:p-6">
-          <div :class="activeTab === 'templates' ? 'max-w-7xl' : 'max-w-4xl'">
+          <div :class="activeTab === 'templates' || activeTab === 'commands' ? 'max-w-7xl' : 'max-w-4xl'">
             <!-- Page Header (hidden on mobile when menu is open) -->
             <div class="mb-6" :class="{ 'hidden md:block': showMobileMenu }">
               <h2 class="text-xl md:text-2xl font-bold text-gray-900">
@@ -807,6 +807,9 @@
                       <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Parser
                       </th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
                       <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
@@ -837,6 +840,11 @@
                       <td class="px-6 py-4 whitespace-nowrap">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                           {{ command.parser }}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <span :class="command.type === 'snapshot' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize">
+                          {{ command.type }}
                         </span>
                       </td>
                       <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -951,6 +959,19 @@
                     >
                       <option v-for="parser in parsers" :key="parser.value" :value="parser.value">
                         {{ parser.label }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                    <select
+                      v-model="commandForm.type"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option v-for="commandType in commandTypes" :key="commandType.value" :value="commandType.value">
+                        {{ commandType.label }}
                       </option>
                     </select>
                   </div>
@@ -3338,7 +3359,8 @@ const commandForm = reactive({
   display: '',
   template: '',
   platform: 'IOS',
-  parser: 'TextFSM'
+  parser: 'TextFSM',
+  type: 'general'
 })
 
 const commandPlatforms = [
@@ -3351,6 +3373,11 @@ const parsers = [
   { value: 'TextFSM', label: 'TextFSM' },
   { value: 'TTP', label: 'TTP' },
   { value: 'Scrapli', label: 'Scrapli' }
+]
+
+const commandTypes = [
+  { value: 'general', label: 'General' },
+  { value: 'snapshot', label: 'Snapshot' }
 ]
 
 // Inventory management state
@@ -3720,6 +3747,11 @@ onMounted(() => {
     ])
   }
 
+  if (activeTab.value === 'commands') {
+    console.log('🔄 Commands tab active on mount, fetching commands...')
+    refreshCommands()
+  }
+
   if (activeTab.value === 'inventory') {
     console.log('🔄 Inventory tab active on mount, fetching inventories...')
     Promise.all([
@@ -3811,6 +3843,7 @@ const openCommandDialog = (command?: any) => {
     commandForm.template = command.template || ''
     commandForm.platform = command.platform
     commandForm.parser = command.parser
+    commandForm.type = command.type || 'general'
   } else {
     editingCommand.value = null
     commandForm.command = ''
@@ -3818,6 +3851,7 @@ const openCommandDialog = (command?: any) => {
     commandForm.template = ''
     commandForm.platform = 'IOS'
     commandForm.parser = 'TextFSM'
+    commandForm.type = 'general'
   }
   showCommandDialog.value = true
 }
@@ -3830,6 +3864,7 @@ const closeCommandDialog = () => {
   commandForm.template = ''
   commandForm.platform = 'IOS'
   commandForm.parser = 'TextFSM'
+  commandForm.type = 'general'
 }
 
 const saveCommand = async () => {
@@ -3840,6 +3875,7 @@ const saveCommand = async () => {
       template: commandForm.template || null,
       platform: commandForm.platform,
       parser: commandForm.parser,
+      type: commandForm.type,
     }
 
     let response

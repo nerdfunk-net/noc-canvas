@@ -849,7 +849,7 @@ async def get_available_tasks(
         {
             "name": "create_baseline",
             "task": "app.tasks.baseline_tasks.create_baseline",
-            "description": "Create baseline configuration snapshots for devices",
+            "description": "Create baseline configuration snapshots for devices (long-term reference)",
             "supports_inventory": True,
             "args_schema": {},
             "kwargs_schema": {
@@ -857,6 +857,20 @@ async def get_available_tasks(
                 "inventory_id": "int (optional) - Use devices from this inventory",
                 "commands": "array of commands (optional) - Specific commands to execute. If not provided, runs all default commands",
                 "notes": "string (optional) - Notes about this baseline (e.g., 'Pre-upgrade baseline')",
+                "username": "string (auto-injected) - Username for credential lookup. Automatically set to the user who created the scheduled task",
+            },
+        },
+        {
+            "name": "create_snapshot",
+            "task": "app.tasks.baseline_tasks.create_snapshot",
+            "description": "Create snapshots of current device state (for drift detection and comparison)",
+            "supports_inventory": True,
+            "args_schema": {},
+            "kwargs_schema": {
+                "device_ids": "array of device IDs (optional) - If not provided and inventory_id is set, uses inventory devices",
+                "inventory_id": "int (optional) - Use devices from this inventory",
+                "commands": "array of commands (optional) - Specific commands to execute. If not provided, runs all default commands",
+                "notes": "string (optional) - Notes about this snapshot (e.g., 'Daily snapshot')",
                 "username": "string (auto-injected) - Username for credential lookup. Automatically set to the user who created the scheduled task",
             },
         },

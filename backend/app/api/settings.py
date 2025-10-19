@@ -36,6 +36,7 @@ from ..models.settings import (
     DeviceTemplateUpdate,
     DeviceTemplateResponse,
 )
+from pydantic import BaseModel
 from ..services.nautobot import nautobot_service
 from ..services.checkmk import checkmk_service
 
@@ -279,6 +280,7 @@ async def create_device_command(
             template=command_data.template,
             platform=command_data.platform,
             parser=command_data.parser,
+            type=command_data.type,
         )
         db.add(command)
         db.commit()
@@ -371,6 +373,8 @@ async def update_device_command(
             command.platform = command_update.platform
         if command_update.parser is not None:
             command.parser = command_update.parser
+        if command_update.type is not None:
+            command.type = command_update.type
 
         db.commit()
         db.refresh(command)
@@ -1529,6 +1533,68 @@ async def submit_test_job(
         logger.error(f"Error submitting test job: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Failed to submit test job: {str(e)}"
+        )
+
+
+class BaselineJobRequest(BaseModel):
+    """Request model for baseline job submission."""
+    device_ids: List[str]
+    notes: Optional[str] = None
+
+
+# Add a debug endpoint to test the request format
+@router.post("/jobs/baseline-debug")
+async def debug_baseline_request(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+):
+    """Debug endpoint to see raw request body."""
+    logger.info(f"🔍 DEBUG: Raw request body: {body}")
+    logger.info(f"🔍 DEBUG: Body type: {type(body)}")
+    logger.info(f"🔍 DEBUG: Body keys: {body.keys() if isinstance(body, dict) else 'Not a dict'}")
+    logger.info(f"🔍 DEBUG: Current user: {current_user.username}")
+    return {"received": body, "user": current_user.username}
+
+
+@router.post("/jobs/baseline")
+async def submit_baseline_job(
+    request: BaselineJobRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Submit a baseline creation job for specified devices."""
+    logger.info(f"🔵 Baseline job request received")
+    logger.info(f"🔵 Request data: {request}")
+    logger.info(f"🔵 device_ids: {request.device_ids}")
+    logger.info(f"🔵 notes: {request.notes}")
+    logger.info(f"🔵 Current user: {current_user.username}")
+
+    try:
+        from ..services.background_jobs import celery_app, CELERY_AVAILABLE
+
+        if not CELERY_AVAILABLE:
+            logger.error("❌ Celery is not available")
+            raise HTTPException(status_code=503, detail="Celery is not available")
+
+        # Submit baseline job
+        result = celery_app.send_task(
+            "app.tasks.baseline_tasks.create_baseline",
+            kwargs={
+                "device_ids": request.device_ids,
+                "notes": request.notes,
+                "username": current_user.username,
+            }
+        )
+
+        return {
+            "success": True,
+            "task_id": result.id,
+            "message": f"Baseline creation job submitted for {len(request.device_ids)} device(s)",
+        }
+
+    except Exception as e:
+        logger.error(f"Error submitting baseline job: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to submit baseline job: {str(e)}"
         )
 
 

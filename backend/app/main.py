@@ -19,6 +19,7 @@ from .api import (
     ssh_terminal,
     scheduler,
     inventory,
+    snapshots,
 )
 
 # Removed old routers that were causing duplicate endpoints:
@@ -169,6 +170,7 @@ app.include_router(topology.router, prefix="/api", tags=["topology"])
 app.include_router(ssh_terminal.router, prefix="/api", tags=["ssh-terminal"])
 app.include_router(scheduler.router, prefix="/api/scheduler", tags=["scheduler"])
 app.include_router(inventory.router, prefix="/api/inventory", tags=["inventory"])
+app.include_router(snapshots.router, prefix="/api/snapshots", tags=["snapshots"])
 
 
 @app.get("/")

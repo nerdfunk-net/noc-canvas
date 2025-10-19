@@ -146,6 +146,116 @@ def create_default_admin_user() -> bool:
         return False
 
 
+def create_default_commands() -> bool:
+    """
+    Create default snapshot commands if device_commands table is empty.
+
+    Returns:
+        True if default commands created or already exist, False on error
+    """
+    try:
+        from sqlalchemy.orm import sessionmaker
+        from .database import engine
+        from ..models.settings import DeviceCommand, CommandPlatform, CommandParser, CommandType
+
+        SessionLocal = sessionmaker(bind=engine)
+
+        with SessionLocal() as session:
+            # Check if any commands exist
+            command_count = session.query(DeviceCommand).count()
+
+            if command_count == 0:
+                logger.info("No commands found, creating default snapshot commands")
+
+                # Define default commands with their metadata
+                default_commands = [
+                    {
+                        "command": "show interfaces",
+                        "display": "show interfaces",
+                        "platforms": ["IOS", "IOS XE"],
+                        "parser": "TextFSM",
+                        "type": "snapshot"
+                    },
+                    {
+                        "command": "show ip arp",
+                        "display": "show ip arp",
+                        "platforms": ["IOS", "IOS XE"],
+                        "parser": "TextFSM",
+                        "type": "snapshot"
+                    },
+                    {
+                        "command": "show cdp neighbors",
+                        "display": "show cdp neigh",
+                        "platforms": ["IOS", "IOS XE"],
+                        "parser": "TextFSM",
+                        "type": "snapshot"
+                    },
+                    {
+                        "command": "show mac address-table",
+                        "display": "show macs",
+                        "platforms": ["IOS", "IOS XE"],
+                        "parser": "TextFSM",
+                        "type": "snapshot"
+                    },
+                    {
+                        "command": "show ip route static",
+                        "display": "show static routes",
+                        "platforms": ["IOS", "IOS XE"],
+                        "parser": "TextFSM",
+                        "type": "snapshot"
+                    },
+                    {
+                        "command": "show ip route ospf",
+                        "display": "show ospf routes",
+                        "platforms": ["IOS", "IOS XE"],
+                        "parser": "TextFSM",
+                        "type": "snapshot"
+                    },
+                    {
+                        "command": "show ip route bgp",
+                        "display": "show bgp routes",
+                        "platforms": ["IOS", "IOS XE"],
+                        "parser": "TextFSM",
+                        "type": "snapshot"
+                    },
+                ]
+
+                # Create commands for each platform
+                commands_created = 0
+                for cmd_def in default_commands:
+                    for platform_str in cmd_def["platforms"]:
+                        # Convert string to enum
+                        platform = CommandPlatform.IOS if platform_str == "IOS" else CommandPlatform.IOS_XE
+                        parser = CommandParser.TEXTFSM
+                        cmd_type = CommandType.SNAPSHOT if cmd_def["type"] == "snapshot" else CommandType.GENERAL
+
+                        command = DeviceCommand(
+                            command=cmd_def["command"],
+                            display=cmd_def["display"],
+                            template=None,
+                            platform=platform,
+                            parser=parser,
+                            type=cmd_type,
+                        )
+                        session.add(command)
+                        commands_created += 1
+
+                session.commit()
+                logger.info(f"Created {commands_created} default snapshot commands")
+                return True
+            else:
+                logger.info(
+                    f"device_commands table already has {command_count} commands, skipping default command creation"
+                )
+                return True
+
+    except Exception as e:
+        logger.error(f"Failed to create default commands: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return False
+
+
 def validate_database() -> bool:
     """
     Validate that database is working correctly.
@@ -208,8 +318,14 @@ def full_database_setup() -> bool:
             logger.warning("Failed to create default admin user")
             # Don't fail the entire setup for this
 
-        # Step 4: Validate database
-        logger.info("Step 4: Validating database")
+        # Step 4: Create default commands
+        logger.info("Step 4: Creating default snapshot commands if needed")
+        if not create_default_commands():
+            logger.warning("Failed to create default commands")
+            # Don't fail the entire setup for this
+
+        # Step 5: Validate database
+        logger.info("Step 5: Validating database")
         if not validate_database():
             logger.error("Database validation failed")
             return False

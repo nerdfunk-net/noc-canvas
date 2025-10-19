@@ -745,6 +745,13 @@ cd<template>
       @close="showSnapshotDetailsModal = false"
     />
 
+    <!-- Compare Snapshot to Baseline Modal -->
+    <CompareSnapshotModal
+      :show="showCompareModal"
+      :device-id="currentCompareDeviceId"
+      @close="showCompareModal = false"
+    />
+
     <!-- Neighbor Discovery Result Modal -->
     <NeighborDiscoveryResultModal
       :show="showNeighborDiscoveryModal"
@@ -863,6 +870,7 @@ import DeviceOverviewModal from './DeviceOverviewModal.vue'
 import BaselineExistsModal from './BaselineExistsModal.vue'
 import SnapshotListModal from './SnapshotListModal.vue'
 import SnapshotDetailsModal from './SnapshotDetailsModal.vue'
+import CompareSnapshotModal from './CompareSnapshotModal.vue'
 import type { TopologyGraph } from '@/services/api'
 import { openTerminalWindow, canOpenPopup } from '@/utils/terminalWindow'
 
@@ -1326,6 +1334,10 @@ const showSnapshotListModal = ref(false)
 const showSnapshotDetailsModal = ref(false)
 const currentSnapshotDeviceId = ref<string | null>(null)
 const currentSnapshotId = ref<number | null>(null)
+
+// Compare modal state
+const showCompareModal = ref(false)
+const currentCompareDeviceId = ref<string | null>(null)
 
 const handleNeighborDiscovery = async (device: Device, discoveryFn: (device: Device) => Promise<NeighborDiscoveryResult | null>) => {
   hideContextMenu()
@@ -1908,7 +1920,12 @@ const contextMenuItems = computed(() => {
           submenu: [
             { icon: '➕', label: 'Create', action: () => { hideContextMenu(); createSnapshot(contextMenu.target!) } },
             { icon: '📋', label: 'Manage', action: () => { hideContextMenu(); manageSnapshots(contextMenu.target!) } },
-          ],
+          ]
+        },
+        {
+          icon: '⚖️',
+          label: 'Compare',
+          action: () => { hideContextMenu(); compareSnapshotToBaseline(contextMenu.target!) }
         },
       ],
     },
@@ -2727,6 +2744,22 @@ const manageSnapshots = (device: Device) => {
 const handleShowSnapshotDetails = (snapshotId: number) => {
   currentSnapshotId.value = snapshotId
   showSnapshotDetailsModal.value = true
+}
+
+const compareSnapshotToBaseline = (device: Device) => {
+  console.log('Opening compare modal for device:', device.name, device.id)
+
+  // Get Nautobot UUID from device properties
+  const deviceProps = device.properties ? JSON.parse(device.properties) : {}
+  const nautobotId = deviceProps.nautobot_id
+
+  if (!nautobotId) {
+    alert(`Device ${device.name} does not have a Nautobot ID. Cannot compare.`)
+    return
+  }
+
+  currentCompareDeviceId.value = nautobotId
+  showCompareModal.value = true
 }
 
 const compareBaseline = async (device: Device) => {

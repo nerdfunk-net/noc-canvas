@@ -46,7 +46,13 @@
                 >
                   <span class="command-icon">📄</span>
                   <span class="command-name">{{ cmd }}</span>
-                  <span v-if="hasDiff(cmd)" class="diff-indicator" title="Has differences">●</span>
+                  <span
+                    v-if="commandDiffStatus[cmd] !== undefined"
+                    :class="['diff-indicator', commandDiffStatus[cmd] ? 'has-diff' : 'no-diff']"
+                    :title="commandDiffStatus[cmd] ? 'Has differences' : 'No differences'"
+                  >
+                    ●
+                  </span>
                 </div>
               </div>
             </div>
@@ -134,6 +140,7 @@ const individualBaselines = ref<any[]>([])
 const selectedCommand = ref('')
 const diffResult = ref<any>(null)
 const loadingDiff = ref(false)
+const commandDiffStatus = ref<Record<string, boolean>>({})
 
 watch(() => props.show, async (newShow) => {
   if (newShow && props.deviceId) {
@@ -211,11 +218,55 @@ const loadData = async () => {
   }
 }
 
-const loadSelectedSnapshot = () => {
+const loadSelectedSnapshot = async () => {
   const group = snapshotGroups.value.find(g => g.snapshot_group_id === selectedSnapshotGroupId.value)
   selectedSnapshot.value = group
   selectedCommand.value = ''
   diffResult.value = null
+  commandDiffStatus.value = {}
+
+  if (!group) return
+
+  // Compute diff status for all commands in the background
+  await computeAllDiffStatuses(group.commands)
+}
+
+const computeAllDiffStatuses = async (commands: string[]) => {
+  const token = secureStorage.getToken()
+  if (!token) return
+
+  for (const command of commands) {
+    try {
+      // Find baseline and snapshot data for this command
+      const baselineData = individualBaselines.value.find(b => b.command === command)
+      const snapshotData = individualSnapshots.value.find(
+        s => s.snapshot_group_id === selectedSnapshotGroupId.value && s.command === command
+      )
+
+      if (!baselineData || !snapshotData) {
+        commandDiffStatus.value[command] = false
+        continue
+      }
+
+      // Fetch full details
+      const [baselineDetail, snapshotDetail] = await Promise.all([
+        fetch(`/api/snapshots/${baselineData.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }).then(r => r.json()),
+        fetch(`/api/snapshots/${snapshotData.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }).then(r => r.json())
+      ])
+
+      // Compare normalized outputs
+      const hasDifference = baselineDetail.normalized_output !== snapshotDetail.normalized_output
+      commandDiffStatus.value[command] = hasDifference
+
+    } catch (err) {
+      console.error(`Error computing diff status for ${command}:`, err)
+      commandDiffStatus.value[command] = false
+    }
+  }
 }
 
 const selectCommand = async (command: string) => {
@@ -298,19 +349,6 @@ const generateDiff = (baseline: string, snapshot: string): string => {
   return diff.join('\n')
 }
 
-const hasDiff = (command: string): boolean => {
-  // Check if this command has differences
-  const baselineData = individualBaselines.value.find(b => b.command === command)
-  const snapshotData = individualSnapshots.value.find(
-    s => s.snapshot_group_id === selectedSnapshotGroupId.value && s.command === command
-  )
-
-  if (!baselineData || !snapshotData) return false
-
-  // Simple check - could be enhanced
-  return true // Show indicator for all commands for now
-}
-
 const formatDate = (dateString: string) => {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
@@ -359,7 +397,7 @@ const close = () => {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   max-width: 1400px;
   width: 95%;
-  max-height: 90vh;
+  max-height: 85vh;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
   animation: slideUp 0.3s ease-out;
@@ -417,7 +455,7 @@ const close = () => {
 
 .modal-body {
   padding: 28px;
-  max-height: 75vh;
+  max-height: 60vh;
   overflow-y: auto;
 }
 
@@ -511,7 +549,7 @@ const close = () => {
 .comparison-panel {
   display: flex;
   gap: 20px;
-  min-height: 500px;
+  min-height: 400px;
 }
 
 .command-list {
@@ -575,9 +613,16 @@ const close = () => {
 .diff-indicator {
   width: 8px;
   height: 8px;
-  color: #f59e0b;
   font-size: 20px;
   line-height: 8px;
+}
+
+.diff-indicator.has-diff {
+  color: #ef4444;
+}
+
+.diff-indicator.no-diff {
+  color: #10b981;
 }
 
 .diff-view {
@@ -660,7 +705,7 @@ const close = () => {
 }
 
 .no-selection-message {
-  min-height: 500px;
+  min-height: 400px;
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;

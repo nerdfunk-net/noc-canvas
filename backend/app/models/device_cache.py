@@ -376,6 +376,9 @@ class Snapshot(Base):
     version = Column(
         Integer, default=1
     )  # Version number for tracking snapshot updates
+    snapshot_group_id = Column(
+        String, index=True
+    )  # UUID to group multiple commands from the same snapshot session
     notes = Column(
         String
     )  # Optional notes about this snapshot (e.g., "Pre-upgrade baseline")

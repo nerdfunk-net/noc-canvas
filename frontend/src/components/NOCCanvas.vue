@@ -730,6 +730,21 @@ cd<template>
       @overwrite="handleBaselineOverwrite"
     />
 
+    <!-- Snapshot List Modal -->
+    <SnapshotListModal
+      :show="showSnapshotListModal"
+      :device-id="currentSnapshotDeviceId"
+      @close="showSnapshotListModal = false"
+      @show="handleShowSnapshotDetails"
+    />
+
+    <!-- Snapshot Details Modal -->
+    <SnapshotDetailsModal
+      :show="showSnapshotDetailsModal"
+      :snapshot-id="currentSnapshotId"
+      @close="showSnapshotDetailsModal = false"
+    />
+
     <!-- Neighbor Discovery Result Modal -->
     <NeighborDiscoveryResultModal
       :show="showNeighborDiscoveryModal"
@@ -846,6 +861,8 @@ import DeviceInterfacesModal from './DeviceInterfacesModal.vue'
 import SSHTerminalModal from './SSHTerminalModal.vue'
 import DeviceOverviewModal from './DeviceOverviewModal.vue'
 import BaselineExistsModal from './BaselineExistsModal.vue'
+import SnapshotListModal from './SnapshotListModal.vue'
+import SnapshotDetailsModal from './SnapshotDetailsModal.vue'
 import type { TopologyGraph } from '@/services/api'
 import { openTerminalWindow, canOpenPopup } from '@/utils/terminalWindow'
 
@@ -1303,6 +1320,12 @@ const baselineModalData = ref<{
   device: null,
   baselineData: null
 })
+
+// Snapshot modal state
+const showSnapshotListModal = ref(false)
+const showSnapshotDetailsModal = ref(false)
+const currentSnapshotDeviceId = ref<string | null>(null)
+const currentSnapshotId = ref<number | null>(null)
 
 const handleNeighborDiscovery = async (device: Device, discoveryFn: (device: Device) => Promise<NeighborDiscoveryResult | null>) => {
   hideContextMenu()
@@ -1877,6 +1900,14 @@ const contextMenuItems = computed(() => {
           submenu: [
             { icon: '➕', label: 'Create', action: () => { hideContextMenu(); createBaseline(contextMenu.target!) } },
             { icon: '🔄', label: 'Compare', action: () => { hideContextMenu(); compareBaseline(contextMenu.target!) } },
+          ]
+        },
+        {
+          icon: '📸',
+          label: 'Snapshot',
+          submenu: [
+            { icon: '➕', label: 'Create', action: () => { hideContextMenu(); createSnapshot(contextMenu.target!) } },
+            { icon: '📋', label: 'Manage', action: () => { hideContextMenu(); manageSnapshots(contextMenu.target!) } },
           ],
         },
       ],
@@ -2598,6 +2629,104 @@ const scheduleBaselineCreation = async (device: Device, notes: string) => {
     console.error('Error scheduling baseline:', error)
     throw error
   }
+}
+
+// Snapshot management functions
+const createSnapshot = async (device: Device) => {
+  try {
+    console.log('Creating snapshot for device:', device.name, device.id)
+
+    const token = secureStorage.getToken()
+    if (!token) {
+      alert('Not authenticated')
+      return
+    }
+
+    // Get Nautobot UUID from device properties
+    const deviceProps = device.properties ? JSON.parse(device.properties) : {}
+    const nautobotId = deviceProps.nautobot_id
+
+    if (!nautobotId) {
+      alert(`Device ${device.name} does not have a Nautobot ID. Cannot create snapshot.`)
+      return
+    }
+
+    // Create snapshot directly without checking if one exists
+    await scheduleSnapshotCreation(device, `Snapshot created on ${new Date().toLocaleString()}`)
+
+  } catch (error) {
+    console.error('Error creating snapshot:', error)
+    alert(`Failed to create snapshot: ${error}`)
+  }
+}
+
+const scheduleSnapshotCreation = async (device: Device, notes: string) => {
+  try {
+    const token = secureStorage.getToken()
+    if (!token) return
+
+    // Get Nautobot UUID from device properties
+    const deviceProps = device.properties ? JSON.parse(device.properties) : {}
+    const nautobotId = deviceProps.nautobot_id
+
+    if (!nautobotId) {
+      alert(`Device ${device.name} does not have a Nautobot ID. Cannot create snapshot.`)
+      return
+    }
+
+    const requestBody = {
+      device_ids: [nautobotId],
+      notes: notes,
+    }
+
+    console.log('🔍 Sending snapshot request:', requestBody)
+
+    // Schedule snapshot creation task (using the snapshot endpoint, not baseline)
+    const response = await fetch(`/api/settings/jobs/snapshot`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    console.log('🔍 Response status:', response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('🔍 Error response:', errorText)
+      throw new Error(`Failed to schedule snapshot creation: ${response.status} - ${errorText}`)
+    }
+
+    const result = await response.json()
+    console.log('Snapshot creation scheduled:', result)
+    alert(`Snapshot creation scheduled for ${device.name}\nTask ID: ${result.task_id}`)
+  } catch (error) {
+    console.error('Error scheduling snapshot:', error)
+    throw error
+  }
+}
+
+const manageSnapshots = (device: Device) => {
+  console.log('Managing snapshots for device:', device.name, device.id)
+
+  // Get Nautobot UUID from device properties
+  const deviceProps = device.properties ? JSON.parse(device.properties) : {}
+  const nautobotId = deviceProps.nautobot_id
+
+  if (!nautobotId) {
+    alert(`Device ${device.name} does not have a Nautobot ID. Cannot manage snapshots.`)
+    return
+  }
+
+  currentSnapshotDeviceId.value = nautobotId
+  showSnapshotListModal.value = true
+}
+
+const handleShowSnapshotDetails = (snapshotId: number) => {
+  currentSnapshotId.value = snapshotId
+  showSnapshotDetailsModal.value = true
 }
 
 const compareBaseline = async (device: Device) => {

@@ -9,6 +9,7 @@ checking, and change management.
 import asyncio
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
@@ -20,9 +21,8 @@ logger = logging.getLogger(__name__)
 def register_tasks(celery_app):
     """Register baseline tasks with the Celery app."""
 
-    @celery_app.task(bind=True, name="app.tasks.baseline_tasks.create_baseline")
-    def create_baseline(
-        self,
+    def _execute_snapshot_task(
+        task_self,
         device_ids: Optional[List[str]] = None,
         inventory_id: Optional[int] = None,
         commands: Optional[List[str]] = None,
@@ -87,7 +87,7 @@ def register_tasks(celery_app):
         logger.info(f"Starting snapshot creation task (type: {snapshot_type})")
 
         try:
-            self.update_state(
+            task_self.update_state(
                 state="PROGRESS",
                 meta={"current": 0, "total": 100, "status": "Initializing"},
             )
@@ -107,10 +107,10 @@ def register_tasks(celery_app):
                 periodic_task_id = None
                 try:
                     # Celery provides request context with task metadata
-                    if hasattr(self, "request") and hasattr(self.request, "properties"):
+                    if hasattr(task_self, "request") and hasattr(task_self.request, "properties"):
                         # Try to extract periodic task ID from task properties/headers
                         # This is set by celery-beat when running scheduled tasks
-                        periodic_task_id = self.request.properties.get(
+                        periodic_task_id = task_self.request.properties.get(
                             "periodic_task_name"
                         )
                         if periodic_task_id:
@@ -144,7 +144,7 @@ def register_tasks(celery_app):
                 # Priority: inventory_id > device_ids > all devices
                 if inventory_id:
                     # Resolve inventory to device IDs
-                    self.update_state(
+                    task_self.update_state(
                         state="PROGRESS",
                         meta={
                             "current": 3,
@@ -194,7 +194,7 @@ def register_tasks(celery_app):
 
                 if not device_ids:
                     # Get all devices from Nautobot if none specified
-                    self.update_state(
+                    task_self.update_state(
                         state="PROGRESS",
                         meta={
                             "current": 5,
@@ -231,7 +231,7 @@ def register_tasks(celery_app):
                     try:
                         # Update progress
                         progress = 10 + int((device_index / total_devices) * 80)
-                        self.update_state(
+                        task_self.update_state(
                             state="PROGRESS",
                             meta={
                                 "current": progress,
@@ -355,6 +355,11 @@ def register_tasks(celery_app):
                         device_service = DeviceCommunicationService()
                         device_commands_executed = 0
 
+                        # Generate a unique group ID for this snapshot session
+                        # All commands executed in this session will share the same group_id
+                        snapshot_group_id = str(uuid.uuid4())
+                        logger.info(f"Device {device_name}: Generated snapshot_group_id: {snapshot_group_id}")
+
                         for command in commands_to_run:
                             try:
                                 # Execute command
@@ -406,40 +411,63 @@ def register_tasks(celery_app):
                                 )
                                 logger.info(f"Device {device_name}: Command '{command}' - normalized_output_json length: {len(normalized_output_json)}")
 
-                                # Check if snapshot exists for this device/command/type
-                                logger.info(f"Device {device_name}: Checking for existing snapshot with device_id={device_id}, command={command}, type={snapshot_type_enum}")
-                                existing_snapshot = (
-                                    db.query(Snapshot)
-                                    .filter(
-                                        and_(
-                                            Snapshot.device_id == device_id,
-                                            Snapshot.command == command,
-                                            Snapshot.type == snapshot_type_enum,
+                                # For baselines: check if one exists and update it
+                                # For snapshots: always create a new one (never update existing)
+                                if snapshot_type_enum == SnapshotType.BASELINE:
+                                    # Baseline mode: Check if snapshot exists for this device/command/type
+                                    logger.info(f"Device {device_name}: Checking for existing baseline with device_id={device_id}, command={command}, type={snapshot_type_enum}")
+                                    existing_snapshot = (
+                                        db.query(Snapshot)
+                                        .filter(
+                                            and_(
+                                                Snapshot.device_id == device_id,
+                                                Snapshot.command == command,
+                                                Snapshot.type == snapshot_type_enum,
+                                            )
                                         )
+                                        .first()
                                     )
-                                    .first()
-                                )
-                                logger.info(f"Device {device_name}: Existing snapshot found: {existing_snapshot is not None}")
+                                    logger.info(f"Device {device_name}: Existing baseline found: {existing_snapshot is not None}")
 
-                                if existing_snapshot:
-                                    # Update existing snapshot
-                                    existing_snapshot.raw_output = raw_output_json
-                                    existing_snapshot.normalized_output = (
-                                        normalized_output_json
-                                    )
-                                    existing_snapshot.device_name = device_name
-                                    existing_snapshot.updated_at = datetime.now(
-                                        timezone.utc
-                                    )
-                                    existing_snapshot.version += 1
-                                    if notes:
-                                        existing_snapshot.notes = notes
-                                    baseline_ids.append(existing_snapshot.id)
-                                    logger.info(
-                                        f"Updated {snapshot_type} for {device_name}, command '{command}' (version {existing_snapshot.version})"
-                                    )
+                                    if existing_snapshot:
+                                        # Update existing baseline
+                                        existing_snapshot.raw_output = raw_output_json
+                                        existing_snapshot.normalized_output = (
+                                            normalized_output_json
+                                        )
+                                        existing_snapshot.device_name = device_name
+                                        existing_snapshot.updated_at = datetime.now(
+                                            timezone.utc
+                                        )
+                                        existing_snapshot.version += 1
+                                        if notes:
+                                            existing_snapshot.notes = notes
+                                        baseline_ids.append(existing_snapshot.id)
+                                        logger.info(
+                                            f"Updated baseline for {device_name}, command '{command}' (version {existing_snapshot.version})"
+                                        )
+                                    else:
+                                        # Create new baseline
+                                        new_snapshot = Snapshot(
+                                            device_id=device_id,
+                                            device_name=device_name,
+                                            command=command,
+                                            type=snapshot_type_enum,
+                                            raw_output=raw_output_json,
+                                            normalized_output=normalized_output_json,
+                                            snapshot_group_id=snapshot_group_id,
+                                            notes=notes
+                                            or f"Initial baseline created on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
+                                        )
+                                        db.add(new_snapshot)
+                                        db.flush()  # Get the ID
+                                        baseline_ids.append(new_snapshot.id)
+                                        logger.info(
+                                            f"Created new baseline for {device_name}, command '{command}'"
+                                        )
                                 else:
-                                    # Create new snapshot
+                                    # Snapshot mode: Always create a new snapshot (never update)
+                                    logger.info(f"Device {device_name}: Creating new snapshot (always creates new, never updates)")
                                     new_snapshot = Snapshot(
                                         device_id=device_id,
                                         device_name=device_name,
@@ -447,14 +475,15 @@ def register_tasks(celery_app):
                                         type=snapshot_type_enum,
                                         raw_output=raw_output_json,
                                         normalized_output=normalized_output_json,
+                                        snapshot_group_id=snapshot_group_id,
                                         notes=notes
-                                        or f"Initial {snapshot_type} created on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
+                                        or f"Snapshot created on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
                                     )
                                     db.add(new_snapshot)
                                     db.flush()  # Get the ID
                                     baseline_ids.append(new_snapshot.id)
                                     logger.info(
-                                        f"Created new {snapshot_type} for {device_name}, command '{command}'"
+                                        f"Created new snapshot for {device_name}, command '{command}' (ID: {new_snapshot.id})"
                                     )
 
                                 device_commands_executed += 1
@@ -490,7 +519,7 @@ def register_tasks(celery_app):
                         errors.append({"device_id": device_id, "error": error_msg})
 
                 # Final progress update
-                self.update_state(
+                task_self.update_state(
                     state="PROGRESS",
                     meta={
                         "current": 100,
@@ -517,7 +546,7 @@ def register_tasks(celery_app):
 
         except Exception as e:
             logger.error(f"Error in create_baseline task: {str(e)}", exc_info=True)
-            self.update_state(
+            task_self.update_state(
                 state="FAILURE",
                 meta={
                     "error": str(e),
@@ -525,6 +554,29 @@ def register_tasks(celery_app):
                 },
             )
             raise
+
+    @celery_app.task(bind=True, name="app.tasks.baseline_tasks.create_baseline")
+    def create_baseline(
+        self,
+        device_ids: Optional[List[str]] = None,
+        inventory_id: Optional[int] = None,
+        commands: Optional[List[str]] = None,
+        notes: Optional[str] = None,
+        auth_token: str = "",
+        username: Optional[str] = None,
+        snapshot_type: str = "baseline",
+    ):
+        """Create or update baselines for devices."""
+        return _execute_snapshot_task(
+            self,
+            device_ids=device_ids,
+            inventory_id=inventory_id,
+            commands=commands,
+            notes=notes,
+            auth_token=auth_token,
+            username=username,
+            snapshot_type=snapshot_type,
+        )
 
     @celery_app.task(bind=True, name="app.tasks.baseline_tasks.create_snapshot")
     def create_snapshot(
@@ -536,36 +588,9 @@ def register_tasks(celery_app):
         auth_token: str = "",
         username: Optional[str] = None,
     ):
-        """
-        Create or update snapshots for devices.
-
-        This is a convenience wrapper around create_baseline that automatically sets
-        snapshot_type to "snapshot". Use this task to capture the current state of
-        devices for comparison against baselines.
-
-        Snapshots represent the current state and are typically taken more frequently
-        than baselines. They are used for drift detection and comparison against
-        long-term baseline references.
-
-        Args:
-            device_ids: List of device IDs to snapshot. If None, snapshots all devices.
-            inventory_id: ID of inventory to use for device selection. Takes precedence over device_ids.
-            commands: List of specific commands to execute. If None, loads snapshot commands from database per device platform.
-            notes: Optional notes to store with snapshot (e.g., "Daily snapshot")
-            auth_token: Authentication token for device access (deprecated, use username instead)
-            username: Username to use for credential lookup. If not provided, extracts from auth_token or defaults to 'admin'
-
-        Returns:
-            Dictionary with snapshot creation results:
-                - status: "completed" or "failed"
-                - devices_processed: Number of devices successfully processed
-                - total_devices: Total number of devices attempted
-                - total_commands: Total commands executed
-                - errors: List of errors encountered
-                - snapshot_ids: List of created snapshot record IDs
-        """
-        # Call create_baseline with snapshot_type="snapshot"
-        return create_baseline(
+        """Create or update snapshots for devices."""
+        return _execute_snapshot_task(
+            self,
             device_ids=device_ids,
             inventory_id=inventory_id,
             commands=commands,

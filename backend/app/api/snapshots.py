@@ -110,6 +110,7 @@ async def check_snapshot_exists(
 async def list_snapshots(
     device_id: Optional[str] = Query(None, description="Filter by device UUID"),
     type: Optional[str] = Query(None, description="Filter by type: baseline or snapshot"),
+    grouped: bool = Query(True, description="Group snapshots by snapshot_group_id"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -117,6 +118,8 @@ async def list_snapshots(
     List snapshots/baselines.
 
     Can filter by device_id and/or type.
+    If grouped=True, returns grouped snapshots (one entry per snapshot session).
+    If grouped=False, returns individual command snapshots.
     """
     try:
         query = db.query(Snapshot)
@@ -128,26 +131,192 @@ async def list_snapshots(
             snapshot_type = SnapshotType.BASELINE if type.lower() == "baseline" else SnapshotType.SNAPSHOT
             query = query.filter(Snapshot.type == snapshot_type)
 
-        snapshots = query.order_by(desc(Snapshot.updated_at)).all()
+        snapshots = query.order_by(desc(Snapshot.created_at)).all()
 
-        return [
-            {
-                "id": s.id,
-                "device_id": s.device_id,
-                "device_name": s.device_name,
-                "command": s.command,
-                "type": s.type.value,
-                "version": s.version,
-                "created_at": s.created_at.isoformat() if s.created_at else None,
-                "updated_at": s.updated_at.isoformat() if s.updated_at else None,
-                "notes": s.notes,
-            }
-            for s in snapshots
-        ]
+        if grouped:
+            # Group snapshots by snapshot_group_id
+            groups = {}
+            for s in snapshots:
+                group_id = s.snapshot_group_id or str(s.id)  # Fallback for old snapshots without group_id
+                if group_id not in groups:
+                    groups[group_id] = {
+                        "snapshot_group_id": s.snapshot_group_id,
+                        "device_id": s.device_id,
+                        "device_name": s.device_name,
+                        "type": s.type.value,
+                        "created_at": s.created_at.isoformat() if s.created_at else None,
+                        "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+                        "notes": s.notes,
+                        "command_count": 0,
+                        "commands": [],
+                    }
+                groups[group_id]["command_count"] += 1
+                groups[group_id]["commands"].append(s.command)
+                # Use the latest updated_at if any command was updated
+                if s.updated_at:
+                    current_updated = groups[group_id]["updated_at"]
+                    if not current_updated or s.updated_at.isoformat() > current_updated:
+                        groups[group_id]["updated_at"] = s.updated_at.isoformat()
+
+            return list(groups.values())
+        else:
+            # Return individual snapshots
+            return [
+                {
+                    "id": s.id,
+                    "device_id": s.device_id,
+                    "device_name": s.device_name,
+                    "command": s.command,
+                    "type": s.type.value,
+                    "version": s.version,
+                    "snapshot_group_id": s.snapshot_group_id,
+                    "created_at": s.created_at.isoformat() if s.created_at else None,
+                    "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+                    "notes": s.notes,
+                }
+                for s in snapshots
+            ]
 
     except Exception as e:
         logger.error(f"Error listing snapshots: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to list snapshots: {str(e)}"
+        )
+
+
+@router.get("/{snapshot_id}")
+async def get_snapshot_detail(
+    snapshot_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Get detailed information about a specific snapshot, including its output data.
+    """
+    try:
+        snapshot = db.query(Snapshot).filter(Snapshot.id == snapshot_id).first()
+
+        if not snapshot:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Snapshot with id {snapshot_id} not found"
+            )
+
+        return {
+            "id": snapshot.id,
+            "device_id": snapshot.device_id,
+            "device_name": snapshot.device_name,
+            "command": snapshot.command,
+            "type": snapshot.type.value,
+            "version": snapshot.version,
+            "created_at": snapshot.created_at.isoformat() if snapshot.created_at else None,
+            "updated_at": snapshot.updated_at.isoformat() if snapshot.updated_at else None,
+            "notes": snapshot.notes,
+            "raw_output": snapshot.raw_output,
+            "normalized_output": snapshot.normalized_output,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting snapshot detail: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get snapshot: {str(e)}"
+        )
+
+
+@router.delete("/{snapshot_id}")
+async def delete_snapshot(
+    snapshot_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Delete a specific snapshot by ID.
+    """
+    try:
+        snapshot = db.query(Snapshot).filter(Snapshot.id == snapshot_id).first()
+
+        if not snapshot:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Snapshot with id {snapshot_id} not found"
+            )
+
+        # Store info for response
+        device_name = snapshot.device_name
+        command = snapshot.command
+
+        # Delete the snapshot
+        db.delete(snapshot)
+        db.commit()
+
+        logger.info(f"Deleted snapshot {snapshot_id} for device {device_name}, command: {command}")
+
+        return {
+            "success": True,
+            "message": f"Snapshot deleted successfully",
+            "id": snapshot_id,
+            "device_name": device_name,
+            "command": command,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting snapshot: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete snapshot: {str(e)}"
+        )
+
+
+@router.delete("/group/{snapshot_group_id}")
+async def delete_snapshot_group(
+    snapshot_group_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Delete all snapshots in a group by snapshot_group_id.
+    """
+    try:
+        # Find all snapshots in this group
+        snapshots = db.query(Snapshot).filter(Snapshot.snapshot_group_id == snapshot_group_id).all()
+
+        if not snapshots:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No snapshots found with group_id {snapshot_group_id}"
+            )
+
+        # Store info for response
+        device_name = snapshots[0].device_name
+        count = len(snapshots)
+
+        # Delete all snapshots in the group
+        db.query(Snapshot).filter(Snapshot.snapshot_group_id == snapshot_group_id).delete()
+        db.commit()
+
+        logger.info(f"Deleted snapshot group {snapshot_group_id} for device {device_name} ({count} commands)")
+
+        return {
+            "success": True,
+            "message": f"Deleted {count} snapshots from group",
+            "snapshot_group_id": snapshot_group_id,
+            "device_name": device_name,
+            "count": count,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting snapshot group: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete snapshot group: {str(e)}"
         )

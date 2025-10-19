@@ -1598,6 +1598,48 @@ async def submit_baseline_job(
         )
 
 
+@router.post("/jobs/snapshot")
+async def submit_snapshot_job(
+    request: BaselineJobRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Submit a snapshot creation job for specified devices."""
+    logger.info(f"🔵 Snapshot job request received")
+    logger.info(f"🔵 Request data: {request}")
+    logger.info(f"🔵 device_ids: {request.device_ids}")
+    logger.info(f"🔵 notes: {request.notes}")
+    logger.info(f"🔵 Current user: {current_user.username}")
+
+    try:
+        from ..services.background_jobs import celery_app, CELERY_AVAILABLE
+
+        if not CELERY_AVAILABLE:
+            logger.error("❌ Celery is not available")
+            raise HTTPException(status_code=503, detail="Celery is not available")
+
+        # Submit snapshot job (uses create_snapshot task which wraps create_baseline with snapshot_type="snapshot")
+        result = celery_app.send_task(
+            "app.tasks.baseline_tasks.create_snapshot",
+            kwargs={
+                "device_ids": request.device_ids,
+                "notes": request.notes,
+                "username": current_user.username,
+            }
+        )
+
+        return {
+            "success": True,
+            "task_id": result.id,
+            "message": f"Snapshot creation job submitted for {len(request.device_ids)} device(s)",
+        }
+
+    except Exception as e:
+        logger.error(f"Error submitting snapshot job: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to submit snapshot job: {str(e)}"
+        )
+
+
 @router.post("/jobs/clear")
 async def clear_job_logs(
     current_user: User = Depends(get_current_user),

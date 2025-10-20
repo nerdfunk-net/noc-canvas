@@ -59,8 +59,34 @@
 
             <!-- Diff View (Right) -->
             <div class="diff-view">
-              <h3 v-if="selectedCommand">{{ selectedCommand }}</h3>
-              <h3 v-else>Select a command to view differences</h3>
+              <div class="diff-header">
+                <h3 v-if="selectedCommand">{{ selectedCommand }}</h3>
+                <h3 v-else>Select a command to view differences</h3>
+
+                <div v-if="selectedCommand" class="diff-controls">
+                  <div class="tabs">
+                    <button
+                      :class="['tab-btn', { active: activeTab === 'summary' }]"
+                      @click="activeTab = 'summary'"
+                    >
+                      Summary
+                    </button>
+                    <button
+                      :class="['tab-btn', { active: activeTab === 'raw' }]"
+                      @click="activeTab = 'raw'"
+                    >
+                      Raw
+                    </button>
+                  </div>
+                  <button
+                    v-if="activeTab === 'summary'"
+                    :class="['filter-btn', { active: showDiffOnly }]"
+                    @click="showDiffOnly = !showDiffOnly"
+                  >
+                    {{ showDiffOnly ? 'Show All' : 'Show Diff Only' }}
+                  </button>
+                </div>
+              </div>
 
               <div v-if="selectedCommand && loadingDiff" class="diff-loading">
                 <div class="spinner-small"></div>
@@ -72,8 +98,35 @@
                   <span class="icon">✓</span>
                   <p>No differences found. Baseline and snapshot are identical for this command.</p>
                 </div>
-                <div v-else class="diff-display">
-                  <pre class="diff-text">{{ diffResult.diff }}</pre>
+                <div v-else>
+                  <!-- Summary Tab -->
+                  <div v-if="activeTab === 'summary'" class="summary-view">
+                    <table class="diff-table">
+                      <thead>
+                        <tr>
+                          <th>Line</th>
+                          <th>Baseline</th>
+                          <th>Snapshot</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr
+                          v-for="(row, index) in filteredTableData"
+                          :key="index"
+                          :class="row.status"
+                        >
+                          <td class="line-number">{{ row.lineNumber }}</td>
+                          <td class="baseline-value">{{ row.baseline }}</td>
+                          <td class="snapshot-value">{{ row.snapshot }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <!-- Raw Tab -->
+                  <div v-if="activeTab === 'raw'" class="diff-display">
+                    <pre class="diff-text">{{ diffResult.diff }}</pre>
+                  </div>
                 </div>
               </div>
 
@@ -104,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import secureStorage from '@/services/secureStorage'
 
 interface SnapshotGroup {
@@ -141,6 +194,14 @@ const selectedCommand = ref('')
 const diffResult = ref<any>(null)
 const loadingDiff = ref(false)
 const commandDiffStatus = ref<Record<string, boolean>>({})
+const activeTab = ref<'summary' | 'raw'>('summary')
+const showDiffOnly = ref(false)
+
+const filteredTableData = computed(() => {
+  if (!diffResult.value?.tableData) return []
+  if (!showDiffOnly.value) return diffResult.value.tableData
+  return diffResult.value.tableData.filter((row: any) => row.status === 'different')
+})
 
 watch(() => props.show, async (newShow) => {
   if (newShow && props.deviceId) {
@@ -310,7 +371,8 @@ const computeDiff = async (command: string) => {
     } else {
       // Generate a simple diff
       const diff = generateDiff(baselineOutput, snapshotOutput)
-      diffResult.value = { identical: false, diff }
+      const tableData = generateTableData(baselineOutput, snapshotOutput)
+      diffResult.value = { identical: false, diff, tableData }
     }
 
   } catch (err: any) {
@@ -347,6 +409,27 @@ const generateDiff = (baseline: string, snapshot: string): string => {
   }
 
   return diff.join('\n')
+}
+
+const generateTableData = (baseline: string, snapshot: string) => {
+  const baselineLines = baseline.split('\n')
+  const snapshotLines = snapshot.split('\n')
+  const maxLines = Math.max(baselineLines.length, snapshotLines.length)
+  const tableData: Array<{ lineNumber: number; baseline: string; snapshot: string; status: 'equal' | 'different' }> = []
+
+  for (let i = 0; i < maxLines; i++) {
+    const baseLine = baselineLines[i] || ''
+    const snapLine = snapshotLines[i] || ''
+
+    tableData.push({
+      lineNumber: i + 1,
+      baseline: baseLine,
+      snapshot: snapLine,
+      status: baseLine === snapLine ? 'equal' : 'different'
+    })
+  }
+
+  return tableData
 }
 
 const formatDate = (dateString: string) => {
@@ -633,14 +716,86 @@ const close = () => {
   border-radius: 12px;
   padding: 20px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.diff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 16px;
 }
 
 .diff-view h3 {
-  margin: 0 0 16px 0;
+  margin: 0;
   font-size: 14px;
   font-weight: 600;
   color: #cbd5e1;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.diff-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-btn {
+  padding: 6px 16px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tab-btn:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #cbd5e1;
+}
+
+.tab-btn.active {
+  background: rgba(59, 130, 246, 0.3);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #e2e8f0;
+}
+
+.filter-btn {
+  padding: 6px 12px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.filter-btn:hover {
+  background: rgba(147, 51, 234, 0.2);
+  border-color: rgba(147, 51, 234, 0.3);
+  color: #cbd5e1;
+}
+
+.filter-btn.active {
+  background: rgba(147, 51, 234, 0.3);
+  border-color: rgba(147, 51, 234, 0.5);
+  color: #e2e8f0;
 }
 
 .diff-loading {
@@ -654,6 +809,83 @@ const close = () => {
 
 .diff-content {
   padding: 16px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.summary-view {
+  overflow-x: auto;
+}
+
+.diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+}
+
+.diff-table thead {
+  position: sticky;
+  top: 0;
+  background: rgba(15, 23, 42, 0.95);
+  z-index: 1;
+}
+
+.diff-table th {
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #cbd5e1;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+.diff-table th:first-child {
+  width: 60px;
+  text-align: center;
+}
+
+.diff-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.diff-table .line-number {
+  text-align: center;
+  color: #64748b;
+  font-weight: 600;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.diff-table tr.equal {
+  background: rgba(16, 185, 129, 0.1);
+  border-left: 3px solid #10b981;
+}
+
+.diff-table tr.different {
+  background: rgba(239, 68, 68, 0.15);
+  border-left: 3px solid #ef4444;
+}
+
+.diff-table tr.equal td {
+  color: #a7f3d0;
+}
+
+.diff-table tr.different td {
+  color: #fca5a5;
+}
+
+.diff-table tr.different .baseline-value {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.diff-table tr.different .snapshot-value {
+  background: rgba(239, 68, 68, 0.15);
 }
 
 .no-diff-message {

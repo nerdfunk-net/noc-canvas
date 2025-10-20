@@ -376,8 +376,9 @@ const close = () => {
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 3vh;
   z-index: 10000;
   animation: fadeIn 0.2s ease-out;
 }
@@ -397,7 +398,7 @@ const close = () => {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   max-width: 1400px;
   width: 95%;
-  max-height: 85vh;
+  max-height: 90vh;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
   animation: slideUp 0.3s ease-out;
@@ -415,7 +416,7 @@ const close = () => {
 }
 
 .modal-header {
-  padding: 24px 28px;
+  padding: 12px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   justify-content: space-between;
@@ -425,7 +426,7 @@ const close = () => {
 
 .modal-header h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 600;
   color: #f1f5f9;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -434,16 +435,16 @@ const close = () => {
 .close-btn {
   background: none;
   border: none;
-  font-size: 32px;
+  font-size: 24px;
   color: #94a3b8;
   cursor: pointer;
   padding: 0;
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 6px;
   transition: all 0.2s;
 }
 
@@ -455,7 +456,7 @@ const close = () => {
 
 .modal-body {
   padding: 28px;
-  max-height: 60vh;
+  max-height: 70vh;
   overflow-y: auto;
 }
 
@@ -510,27 +511,27 @@ const close = () => {
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
-  padding: 20px;
+  padding: 12px 16px;
 }
 
 .selector-label {
   display: block;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: #cbd5e1;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .snapshot-select {
   width: 100%;
-  padding: 12px 16px;
+  padding: 8px 12px;
   background: rgba(15, 23, 42, 0.8);
   border: 1px solid rgba(59, 130, 246, 0.3);
   border-radius: 8px;
   color: #e2e8f0;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -557,13 +558,13 @@ const close = () => {
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
-  padding: 20px;
+  padding: 12px;
   overflow-y: auto;
 }
 
 .command-list h3 {
-  margin: 0 0 16px 0;
-  font-size: 14px;
+  margin: 0 0 10px 0;
+  font-size: 12px;
   font-weight: 600;
   color: #cbd5e1;
   text-transform: uppercase;
@@ -573,14 +574,14 @@ const close = () => {
 .command-items {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .command-item {
-  padding: 12px;
+  padding: 8px 10px;
   background: rgba(15, 23, 42, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
   display: flex;

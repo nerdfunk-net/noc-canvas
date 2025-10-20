@@ -53,7 +53,11 @@ async def check_snapshot_exists(
     """
     try:
         # Convert type string to enum
-        snapshot_type = SnapshotType.BASELINE if type.lower() == "baseline" else SnapshotType.SNAPSHOT
+        snapshot_type = (
+            SnapshotType.BASELINE
+            if type.lower() == "baseline"
+            else SnapshotType.SNAPSHOT
+        )
 
         # Get the most recent snapshot of the specified type
         latest_snapshot = (
@@ -93,8 +97,12 @@ async def check_snapshot_exists(
             "device_name": latest_snapshot.device_name,
             "type": type,
             "version": latest_snapshot.version,
-            "created_at": latest_snapshot.created_at.isoformat() if latest_snapshot.created_at else None,
-            "updated_at": latest_snapshot.updated_at.isoformat() if latest_snapshot.updated_at else None,
+            "created_at": latest_snapshot.created_at.isoformat()
+            if latest_snapshot.created_at
+            else None,
+            "updated_at": latest_snapshot.updated_at.isoformat()
+            if latest_snapshot.updated_at
+            else None,
             "notes": latest_snapshot.notes,
             "command_count": command_count,
         }
@@ -102,15 +110,16 @@ async def check_snapshot_exists(
     except Exception as e:
         logger.error(f"Error checking snapshot existence: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to check snapshot: {str(e)}"
+            status_code=500, detail=f"Failed to check snapshot: {str(e)}"
         )
 
 
 @router.get("/list")
 async def list_snapshots(
     device_id: Optional[str] = Query(None, description="Filter by device UUID"),
-    type: Optional[str] = Query(None, description="Filter by type: baseline or snapshot"),
+    type: Optional[str] = Query(
+        None, description="Filter by type: baseline or snapshot"
+    ),
     grouped: bool = Query(True, description="Group snapshots by snapshot_group_id"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -129,7 +138,11 @@ async def list_snapshots(
             query = query.filter(Snapshot.device_id == device_id)
 
         if type:
-            snapshot_type = SnapshotType.BASELINE if type.lower() == "baseline" else SnapshotType.SNAPSHOT
+            snapshot_type = (
+                SnapshotType.BASELINE
+                if type.lower() == "baseline"
+                else SnapshotType.SNAPSHOT
+            )
             query = query.filter(Snapshot.type == snapshot_type)
 
         snapshots = query.order_by(desc(Snapshot.created_at)).all()
@@ -138,15 +151,21 @@ async def list_snapshots(
             # Group snapshots by snapshot_group_id
             groups = {}
             for s in snapshots:
-                group_id = s.snapshot_group_id or str(s.id)  # Fallback for old snapshots without group_id
+                group_id = s.snapshot_group_id or str(
+                    s.id
+                )  # Fallback for old snapshots without group_id
                 if group_id not in groups:
                     groups[group_id] = {
                         "snapshot_group_id": s.snapshot_group_id,
                         "device_id": s.device_id,
                         "device_name": s.device_name,
                         "type": s.type.value,
-                        "created_at": s.created_at.isoformat() if s.created_at else None,
-                        "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+                        "created_at": s.created_at.isoformat()
+                        if s.created_at
+                        else None,
+                        "updated_at": s.updated_at.isoformat()
+                        if s.updated_at
+                        else None,
                         "notes": s.notes,
                         "command_count": 0,
                         "commands": [],
@@ -156,7 +175,10 @@ async def list_snapshots(
                 # Use the latest updated_at if any command was updated
                 if s.updated_at:
                     current_updated = groups[group_id]["updated_at"]
-                    if not current_updated or s.updated_at.isoformat() > current_updated:
+                    if (
+                        not current_updated
+                        or s.updated_at.isoformat() > current_updated
+                    ):
                         groups[group_id]["updated_at"] = s.updated_at.isoformat()
 
             return list(groups.values())
@@ -181,8 +203,7 @@ async def list_snapshots(
     except Exception as e:
         logger.error(f"Error listing snapshots: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list snapshots: {str(e)}"
+            status_code=500, detail=f"Failed to list snapshots: {str(e)}"
         )
 
 
@@ -200,8 +221,7 @@ async def get_snapshot_detail(
 
         if not snapshot:
             raise HTTPException(
-                status_code=404,
-                detail=f"Snapshot with id {snapshot_id} not found"
+                status_code=404, detail=f"Snapshot with id {snapshot_id} not found"
             )
 
         return {
@@ -211,8 +231,12 @@ async def get_snapshot_detail(
             "command": snapshot.command,
             "type": snapshot.type.value,
             "version": snapshot.version,
-            "created_at": snapshot.created_at.isoformat() if snapshot.created_at else None,
-            "updated_at": snapshot.updated_at.isoformat() if snapshot.updated_at else None,
+            "created_at": snapshot.created_at.isoformat()
+            if snapshot.created_at
+            else None,
+            "updated_at": snapshot.updated_at.isoformat()
+            if snapshot.updated_at
+            else None,
             "notes": snapshot.notes,
             "raw_output": snapshot.raw_output,
             "normalized_output": snapshot.normalized_output,
@@ -222,10 +246,7 @@ async def get_snapshot_detail(
         raise
     except Exception as e:
         logger.error(f"Error getting snapshot detail: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get snapshot: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to get snapshot: {str(e)}")
 
 
 @router.delete("/{snapshot_id}")
@@ -242,8 +263,7 @@ async def delete_snapshot(
 
         if not snapshot:
             raise HTTPException(
-                status_code=404,
-                detail=f"Snapshot with id {snapshot_id} not found"
+                status_code=404, detail=f"Snapshot with id {snapshot_id} not found"
             )
 
         # Store info for response
@@ -254,11 +274,13 @@ async def delete_snapshot(
         db.delete(snapshot)
         db.commit()
 
-        logger.info(f"Deleted snapshot {snapshot_id} for device {device_name}, command: {command}")
+        logger.info(
+            f"Deleted snapshot {snapshot_id} for device {device_name}, command: {command}"
+        )
 
         return {
             "success": True,
-            "message": f"Snapshot deleted successfully",
+            "message": "Snapshot deleted successfully",
             "id": snapshot_id,
             "device_name": device_name,
             "command": command,
@@ -270,8 +292,7 @@ async def delete_snapshot(
         logger.error(f"Error deleting snapshot: {str(e)}")
         db.rollback()
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete snapshot: {str(e)}"
+            status_code=500, detail=f"Failed to delete snapshot: {str(e)}"
         )
 
 
@@ -286,12 +307,16 @@ async def delete_snapshot_group(
     """
     try:
         # Find all snapshots in this group
-        snapshots = db.query(Snapshot).filter(Snapshot.snapshot_group_id == snapshot_group_id).all()
+        snapshots = (
+            db.query(Snapshot)
+            .filter(Snapshot.snapshot_group_id == snapshot_group_id)
+            .all()
+        )
 
         if not snapshots:
             raise HTTPException(
                 status_code=404,
-                detail=f"No snapshots found with group_id {snapshot_group_id}"
+                detail=f"No snapshots found with group_id {snapshot_group_id}",
             )
 
         # Store info for response
@@ -299,10 +324,14 @@ async def delete_snapshot_group(
         count = len(snapshots)
 
         # Delete all snapshots in the group
-        db.query(Snapshot).filter(Snapshot.snapshot_group_id == snapshot_group_id).delete()
+        db.query(Snapshot).filter(
+            Snapshot.snapshot_group_id == snapshot_group_id
+        ).delete()
         db.commit()
 
-        logger.info(f"Deleted snapshot group {snapshot_group_id} for device {device_name} ({count} commands)")
+        logger.info(
+            f"Deleted snapshot group {snapshot_group_id} for device {device_name} ({count} commands)"
+        )
 
         return {
             "success": True,
@@ -318,8 +347,7 @@ async def delete_snapshot_group(
         logger.error(f"Error deleting snapshot group: {str(e)}")
         db.rollback()
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete snapshot group: {str(e)}"
+            status_code=500, detail=f"Failed to delete snapshot group: {str(e)}"
         )
 
 
@@ -344,27 +372,26 @@ async def compare_snapshots(
         if not baseline:
             raise HTTPException(
                 status_code=404,
-                detail=f"Baseline snapshot with id {baseline_id} not found"
+                detail=f"Baseline snapshot with id {baseline_id} not found",
             )
 
         if not snapshot:
             raise HTTPException(
-                status_code=404,
-                detail=f"Snapshot with id {snapshot_id} not found"
+                status_code=404, detail=f"Snapshot with id {snapshot_id} not found"
             )
 
         # Verify they are for the same command
         if baseline.command != snapshot.command:
             raise HTTPException(
                 status_code=400,
-                detail=f"Cannot compare different commands: {baseline.command} vs {snapshot.command}"
+                detail=f"Cannot compare different commands: {baseline.command} vs {snapshot.command}",
             )
 
         # Try structured comparison
         comparison_result = StructuredComparator.compare(
             command=baseline.command,
             baseline_output=baseline.normalized_output,
-            snapshot_output=snapshot.normalized_output
+            snapshot_output=snapshot.normalized_output,
         )
 
         if comparison_result:
@@ -372,25 +399,26 @@ async def compare_snapshots(
             comparison_result["baseline"] = {
                 "id": baseline.id,
                 "device_name": baseline.device_name,
-                "created_at": baseline.created_at.isoformat() if baseline.created_at else None,
-                "type": baseline.type.value
+                "created_at": baseline.created_at.isoformat()
+                if baseline.created_at
+                else None,
+                "type": baseline.type.value,
             }
             comparison_result["snapshot"] = {
                 "id": snapshot.id,
                 "device_name": snapshot.device_name,
-                "created_at": snapshot.created_at.isoformat() if snapshot.created_at else None,
-                "type": snapshot.type.value
+                "created_at": snapshot.created_at.isoformat()
+                if snapshot.created_at
+                else None,
+                "type": snapshot.type.value,
             }
 
-            return {
-                "supported": True,
-                "comparison": comparison_result
-            }
+            return {"supported": True, "comparison": comparison_result}
         else:
             # Command not supported for structured comparison
             return {
                 "supported": False,
-                "message": f"Command '{baseline.command}' does not have structured comparison support"
+                "message": f"Command '{baseline.command}' does not have structured comparison support",
             }
 
     except HTTPException:
@@ -398,6 +426,5 @@ async def compare_snapshots(
     except Exception as e:
         logger.error(f"Error comparing snapshots: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to compare snapshots: {str(e)}"
+            status_code=500, detail=f"Failed to compare snapshots: {str(e)}"
         )

@@ -3,7 +3,16 @@ Device cache models for storing network device discovery data.
 Phase 1: Device, Interface, IP Address, and ARP cache tables.
 """
 
-from sqlalchemy import Column, String, DateTime, Boolean, Integer, ForeignKey, Index, Enum
+from sqlalchemy import (
+    Column,
+    String,
+    DateTime,
+    Boolean,
+    Integer,
+    ForeignKey,
+    Index,
+    Enum,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from ..core.database import Base
@@ -373,9 +382,7 @@ class Snapshot(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )  # Last update
-    version = Column(
-        Integer, default=1
-    )  # Version number for tracking snapshot updates
+    version = Column(Integer, default=1)  # Version number for tracking snapshot updates
     snapshot_group_id = Column(
         String, index=True
     )  # UUID to group multiple commands from the same snapshot session

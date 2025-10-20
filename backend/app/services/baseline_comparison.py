@@ -37,7 +37,11 @@ class BaselineComparator:
             Latest Snapshot record or None
         """
         # Convert string to enum
-        type_enum = SnapshotType.BASELINE if snapshot_type.lower() == "baseline" else SnapshotType.SNAPSHOT
+        type_enum = (
+            SnapshotType.BASELINE
+            if snapshot_type.lower() == "baseline"
+            else SnapshotType.SNAPSHOT
+        )
 
         return (
             db.query(Snapshot)
@@ -54,7 +58,11 @@ class BaselineComparator:
 
     @staticmethod
     def get_baseline_by_version(
-        db: Session, device_id: str, command: str, version: int, snapshot_type: str = "baseline"
+        db: Session,
+        device_id: str,
+        command: str,
+        version: int,
+        snapshot_type: str = "baseline",
     ) -> Optional[Snapshot]:
         """
         Get a specific snapshot/baseline version.
@@ -70,7 +78,11 @@ class BaselineComparator:
             Snapshot record or None
         """
         # Convert string to enum
-        type_enum = SnapshotType.BASELINE if snapshot_type.lower() == "baseline" else SnapshotType.SNAPSHOT
+        type_enum = (
+            SnapshotType.BASELINE
+            if snapshot_type.lower() == "baseline"
+            else SnapshotType.SNAPSHOT
+        )
 
         return (
             db.query(Snapshot)
@@ -87,7 +99,11 @@ class BaselineComparator:
 
     @staticmethod
     def get_baseline_history(
-        db: Session, device_id: str, command: str, limit: int = 10, snapshot_type: str = "baseline"
+        db: Session,
+        device_id: str,
+        command: str,
+        limit: int = 10,
+        snapshot_type: str = "baseline",
     ) -> List[Snapshot]:
         """
         Get snapshot/baseline history for a device and command.
@@ -103,7 +119,11 @@ class BaselineComparator:
             List of Snapshot records ordered by version desc
         """
         # Convert string to enum
-        type_enum = SnapshotType.BASELINE if snapshot_type.lower() == "baseline" else SnapshotType.SNAPSHOT
+        type_enum = (
+            SnapshotType.BASELINE
+            if snapshot_type.lower() == "baseline"
+            else SnapshotType.SNAPSHOT
+        )
 
         return (
             db.query(Snapshot)

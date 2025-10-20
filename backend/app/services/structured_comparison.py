@@ -24,7 +24,7 @@ class StructuredComparator:
         command_name: str,
         exclude_fields: List[str],
         summary_count_key: str,
-        key_builder: Optional[Callable[[Dict[str, Any]], str]] = None
+        key_builder: Optional[Callable[[Dict[str, Any]], str]] = None,
     ) -> Dict[str, Any]:
         """
         Generic comparison method for structured data.
@@ -44,8 +44,16 @@ class StructuredComparator:
         """
         try:
             # Parse JSON outputs
-            baseline_data = json.loads(baseline_output) if isinstance(baseline_output, str) else baseline_output
-            snapshot_data = json.loads(snapshot_output) if isinstance(snapshot_output, str) else snapshot_output
+            baseline_data = (
+                json.loads(baseline_output)
+                if isinstance(baseline_output, str)
+                else baseline_output
+            )
+            snapshot_data = (
+                json.loads(snapshot_output)
+                if isinstance(snapshot_output, str)
+                else snapshot_output
+            )
 
             # Build key-value mappings
             if key_builder:
@@ -71,8 +79,8 @@ class StructuredComparator:
                     "added": len(snapshot_only),
                     "removed": len(baseline_only),
                     "changed": 0,
-                    "unchanged": 0
-                }
+                    "unchanged": 0,
+                },
             }
 
             # Process items that only exist in baseline (removed)
@@ -85,11 +93,11 @@ class StructuredComparator:
                             "field": field,
                             "baseline": value,
                             "snapshot": None,
-                            "changed": True
+                            "changed": True,
                         }
                         for field, value in baseline_item.items()
                         if field not in exclude_fields
-                    ]
+                    ],
                 }
 
             # Process items that only exist in snapshot (added)
@@ -102,11 +110,11 @@ class StructuredComparator:
                             "field": field,
                             "baseline": None,
                             "snapshot": value,
-                            "changed": True
+                            "changed": True,
                         }
                         for field, value in snapshot_item.items()
                         if field not in exclude_fields
-                    ]
+                    ],
                 }
 
             # Process common items
@@ -130,16 +138,18 @@ class StructuredComparator:
                     if changed:
                         has_changes = True
 
-                    fields_comparison.append({
-                        "field": field,
-                        "baseline": baseline_value,
-                        "snapshot": snapshot_value,
-                        "changed": changed
-                    })
+                    fields_comparison.append(
+                        {
+                            "field": field,
+                            "baseline": baseline_value,
+                            "snapshot": snapshot_value,
+                            "changed": changed,
+                        }
+                    )
 
                 result[result_key][item_key] = {
                     "status": "changed" if has_changes else "unchanged",
-                    "fields": fields_comparison
+                    "fields": fields_comparison,
                 }
 
                 if has_changes:
@@ -155,8 +165,7 @@ class StructuredComparator:
 
     @staticmethod
     def compare_show_interfaces(
-        baseline_output: str,
-        snapshot_output: str
+        baseline_output: str, snapshot_output: str
     ) -> Dict[str, Any]:
         """
         Compare 'show interfaces' command outputs.
@@ -175,13 +184,12 @@ class StructuredComparator:
             result_key="interfaces",
             command_name="show interfaces",
             exclude_fields=["interface"],
-            summary_count_key="total_interfaces"
+            summary_count_key="total_interfaces",
         )
 
     @staticmethod
     def compare_show_ip_route_static(
-        baseline_output: str,
-        snapshot_output: str
+        baseline_output: str, snapshot_output: str
     ) -> Dict[str, Any]:
         """
         Compare 'show ip route static' command outputs.
@@ -201,13 +209,12 @@ class StructuredComparator:
             command_name="show ip route static",
             exclude_fields=["network", "prefix_length", "uptime"],
             summary_count_key="total_routes",
-            key_builder=lambda item: f"{item['network']}/{item['prefix_length']}"
+            key_builder=lambda item: f"{item['network']}/{item['prefix_length']}",
         )
 
     @staticmethod
     def compare_show_ip_arp(
-        baseline_output: str,
-        snapshot_output: str
+        baseline_output: str, snapshot_output: str
     ) -> Dict[str, Any]:
         """
         Compare 'show ip arp' command outputs.
@@ -226,14 +233,12 @@ class StructuredComparator:
             result_key="arp_entries",
             command_name="show ip arp",
             exclude_fields=["mac_address"],
-            summary_count_key="total_entries"
+            summary_count_key="total_entries",
         )
 
     @staticmethod
     def compare(
-        command: str,
-        baseline_output: str,
-        snapshot_output: str
+        command: str, baseline_output: str, snapshot_output: str
     ) -> Optional[Dict[str, Any]]:
         """
         Compare command outputs based on command type.
@@ -252,27 +257,23 @@ class StructuredComparator:
         # Route to appropriate comparator
         if "show interfaces" in command_lower or "show interface" in command_lower:
             return StructuredComparator.compare_show_interfaces(
-                baseline_output,
-                snapshot_output
+                baseline_output, snapshot_output
             )
         elif "show ip route static" in command_lower:
             return StructuredComparator.compare_show_ip_route_static(
-                baseline_output,
-                snapshot_output
+                baseline_output, snapshot_output
             )
         elif "show ip route ospf" in command_lower:
             # OSPF routes use the same structure as static routes
             result = StructuredComparator.compare_show_ip_route_static(
-                baseline_output,
-                snapshot_output
+                baseline_output, snapshot_output
             )
             # Update command name in result
             result["command"] = "show ip route ospf"
             return result
         elif "show ip arp" in command_lower:
             return StructuredComparator.compare_show_ip_arp(
-                baseline_output,
-                snapshot_output
+                baseline_output, snapshot_output
             )
 
         # Add more command parsers here as needed

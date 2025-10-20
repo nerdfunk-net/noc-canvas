@@ -156,7 +156,12 @@ def create_default_commands() -> bool:
     try:
         from sqlalchemy.orm import sessionmaker
         from .database import engine
-        from ..models.settings import DeviceCommand, CommandPlatform, CommandParser, CommandType
+        from ..models.settings import (
+            DeviceCommand,
+            CommandPlatform,
+            CommandParser,
+            CommandType,
+        )
 
         SessionLocal = sessionmaker(bind=engine)
 
@@ -174,49 +179,49 @@ def create_default_commands() -> bool:
                         "display": "show interfaces",
                         "platforms": ["IOS", "IOS XE"],
                         "parser": "TextFSM",
-                        "type": "snapshot"
+                        "type": "snapshot",
                     },
                     {
                         "command": "show ip arp",
                         "display": "show ip arp",
                         "platforms": ["IOS", "IOS XE"],
                         "parser": "TextFSM",
-                        "type": "snapshot"
+                        "type": "snapshot",
                     },
                     {
                         "command": "show cdp neighbors",
                         "display": "show cdp neigh",
                         "platforms": ["IOS", "IOS XE"],
                         "parser": "TextFSM",
-                        "type": "snapshot"
+                        "type": "snapshot",
                     },
                     {
                         "command": "show mac address-table",
                         "display": "show macs",
                         "platforms": ["IOS", "IOS XE"],
                         "parser": "TextFSM",
-                        "type": "snapshot"
+                        "type": "snapshot",
                     },
                     {
                         "command": "show ip route static",
                         "display": "show static routes",
                         "platforms": ["IOS", "IOS XE"],
                         "parser": "TextFSM",
-                        "type": "snapshot"
+                        "type": "snapshot",
                     },
                     {
                         "command": "show ip route ospf",
                         "display": "show ospf routes",
                         "platforms": ["IOS", "IOS XE"],
                         "parser": "TextFSM",
-                        "type": "snapshot"
+                        "type": "snapshot",
                     },
                     {
                         "command": "show ip route bgp",
                         "display": "show bgp routes",
                         "platforms": ["IOS", "IOS XE"],
                         "parser": "TextFSM",
-                        "type": "snapshot"
+                        "type": "snapshot",
                     },
                 ]
 
@@ -225,9 +230,17 @@ def create_default_commands() -> bool:
                 for cmd_def in default_commands:
                     for platform_str in cmd_def["platforms"]:
                         # Convert string to enum
-                        platform = CommandPlatform.IOS if platform_str == "IOS" else CommandPlatform.IOS_XE
+                        platform = (
+                            CommandPlatform.IOS
+                            if platform_str == "IOS"
+                            else CommandPlatform.IOS_XE
+                        )
                         parser = CommandParser.TEXTFSM
-                        cmd_type = CommandType.SNAPSHOT if cmd_def["type"] == "snapshot" else CommandType.GENERAL
+                        cmd_type = (
+                            CommandType.SNAPSHOT
+                            if cmd_def["type"] == "snapshot"
+                            else CommandType.GENERAL
+                        )
 
                         command = DeviceCommand(
                             command=cmd_def["command"],
@@ -252,6 +265,7 @@ def create_default_commands() -> bool:
     except Exception as e:
         logger.error(f"Failed to create default commands: {e}")
         import traceback
+
         logger.error(traceback.format_exc())
         return False
 

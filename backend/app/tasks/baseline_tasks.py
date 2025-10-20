@@ -82,7 +82,9 @@ def register_tasks(celery_app):
         elif snapshot_type.lower() == "snapshot":
             snapshot_type_enum = SnapshotType.SNAPSHOT
         else:
-            raise ValueError(f"Invalid snapshot_type: {snapshot_type}. Must be 'baseline' or 'snapshot'")
+            raise ValueError(
+                f"Invalid snapshot_type: {snapshot_type}. Must be 'baseline' or 'snapshot'"
+            )
 
         logger.info(f"Starting snapshot creation task (type: {snapshot_type})")
 
@@ -107,7 +109,9 @@ def register_tasks(celery_app):
                 periodic_task_id = None
                 try:
                     # Celery provides request context with task metadata
-                    if hasattr(task_self, "request") and hasattr(task_self.request, "properties"):
+                    if hasattr(task_self, "request") and hasattr(
+                        task_self.request, "properties"
+                    ):
                         # Try to extract periodic task ID from task properties/headers
                         # This is set by celery-beat when running scheduled tasks
                         periodic_task_id = task_self.request.properties.get(
@@ -302,8 +306,14 @@ def register_tasks(celery_app):
                         # Map Nautobot platform names to CommandPlatform enum
                         # Order matters: check more specific patterns first (e.g., "ios xe" before "ios")
                         platform_mapping = [
-                            (["cisco_xe", "ios-xe", "iosxe", "ios xe"], CommandPlatform.IOS_XE),
-                            (["cisco_nxos", "nxos", "nx-os", "nexus"], CommandPlatform.NEXUS),
+                            (
+                                ["cisco_xe", "ios-xe", "iosxe", "ios xe"],
+                                CommandPlatform.IOS_XE,
+                            ),
+                            (
+                                ["cisco_nxos", "nxos", "nx-os", "nexus"],
+                                CommandPlatform.NEXUS,
+                            ),
                             (["cisco_ios", "ios"], CommandPlatform.IOS),
                         ]
 
@@ -312,7 +322,9 @@ def register_tasks(celery_app):
                         command_platform = None
                         device_platform_lower = device_platform_name.lower()
                         for patterns, platform_enum in platform_mapping:
-                            if any(pattern in device_platform_lower for pattern in patterns):
+                            if any(
+                                pattern in device_platform_lower for pattern in patterns
+                            ):
                                 command_platform = platform_enum
                                 break
 
@@ -358,7 +370,9 @@ def register_tasks(celery_app):
                         # Generate a unique group ID for this snapshot session
                         # All commands executed in this session will share the same group_id
                         snapshot_group_id = str(uuid.uuid4())
-                        logger.info(f"Device {device_name}: Generated snapshot_group_id: {snapshot_group_id}")
+                        logger.info(
+                            f"Device {device_name}: Generated snapshot_group_id: {snapshot_group_id}"
+                        )
 
                         for command in commands_to_run:
                             try:
@@ -392,7 +406,9 @@ def register_tasks(celery_app):
 
                                 # Get parsed output
                                 output = result.get("output")
-                                logger.info(f"Device {device_name}: Command '{command}' - output type: {type(output)}, output value: {output}")
+                                logger.info(
+                                    f"Device {device_name}: Command '{command}' - output type: {type(output)}, output value: {output}"
+                                )
 
                                 if not output or not isinstance(output, list):
                                     logger.warning(
@@ -400,22 +416,30 @@ def register_tasks(celery_app):
                                     )
                                     continue
 
-                                logger.info(f"Device {device_name}: Command '{command}' - passed validation, proceeding to serialize")
+                                logger.info(
+                                    f"Device {device_name}: Command '{command}' - passed validation, proceeding to serialize"
+                                )
                                 # Serialize output to JSON
                                 raw_output_json = json.dumps(output, indent=2)
-                                logger.info(f"Device {device_name}: Command '{command}' - raw_output_json length: {len(raw_output_json)}")
+                                logger.info(
+                                    f"Device {device_name}: Command '{command}' - raw_output_json length: {len(raw_output_json)}"
+                                )
 
                                 # Create normalized version (remove timestamps, counters, etc.)
                                 normalized_output_json = _normalize_output(
                                     output, command
                                 )
-                                logger.info(f"Device {device_name}: Command '{command}' - normalized_output_json length: {len(normalized_output_json)}")
+                                logger.info(
+                                    f"Device {device_name}: Command '{command}' - normalized_output_json length: {len(normalized_output_json)}"
+                                )
 
                                 # For baselines: check if one exists and update it
                                 # For snapshots: always create a new one (never update existing)
                                 if snapshot_type_enum == SnapshotType.BASELINE:
                                     # Baseline mode: Check if snapshot exists for this device/command/type
-                                    logger.info(f"Device {device_name}: Checking for existing baseline with device_id={device_id}, command={command}, type={snapshot_type_enum}")
+                                    logger.info(
+                                        f"Device {device_name}: Checking for existing baseline with device_id={device_id}, command={command}, type={snapshot_type_enum}"
+                                    )
                                     existing_snapshot = (
                                         db.query(Snapshot)
                                         .filter(
@@ -427,7 +451,9 @@ def register_tasks(celery_app):
                                         )
                                         .first()
                                     )
-                                    logger.info(f"Device {device_name}: Existing baseline found: {existing_snapshot is not None}")
+                                    logger.info(
+                                        f"Device {device_name}: Existing baseline found: {existing_snapshot is not None}"
+                                    )
 
                                     if existing_snapshot:
                                         # Update existing baseline
@@ -467,7 +493,9 @@ def register_tasks(celery_app):
                                         )
                                 else:
                                     # Snapshot mode: Always create a new snapshot (never update)
-                                    logger.info(f"Device {device_name}: Creating new snapshot (always creates new, never updates)")
+                                    logger.info(
+                                        f"Device {device_name}: Creating new snapshot (always creates new, never updates)"
+                                    )
                                     new_snapshot = Snapshot(
                                         device_id=device_id,
                                         device_name=device_name,

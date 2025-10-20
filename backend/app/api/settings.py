@@ -1538,6 +1538,7 @@ async def submit_test_job(
 
 class BaselineJobRequest(BaseModel):
     """Request model for baseline job submission."""
+
     device_ids: List[str]
     notes: Optional[str] = None
 
@@ -1551,7 +1552,9 @@ async def debug_baseline_request(
     """Debug endpoint to see raw request body."""
     logger.info(f"🔍 DEBUG: Raw request body: {body}")
     logger.info(f"🔍 DEBUG: Body type: {type(body)}")
-    logger.info(f"🔍 DEBUG: Body keys: {body.keys() if isinstance(body, dict) else 'Not a dict'}")
+    logger.info(
+        f"🔍 DEBUG: Body keys: {body.keys() if isinstance(body, dict) else 'Not a dict'}"
+    )
     logger.info(f"🔍 DEBUG: Current user: {current_user.username}")
     return {"received": body, "user": current_user.username}
 
@@ -1562,7 +1565,7 @@ async def submit_baseline_job(
     current_user: User = Depends(get_current_user),
 ):
     """Submit a baseline creation job for specified devices."""
-    logger.info(f"🔵 Baseline job request received")
+    logger.info("🔵 Baseline job request received")
     logger.info(f"🔵 Request data: {request}")
     logger.info(f"🔵 device_ids: {request.device_ids}")
     logger.info(f"🔵 notes: {request.notes}")
@@ -1582,7 +1585,7 @@ async def submit_baseline_job(
                 "device_ids": request.device_ids,
                 "notes": request.notes,
                 "username": current_user.username,
-            }
+            },
         )
 
         return {
@@ -1604,7 +1607,7 @@ async def submit_snapshot_job(
     current_user: User = Depends(get_current_user),
 ):
     """Submit a snapshot creation job for specified devices."""
-    logger.info(f"🔵 Snapshot job request received")
+    logger.info("🔵 Snapshot job request received")
     logger.info(f"🔵 Request data: {request}")
     logger.info(f"🔵 device_ids: {request.device_ids}")
     logger.info(f"🔵 notes: {request.notes}")
@@ -1624,7 +1627,7 @@ async def submit_snapshot_job(
                 "device_ids": request.device_ids,
                 "notes": request.notes,
                 "username": current_user.username,
-            }
+            },
         )
 
         return {

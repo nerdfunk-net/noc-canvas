@@ -287,6 +287,125 @@ class StructuredComparator:
             raise
 
     @staticmethod
+    def compare_show_ip_arp(
+        baseline_output: str,
+        snapshot_output: str
+    ) -> Dict[str, Any]:
+        """
+        Compare 'show ip arp' command outputs.
+
+        Args:
+            baseline_output: JSON string of baseline normalized output
+            snapshot_output: JSON string of snapshot normalized output
+
+        Returns:
+            Dictionary with structured comparison results grouped by MAC address
+        """
+        try:
+            # Parse JSON outputs
+            baseline_data = json.loads(baseline_output) if isinstance(baseline_output, str) else baseline_output
+            snapshot_data = json.loads(snapshot_output) if isinstance(snapshot_output, str) else snapshot_output
+
+            # Convert lists to dictionaries keyed by MAC address
+            baseline_arps = {item["mac_address"]: item for item in baseline_data}
+            snapshot_arps = {item["mac_address"]: item for item in snapshot_data}
+
+            # Get all MAC addresses
+            all_macs = set(baseline_arps.keys()) | set(snapshot_arps.keys())
+            baseline_only = set(baseline_arps.keys()) - set(snapshot_arps.keys())
+            snapshot_only = set(snapshot_arps.keys()) - set(baseline_arps.keys())
+            common_macs = set(baseline_arps.keys()) & set(snapshot_arps.keys())
+
+            result = {
+                "command": "show ip arp",
+                "arp_entries": {},
+                "summary": {
+                    "total_entries": len(all_macs),
+                    "added": len(snapshot_only),
+                    "removed": len(baseline_only),
+                    "changed": 0,
+                    "unchanged": 0
+                }
+            }
+
+            # Process ARP entries that only exist in baseline (removed)
+            for mac in baseline_only:
+                baseline_arp = baseline_arps[mac]
+                result["arp_entries"][mac] = {
+                    "status": "removed",
+                    "fields": [
+                        {
+                            "field": field,
+                            "baseline": value,
+                            "snapshot": None,
+                            "changed": True
+                        }
+                        for field, value in baseline_arp.items()
+                        if field != "mac_address"
+                    ]
+                }
+
+            # Process ARP entries that only exist in snapshot (added)
+            for mac in snapshot_only:
+                snapshot_arp = snapshot_arps[mac]
+                result["arp_entries"][mac] = {
+                    "status": "added",
+                    "fields": [
+                        {
+                            "field": field,
+                            "baseline": None,
+                            "snapshot": value,
+                            "changed": True
+                        }
+                        for field, value in snapshot_arp.items()
+                        if field != "mac_address"
+                    ]
+                }
+
+            # Process common ARP entries
+            for mac in common_macs:
+                baseline_arp = baseline_arps[mac]
+                snapshot_arp = snapshot_arps[mac]
+
+                # Get all fields from both, excluding mac_address
+                all_fields = set(baseline_arp.keys()) | set(snapshot_arp.keys())
+                all_fields.discard("mac_address")
+
+                fields_comparison = []
+                has_changes = False
+
+                for field in sorted(all_fields):
+                    baseline_value = baseline_arp.get(field)
+                    snapshot_value = snapshot_arp.get(field)
+                    changed = baseline_value != snapshot_value
+
+                    if changed:
+                        has_changes = True
+
+                    fields_comparison.append({
+                        "field": field,
+                        "baseline": baseline_value,
+                        "snapshot": snapshot_value,
+                        "changed": changed
+                    })
+
+                result["arp_entries"][mac] = {
+                    "status": "changed" if has_changes else "unchanged",
+                    "fields": fields_comparison
+                }
+
+                if has_changes:
+                    result["summary"]["changed"] += 1
+                else:
+                    result["summary"]["unchanged"] += 1
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error comparing show ip arp: {str(e)}")
+            raise
+
+    @staticmethod
     def compare(
         command: str,
         baseline_output: str,
@@ -326,6 +445,11 @@ class StructuredComparator:
             # Update command name in result
             result["command"] = "show ip route ospf"
             return result
+        elif "show ip arp" in command_lower:
+            return StructuredComparator.compare_show_ip_arp(
+                baseline_output,
+                snapshot_output
+            )
 
         # Add more command parsers here as needed
         # elif "show version" in command_lower:

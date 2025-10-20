@@ -239,8 +239,10 @@ const filteredTableData = computed(() => {
 })
 
 const filteredStructuredData = computed(() => {
-  // Support both interfaces and routes (or any other grouped data)
-  const data = diffResult.value?.structured?.interfaces || diffResult.value?.structured?.routes
+  // Support interfaces, routes, arp_entries, or any other grouped data
+  const data = diffResult.value?.structured?.interfaces ||
+                diffResult.value?.structured?.routes ||
+                diffResult.value?.structured?.arp_entries
   if (!data) return {}
 
   if (!showDiffOnly.value) {
@@ -384,7 +386,7 @@ const computeAllDiffStatuses = async (commands: string[]) => {
       if (structuredResponse.supported) {
         // Use structured comparison to determine if there are differences
         const comparison = structuredResponse.comparison
-        const data = comparison.interfaces || comparison.routes
+        const data = comparison.interfaces || comparison.routes || comparison.arp_entries
 
         let hasDifference = false
         if (data) {

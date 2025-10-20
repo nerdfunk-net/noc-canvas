@@ -101,7 +101,42 @@
                 <div v-else>
                   <!-- Summary Tab -->
                   <div v-if="activeTab === 'summary'" class="summary-view">
-                    <table class="diff-table">
+                    <!-- Structured comparison for supported commands -->
+                    <div v-if="diffResult.structured">
+                      <div
+                        v-for="(itemData, itemName) in filteredStructuredData"
+                        :key="itemName"
+                        class="interface-group"
+                      >
+                        <div class="interface-header" :class="itemData.status">
+                          <span class="interface-name">{{ itemName }}</span>
+                          <span class="interface-status">{{ itemData.status }}</span>
+                        </div>
+                        <table class="diff-table">
+                          <thead>
+                            <tr>
+                              <th>Field</th>
+                              <th>Baseline</th>
+                              <th>Snapshot</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr
+                              v-for="field in itemData.fields"
+                              :key="field.field"
+                              :class="field.changed ? 'different' : 'equal'"
+                            >
+                              <td class="field-name">{{ field.field }}</td>
+                              <td class="baseline-value">{{ field.baseline || '-' }}</td>
+                              <td class="snapshot-value">{{ field.snapshot || '-' }}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <!-- Fallback line-by-line comparison -->
+                    <table v-else class="diff-table">
                       <thead>
                         <tr>
                           <th>Line</th>
@@ -201,6 +236,37 @@ const filteredTableData = computed(() => {
   if (!diffResult.value?.tableData) return []
   if (!showDiffOnly.value) return diffResult.value.tableData
   return diffResult.value.tableData.filter((row: any) => row.status === 'different')
+})
+
+const filteredStructuredData = computed(() => {
+  // Support both interfaces and routes (or any other grouped data)
+  const data = diffResult.value?.structured?.interfaces || diffResult.value?.structured?.routes
+  if (!data) return {}
+
+  if (!showDiffOnly.value) {
+    return data
+  }
+
+  // Filter to show only items with changes AND only changed fields
+  const filtered: any = {}
+  for (const [itemName, itemData] of Object.entries(data)) {
+    const item = itemData as any
+
+    // Skip unchanged items
+    if (item.status === 'unchanged') continue
+
+    // For changed items, filter to show only changed fields
+    if (item.status === 'changed') {
+      filtered[itemName] = {
+        ...item,
+        fields: item.fields.filter((field: any) => field.changed)
+      }
+    } else {
+      // For added/removed items, show all fields
+      filtered[itemName] = item
+    }
+  }
+  return filtered
 })
 
 watch(() => props.show, async (newShow) => {
@@ -309,19 +375,41 @@ const computeAllDiffStatuses = async (commands: string[]) => {
         continue
       }
 
-      // Fetch full details
-      const [baselineDetail, snapshotDetail] = await Promise.all([
-        fetch(`/api/snapshots/${baselineData.id}`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }).then(r => r.json()),
-        fetch(`/api/snapshots/${snapshotData.id}`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }).then(r => r.json())
-      ])
+      // Try structured comparison first
+      const structuredResponse = await fetch(`/api/snapshots/compare?baseline_id=${baselineData.id}&snapshot_id=${snapshotData.id}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      }).then(r => r.json())
 
-      // Compare normalized outputs
-      const hasDifference = baselineDetail.normalized_output !== snapshotDetail.normalized_output
-      commandDiffStatus.value[command] = hasDifference
+      if (structuredResponse.supported) {
+        // Use structured comparison to determine if there are differences
+        const comparison = structuredResponse.comparison
+        const data = comparison.interfaces || comparison.routes
+
+        let hasDifference = false
+        if (data) {
+          for (const itemData of Object.values(data)) {
+            if ((itemData as any).status !== 'unchanged') {
+              hasDifference = true
+              break
+            }
+          }
+        }
+        commandDiffStatus.value[command] = hasDifference
+      } else {
+        // Fallback to simple string comparison for unsupported commands
+        const [baselineDetail, snapshotDetail] = await Promise.all([
+          fetch(`/api/snapshots/${baselineData.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }).then(r => r.json()),
+          fetch(`/api/snapshots/${snapshotData.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }).then(r => r.json())
+        ])
+
+        const hasDifference = baselineDetail.normalized_output !== snapshotDetail.normalized_output
+        commandDiffStatus.value[command] = hasDifference
+      }
 
     } catch (err) {
       console.error(`Error computing diff status for ${command}:`, err)
@@ -332,6 +420,7 @@ const computeAllDiffStatuses = async (commands: string[]) => {
 
 const selectCommand = async (command: string) => {
   selectedCommand.value = command
+  activeTab.value = 'summary' // Reset to summary tab
   await computeDiff(command)
 }
 
@@ -369,10 +458,31 @@ const computeDiff = async (command: string) => {
     if (baselineOutput === snapshotOutput) {
       diffResult.value = { identical: true }
     } else {
-      // Generate a simple diff
+      // Try structured comparison first
+      const structuredResponse = await fetch(`/api/snapshots/compare?baseline_id=${baselineData.id}&snapshot_id=${snapshotData.id}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      }).then(r => r.json())
+
+      // Generate text diff for Raw tab
       const diff = generateDiff(baselineOutput, snapshotOutput)
-      const tableData = generateTableData(baselineOutput, snapshotOutput)
-      diffResult.value = { identical: false, diff, tableData }
+
+      if (structuredResponse.supported) {
+        // Use structured comparison for Summary tab
+        diffResult.value = {
+          identical: false,
+          diff,
+          structured: structuredResponse.comparison
+        }
+      } else {
+        // Fallback to line-by-line comparison
+        const tableData = generateTableData(baselineOutput, snapshotOutput)
+        diffResult.value = {
+          identical: false,
+          diff,
+          tableData
+        }
+      }
     }
 
   } catch (err: any) {
@@ -817,6 +927,83 @@ const close = () => {
   overflow-x: auto;
 }
 
+.interface-group {
+  margin-bottom: 24px;
+}
+
+.interface-group:last-child {
+  margin-bottom: 0;
+}
+
+.interface-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 8px 8px 0 0;
+  border-left: 4px solid;
+  margin-bottom: 0;
+}
+
+.interface-header.unchanged {
+  border-left-color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.interface-header.changed {
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.interface-header.added {
+  border-left-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.interface-header.removed {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.interface-name {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-weight: 600;
+  font-size: 14px;
+  color: #e2e8f0;
+}
+
+.interface-status {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.interface-header.unchanged .interface-status {
+  color: #10b981;
+}
+
+.interface-header.changed .interface-status {
+  color: #f59e0b;
+}
+
+.interface-header.added .interface-status {
+  color: #3b82f6;
+}
+
+.interface-header.removed .interface-status {
+  color: #ef4444;
+}
+
+.interface-group .diff-table {
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+}
+
 .diff-table {
   width: 100%;
   border-collapse: collapse;
@@ -843,8 +1030,27 @@ const close = () => {
 }
 
 .diff-table th:first-child {
-  width: 60px;
   text-align: center;
+}
+
+/* For structured comparison (Field column) */
+.interface-group .diff-table th:nth-child(1) {
+  width: 40%;
+}
+
+.interface-group .diff-table th:nth-child(2),
+.interface-group .diff-table th:nth-child(3) {
+  width: 30%;
+}
+
+/* For line-by-line comparison (Line column) */
+.summary-view > .diff-table th:nth-child(1) {
+  width: 80px;
+}
+
+.summary-view > .diff-table th:nth-child(2),
+.summary-view > .diff-table th:nth-child(3) {
+  width: calc((100% - 80px) / 2);
 }
 
 .diff-table td {
@@ -855,11 +1061,17 @@ const close = () => {
   word-break: break-all;
 }
 
-.diff-table .line-number {
-  text-align: center;
-  color: #64748b;
+.diff-table .line-number,
+.diff-table .field-name {
+  text-align: left;
+  color: #94a3b8;
   font-weight: 600;
   background: rgba(15, 23, 42, 0.5);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.diff-table .line-number {
+  text-align: center;
 }
 
 .diff-table tr.equal {

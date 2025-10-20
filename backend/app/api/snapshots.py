@@ -13,6 +13,7 @@ from ..core.database import get_db
 from ..core.security import verify_token
 from ..models.user import User
 from ..models.device_cache import Snapshot, SnapshotType
+from ..services.structured_comparison import StructuredComparator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -319,4 +320,84 @@ async def delete_snapshot_group(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to delete snapshot group: {str(e)}"
+        )
+
+
+@router.post("/compare")
+async def compare_snapshots(
+    baseline_id: int = Query(..., description="Baseline snapshot ID"),
+    snapshot_id: int = Query(..., description="Snapshot ID to compare"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Compare baseline and snapshot using structured comparison.
+
+    Returns a structured comparison result if the command is supported,
+    otherwise returns None.
+    """
+    try:
+        # Fetch both snapshots
+        baseline = db.query(Snapshot).filter(Snapshot.id == baseline_id).first()
+        snapshot = db.query(Snapshot).filter(Snapshot.id == snapshot_id).first()
+
+        if not baseline:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Baseline snapshot with id {baseline_id} not found"
+            )
+
+        if not snapshot:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Snapshot with id {snapshot_id} not found"
+            )
+
+        # Verify they are for the same command
+        if baseline.command != snapshot.command:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot compare different commands: {baseline.command} vs {snapshot.command}"
+            )
+
+        # Try structured comparison
+        comparison_result = StructuredComparator.compare(
+            command=baseline.command,
+            baseline_output=baseline.normalized_output,
+            snapshot_output=snapshot.normalized_output
+        )
+
+        if comparison_result:
+            # Add metadata
+            comparison_result["baseline"] = {
+                "id": baseline.id,
+                "device_name": baseline.device_name,
+                "created_at": baseline.created_at.isoformat() if baseline.created_at else None,
+                "type": baseline.type.value
+            }
+            comparison_result["snapshot"] = {
+                "id": snapshot.id,
+                "device_name": snapshot.device_name,
+                "created_at": snapshot.created_at.isoformat() if snapshot.created_at else None,
+                "type": snapshot.type.value
+            }
+
+            return {
+                "supported": True,
+                "comparison": comparison_result
+            }
+        else:
+            # Command not supported for structured comparison
+            return {
+                "supported": False,
+                "message": f"Command '{baseline.command}' does not have structured comparison support"
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error comparing snapshots: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to compare snapshots: {str(e)}"
         )

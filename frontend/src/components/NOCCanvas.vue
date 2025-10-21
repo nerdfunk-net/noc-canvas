@@ -850,6 +850,7 @@ import { useCanvasControls } from '@/composables/useCanvasControls'
 import { useDeviceSelection } from '@/composables/useDeviceSelection'
 import { useContextMenu } from '@/composables/useContextMenu'
 import { useContextMenuItems } from '@/composables/useContextMenuItems'
+import { useModals } from '@/composables/useModals'
 import { useCanvasState } from '@/composables/useCanvasState'
 import { useDeviceOperations } from '@/composables/useDeviceOperations'
 import { useCanvasEvents } from '@/composables/useCanvasEvents'
@@ -1316,29 +1317,59 @@ const {
   addBgpNeighbors,
 } = neighborDiscoveryComposable
 
-// Neighbor Discovery Modal state
-const showNeighborDiscoveryModal = ref(false)
-const neighborDiscoveryResult = ref<NeighborDiscoveryResult | null>(null)
-
-// Baseline modal state
-const showBaselineExistsModal = ref(false)
-const baselineModalData = ref<{
-  device: Device | null
-  baselineData: any
-}>({
-  device: null,
-  baselineData: null
-})
-
-// Snapshot modal state
-const showSnapshotListModal = ref(false)
-const showSnapshotDetailsModal = ref(false)
-const currentSnapshotDeviceId = ref<string | null>(null)
-const currentSnapshotId = ref<number | null>(null)
-
-// Compare modal state
-const showCompareModal = ref(false)
-const currentCompareDeviceId = ref<string | null>(null)
+// Initialize modals composable
+const modalState = useModals()
+const {
+  // Neighbor Discovery Modal
+  showNeighborDiscoveryModal,
+  neighborDiscoveryResult,
+  closeNeighborDiscoveryModal,
+  // Baseline Modal
+  showBaselineExistsModal,
+  baselineModalData,
+  // Snapshot Modals
+  showSnapshotListModal,
+  showSnapshotDetailsModal,
+  currentSnapshotDeviceId,
+  currentSnapshotId,
+  // Compare Modal
+  showCompareModal,
+  currentCompareDeviceId,
+  // Save Canvas Modal
+  saveModalRef,
+  // Load Canvas Modals
+  showLoadConfirmDialog,
+  pendingCanvasId,
+  // Autosave Restore Dialog
+  showAutosaveRestoreDialog,
+  autosaveCanvasId,
+  hasCheckedAutosaveThisSession,
+  // Duplicate Device Modal
+  showDuplicateDialog,
+  duplicateDeviceName,
+  pendingDeviceData,
+  duplicateExistingDevice,
+  // Configuration Modal
+  showConfigModal,
+  configModalTitle,
+  configModalContent,
+  configModalLoading,
+  currentConfigDevice,
+  // Topology Modals
+  showTopologyDiscoveryModal,
+  showTopologyBuilderModal,
+  // Device Interfaces Modal
+  showInterfacesModal,
+  interfacesDeviceId,
+  interfacesDeviceName,
+  // SSH Terminal Modal
+  showSSHTerminalModal,
+  sshTerminalDeviceId,
+  sshTerminalDeviceName,
+  // Device Overview Modal
+  showDeviceOverviewModal,
+  deviceOverviewId,
+} = modalState
 
 const handleNeighborDiscovery = async (device: Device, discoveryFn: (device: Device) => Promise<NeighborDiscoveryResult | null>) => {
   hideContextMenu()
@@ -1355,12 +1386,6 @@ const handleNeighborDiscovery = async (device: Device, discoveryFn: (device: Dev
   }
 }
 
-const closeNeighborDiscoveryModal = () => {
-  showNeighborDiscoveryModal.value = false
-  neighborDiscoveryResult.value = null
-}
-
-
 // Execute a command on a device
 const executeCommand = async (device: Device, command: any) => {
   console.log(`🚀 Executing command on ${device.name} (${command.platform}):`)
@@ -1373,53 +1398,7 @@ const executeCommand = async (device: Device, command: any) => {
   await showCommandExecution(device, command)
 }
 
-// Save Canvas Modal state
-const saveModalRef = ref()
-
-// Load Canvas Modal state - composable version used
-
-// Load Canvas Confirmation state
-const showLoadConfirmDialog = ref(false)
-const pendingCanvasId = ref<number | null>(null)
-
-// Auto-save restore dialog state
-const showAutosaveRestoreDialog = ref(false)
-const autosaveCanvasId = ref<number | null>(null)
-const hasCheckedAutosaveThisSession = ref(false) // Track if we've already asked during this session
-
-// Duplicate Device Modal state
-const showDuplicateDialog = ref(false)
-const duplicateDeviceName = ref('')
-const pendingDeviceData = ref<any>(null)
-const duplicateExistingDevice = ref<Device | null>(null)
-
-// Device Configuration Modal state
-// Device Configuration Modal state (using local implementations, not composable)
-const showConfigModal = ref(false)
-const configModalTitle = ref('')
-const configModalContent = ref('')
-const configModalLoading = ref(false)
-const currentConfigDevice = ref<Device | null>(null)
-
-// Topology Discovery Modal state
-const showTopologyDiscoveryModal = ref(false)
-
-// Topology Builder Modal state
-const showTopologyBuilderModal = ref(false)
-
-// Device Interfaces Modal state
-const showInterfacesModal = ref(false)
-const interfacesDeviceId = ref('')
-const interfacesDeviceName = ref('')
-
-// SSH Terminal Modal state
-const showSSHTerminalModal = ref(false)
-const sshTerminalDeviceId = ref('')
-const sshTerminalDeviceName = ref('')
-
-// Device Overview Modal state
-const showDeviceOverviewModal = ref(false)
-const deviceOverviewId = ref('')
+// Modal states now handled by useModals composable
 
 // Device Search state
 const showDeviceSearch = ref(false)

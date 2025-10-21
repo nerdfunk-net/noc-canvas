@@ -849,6 +849,7 @@ import { templateService } from '@/services/templateService'
 import { useCanvasControls } from '@/composables/useCanvasControls'
 import { useDeviceSelection } from '@/composables/useDeviceSelection'
 import { useContextMenu } from '@/composables/useContextMenu'
+import { useContextMenuItems } from '@/composables/useContextMenuItems'
 import { useCanvasState } from '@/composables/useCanvasState'
 import { useDeviceOperations } from '@/composables/useDeviceOperations'
 import { useCanvasEvents } from '@/composables/useCanvasEvents'
@@ -1594,359 +1595,6 @@ const isLayer3Connection = (connectionId: number): boolean => {
   const connection = deviceStore.connections.find(c => c.id === connectionId)
   return connection?.layer === 'layer3' || !connection?.layer // Default to layer3
 }
-
-// Context menu items
-const contextMenuItems = computed(() => {
-  console.log('🔵 DEBUG: contextMenuItems computed, targetType:', contextMenu.targetType, 'target:', contextMenu.target)
-
-  // Shape context menu
-  if (contextMenu.targetType === 'shape') {
-    console.log('🔵 DEBUG: Building shape context menu')
-    const items = [
-      { icon: '🎨', label: 'Color', action: () => { hideContextMenu(); openShapeColorModal(contextMenu.target as any) } },
-      {
-        icon: '📐',
-        label: 'Alignment',
-        submenu: [
-          { icon: '↔️', label: 'Horizontal', action: () => { hideContextMenu(); alignShapesHorizontally() } },
-          { icon: '↕️', label: 'Vertical', action: () => { hideContextMenu(); alignShapesVertically() } },
-        ],
-      },
-      { icon: '─', label: '─────────', action: () => {}, separator: true },
-      { icon: '🗑️', label: 'Remove', action: () => { hideContextMenu(); deleteShape(contextMenu.target as any) } },
-    ]
-    console.log('🔵 DEBUG: Shape context menu items:', items)
-    return items
-  }
-
-  // Multi-shape context menu
-  if (contextMenu.targetType === 'multi-shape') {
-    console.log('🔵 DEBUG: Building multi-shape context menu')
-    const selectedCount = selectedShapes.value.size
-    const items = [
-      {
-        icon: '📐',
-        label: 'Alignment',
-        submenu: [
-          { icon: '↔️', label: 'Horizontal', action: () => { hideContextMenu(); alignShapesHorizontally() } },
-          { icon: '↕️', label: 'Vertical', action: () => { hideContextMenu(); alignShapesVertically() } },
-        ],
-      },
-      { icon: '─', label: '─────────', action: () => {}, separator: true },
-      { icon: '🗑️', label: `Remove ${selectedCount} shapes`, action: () => { hideContextMenu(); deleteMultiShapes() } },
-    ]
-    console.log('🔵 DEBUG: Multi-shape context menu items:', items)
-    return items
-  }
-
-  // Connection context menu
-  if (contextMenu.targetType === 'connection') {
-    const connection = deviceStore.connections.find(c => c.id === contextMenu.target)
-    const currentStyle = connection?.routing_style || 'straight'
-    const styleLabel = currentStyle === 'straight' ? 'Orthogonal' : 'Straight'
-    const hasWaypoints = connection?.waypoints && connection.waypoints.length > 0
-
-    const items = [
-      { icon: '👁️', label: 'Show', action: () => { hideContextMenu(); showConnectionInfo(contextMenu.target as any) } },
-      { icon: '📊', label: 'Status', action: () => { hideContextMenu(); showConnectionStatus(contextMenu.target as any) } },
-      { icon: '📈', label: 'Stats', action: () => { hideContextMenu(); showConnectionStats(contextMenu.target as any) } },
-      {
-        icon: '✏️',
-        label: 'Edit',
-        submenu: [
-          { icon: '↔️', label: `Route: ${styleLabel}`, action: () => { hideContextMenu(); toggleConnectionRoutingStyle(contextMenu.target as any) } },
-          { icon: '🎯', label: 'Add Waypoint (Alt+Click)', action: () => { hideContextMenu() }, disabled: true },
-          ...(hasWaypoints ? [{ icon: '🧹', label: 'Clear Waypoints', action: () => { hideContextMenu(); clearConnectionWaypoints(contextMenu.target as any) } }] : []),
-          { icon: '🗑️', label: 'Delete', action: () => { hideContextMenu(); deleteConnection(contextMenu.target as any) } },
-        ],
-      },
-    ]
-    return items
-  }
-
-  if (!contextMenu.target) {
-    if (contextMenu.targetType === 'canvas') {
-      const items = [
-        {
-          icon: '👁️',
-          label: 'View',
-          submenu: [
-            {
-              icon: '📊',
-              label: 'Layers',
-              submenu: [
-                {
-                  icon: layerVisibility.value.devices ? '✅' : '☐',
-                  label: 'Devices',
-                  action: () => {
-                    layerVisibility.value.devices = !layerVisibility.value.devices
-                    hideContextMenu()
-                  }
-                },
-                {
-                  icon: layerVisibility.value.layer2 ? '✅' : '☐',
-                  label: 'Layer2',
-                  action: () => {
-                    layerVisibility.value.layer2 = !layerVisibility.value.layer2
-                    hideContextMenu()
-                  }
-                },
-                {
-                  icon: layerVisibility.value.layer3 ? '✅' : '☐',
-                  label: 'Layer3',
-                  action: () => {
-                    layerVisibility.value.layer3 = !layerVisibility.value.layer3
-                    hideContextMenu()
-                  }
-                },
-                {
-                  icon: layerVisibility.value.background ? '✅' : '☐',
-                  label: 'Background',
-                  action: () => {
-                    layerVisibility.value.background = !layerVisibility.value.background
-                    hideContextMenu()
-                  }
-                },
-              ],
-            },
-            { icon: '🖼️', label: 'Fit to Screen', action: () => { hideContextMenu(); fitToScreen(canvasContainer.value || null) } },
-            { icon: '🏠', label: 'Reset View', action: () => { hideContextMenu(); resetView() } },
-          ],
-        },
-        {
-          icon: '🔗',
-          label: 'Topology',
-          submenu: [
-            { icon: '🔍', label: 'Discover', action: () => { hideContextMenu(); openTopologyDiscovery() } },
-            { icon: '🔨', label: 'Build', action: () => { hideContextMenu(); openTopologyBuilder() } },
-          ],
-        },
-        {
-          icon: '🎨',
-          label: 'Canvas',
-          submenu: [
-            { icon: '📂', label: 'Load', action: () => { hideContextMenu(); loadCanvas() } },
-            { icon: '💾', label: 'Save', action: () => { hideContextMenu(); saveCanvas() } },
-            { icon: '📋', label: 'Save As', action: () => { hideContextMenu(); saveCanvasAs() } },
-            { icon: '🗑️', label: 'Clear', action: () => { hideContextMenu(); clearCanvas() } },
-          ],
-        },
-      ]
-      return items
-    }
-    return []
-  }
-
-  // Multi-device context menu
-  if (contextMenu.targetType === 'multi-device') {
-    const selectedCount = selectedDevices.value.size
-    const items = [
-      {
-        icon: '⚙️',
-        label: 'Config',
-        submenu: [
-          { icon: '👁️', label: 'Show All', action: () => { hideContextMenu(); showMultiDeviceConfig() } },
-          { icon: '📝', label: 'Show All Changes', action: () => { hideContextMenu(); showMultiDeviceChanges() } },
-        ],
-      },
-      {
-        icon: '🔗',
-        label: 'Neighbors',
-        submenu: [
-          { icon: '👁️', label: 'Show All', action: () => { hideContextMenu(); showMultiDeviceNeighbors() } },
-          { icon: '➕', label: 'Add', action: () => { hideContextMenu(); addMultiDeviceNeighborsToCanvas() } },
-          {
-            icon: '🔗',
-            label: 'Connect to',
-            action: selectedCount === 2
-              ? () => { hideContextMenu(); connectTwoDevices() }
-              : () => {},
-            disabled: selectedCount !== 2
-          },
-        ],
-      },
-      { icon: '🔍', label: 'Analyze All', action: () => { hideContextMenu(); analyzeMultiDevices() } },
-      {
-        icon: '✏️',
-        label: 'Edit',
-        submenu: [
-          {
-            icon: '📐',
-            label: 'Alignment',
-            submenu: [
-              { icon: '↔️', label: 'Horizontal', action: () => { hideContextMenu(); alignDevicesHorizontally() } },
-              { icon: '↕️', label: 'Vertical', action: () => { hideContextMenu(); alignDevicesVertically() } },
-            ],
-          },
-          { icon: '🗑️', label: `Remove ${selectedCount} devices`, action: () => { hideContextMenu(); deleteMultiDevices() } },
-        ],
-      },
-    ]
-    return items
-  }
-
-  // Single device context menu
-  const device = contextMenu.target!
-  const devicePlatform = getDevicePlatform(device.properties)
-  const platformCommands = getCommandsForPlatform(devicePlatform)
-  
-  // Build Commands submenu with Send and Reload
-  const sendSubmenu = platformCommands.length > 0
-    ? platformCommands.map(command => ({
-        icon: '⚡',
-        label: command.display || command.command,
-        action: () => { hideContextMenu(); executeCommand(device, command) }
-      }))
-    : [{ 
-        icon: '❌', 
-        label: devicePlatform ? `No commands for ${devicePlatform}` : 'No platform detected',
-        action: () => { 
-          hideContextMenu()
-          console.log(`No commands configured for platform: ${devicePlatform || 'unknown'}`)
-        }
-      }]
-  
-  const commandsSubmenu = [
-    {
-      icon: '📤',
-      label: 'Send',
-      submenu: sendSubmenu
-    },
-    {
-      icon: '🔄',
-      label: 'Reload',
-      action: async () => {
-        console.log('🔄 Reloading commands...')
-        await reloadCommands()
-        console.log('✅ Commands reloaded successfully - menu will update automatically')
-        // Don't hide menu - it will update automatically with new commands
-      }
-    }
-  ]
-  
-  const items = [
-    { icon: '📊', label: 'Overview', action: () => { hideContextMenu(); showDeviceOverview(contextMenu.target!) } },
-    {
-      icon: '💻',
-      label: 'SSH Terminal',
-      submenu: [
-        { icon: '🪟', label: 'Open in Modal', action: () => { hideContextMenu(); showSSHTerminal(contextMenu.target!) } },
-        { icon: '🚀', label: 'Open in New Window', action: () => { hideContextMenu(); openSSHTerminalInWindow(contextMenu.target!) } },
-      ]
-    },
-    {
-      icon: '⚙️',
-      label: 'Config',
-      submenu: [
-        {
-          icon: '👁️',
-          label: 'Show',
-          submenu: [
-            { icon: '🔧', label: 'Running', action: () => { hideContextMenu(); showDeviceRunningConfig(contextMenu.target!) } },
-            { icon: '💾', label: 'Startup', action: () => { hideContextMenu(); showDeviceStartupConfig(contextMenu.target!) } },
-          ]
-        },
-        { icon: '📝', label: 'Show Changes', action: () => { hideContextMenu(); showDeviceChanges(contextMenu.target!) } },
-      ],
-    },
-    {
-      icon: '🔌',
-      label: 'Interfaces',
-      submenu: [
-        { icon: '📋', label: 'Brief', action: () => { hideContextMenu(); showDeviceInterfaces(contextMenu.target!, 'brief') } },
-        { icon: '📄', label: 'Full', action: () => { hideContextMenu(); showDeviceInterfaces(contextMenu.target!, 'full') } },
-        { icon: '⚠️', label: 'Errors', action: () => { hideContextMenu(); showDeviceInterfaces(contextMenu.target!, 'errors') } },
-      ],
-    },
-    {
-      icon: '💻',
-      label: 'Commands',
-      submenu: commandsSubmenu
-    },
-    {
-      icon: '🔗',
-      label: 'Neighbors',
-      submenu: [
-        { icon: '👁️', label: 'Show', action: () => { hideContextMenu(); showNeighbors(contextMenu.target!) } },
-        {
-          icon: '➕',
-          label: 'Add',
-          submenu: [
-            {
-              icon: '🔗',
-              label: 'Layer2',
-              submenu: [
-                { icon: '📡', label: 'CDP', action: () => handleNeighborDiscovery(contextMenu.target!, addCdpNeighbors) },
-                { icon: '🔗', label: 'MAC', action: () => { hideContextMenu(); addMacNeighbors(contextMenu.target!) } },
-              ]
-            },
-            {
-              icon: '🌐',
-              label: 'Layer3',
-              submenu: [
-                { icon: '🔍', label: 'IP ARP', action: () => handleNeighborDiscovery(contextMenu.target!, addArpNeighbors) },
-                { icon: '📌', label: 'Static', action: () => handleNeighborDiscovery(contextMenu.target!, addStaticNeighbors) },
-                { icon: '🔀', label: 'OSPF', action: () => handleNeighborDiscovery(contextMenu.target!, addOspfNeighbors) },
-                { icon: '🌍', label: 'BGP', action: () => { hideContextMenu(); addBgpNeighbors(contextMenu.target!) } },
-              ]
-            },
-          ]
-        },
-        {
-          icon: '🔗',
-          label: 'Connect',
-          action: selectedDevices.value.size === 2
-            ? () => { hideContextMenu(); connectTwoDevices() }
-            : () => {},
-          disabled: selectedDevices.value.size !== 2
-        },
-      ],
-    },
-    {
-      icon: '🔍',
-      label: 'Analyze',
-      submenu: [
-        {
-          icon: '📊',
-          label: 'Baseline',
-          submenu: [
-            { icon: '➕', label: 'Create', action: () => { hideContextMenu(); createBaseline(contextMenu.target!) } },
-          ]
-        },
-        {
-          icon: '📸',
-          label: 'Snapshot',
-          submenu: [
-            { icon: '➕', label: 'Create', action: () => { hideContextMenu(); createSnapshot(contextMenu.target!) } },
-            { icon: '📋', label: 'Manage', action: () => { hideContextMenu(); manageSnapshots(contextMenu.target!) } },
-          ]
-        },
-        {
-          icon: '⚖️',
-          label: 'Compare',
-          action: () => { hideContextMenu(); compareSnapshotToBaseline(contextMenu.target!) }
-        },
-      ],
-    },
-    {
-      icon: '✏️',
-      label: 'Edit',
-      submenu: [
-        {
-          icon: '📐',
-          label: 'Alignment',
-          submenu: [
-            { icon: '↔️', label: 'Horizontal', action: () => { alignDevicesHorizontally() } },
-            { icon: '↕️', label: 'Vertical', action: () => { alignDevicesVertically() } },
-          ],
-        },
-        { icon: '🔌', label: 'Connection Ports', action: () => { hideContextMenu(); manageConnectionPorts(contextMenu.target!) } },
-        { icon: '🗑️', label: 'Remove', action: () => { hideContextMenu(); deleteDevice(contextMenu.target!) } },
-      ],
-    },
-  ]
-  return items
-})
 
 // Device helpers
 
@@ -4274,6 +3922,74 @@ const centerOnDevice = (device: Device) => {
   })
   hideContextMenu()
 }
+
+// Context menu items - using composable (must be after all function declarations)
+const contextMenuItems = useContextMenuItems({
+  contextMenu,
+  hideContextMenu,
+  selectedDevices,
+  selectedShapes,
+  layerVisibility,
+  deviceStore,
+  canvasContainer,
+  // Shape operations
+  openShapeColorModal,
+  alignShapesHorizontally,
+  alignShapesVertically,
+  deleteShape,
+  deleteMultiShapes,
+  // Connection operations
+  showConnectionInfo,
+  showConnectionStatus,
+  showConnectionStats,
+  toggleConnectionRoutingStyle,
+  clearConnectionWaypoints,
+  deleteConnection,
+  // Canvas operations
+  fitToScreen,
+  resetView,
+  openTopologyDiscovery,
+  openTopologyBuilder,
+  loadCanvas,
+  saveCanvas,
+  saveCanvasAs,
+  clearCanvas,
+  // Multi-device operations
+  showMultiDeviceConfig,
+  showMultiDeviceChanges,
+  showMultiDeviceNeighbors,
+  addMultiDeviceNeighborsToCanvas,
+  connectTwoDevices,
+  analyzeMultiDevices,
+  alignDevicesHorizontally,
+  alignDevicesVertically,
+  deleteMultiDevices,
+  // Single device operations
+  showDeviceOverview,
+  showSSHTerminal,
+  openSSHTerminalInWindow,
+  showDeviceRunningConfig,
+  showDeviceStartupConfig,
+  showDeviceChanges,
+  showDeviceInterfaces,
+  executeCommand,
+  reloadCommands,
+  showNeighbors,
+  addCdpNeighbors,
+  addMacNeighbors,
+  addArpNeighbors,
+  addStaticNeighbors,
+  addOspfNeighbors,
+  addBgpNeighbors,
+  createBaseline,
+  createSnapshot,
+  manageSnapshots,
+  compareSnapshotToBaseline,
+  manageConnectionPorts,
+  deleteDevice,
+  getDevicePlatform,
+  getCommandsForPlatform,
+})
 
 // Device operations now handled by useDeviceOperations composable
 

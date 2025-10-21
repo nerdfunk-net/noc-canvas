@@ -1911,7 +1911,6 @@ const contextMenuItems = computed(() => {
           label: 'Baseline',
           submenu: [
             { icon: '➕', label: 'Create', action: () => { hideContextMenu(); createBaseline(contextMenu.target!) } },
-            { icon: '🔄', label: 'Compare', action: () => { hideContextMenu(); compareBaseline(contextMenu.target!) } },
           ]
         },
         {

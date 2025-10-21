@@ -31,7 +31,7 @@ def register_tasks(celery_app):
             Dictionary with cleanup statistics
         """
         from ..services.database import engine
-        from celery_sqlalchemy_scheduler.models import PeriodicTask, PeriodicTaskChanged
+        from sqlalchemy_celery_beat.models import PeriodicTask, PeriodicTaskChanged
         from celery.backends.database.models import Task as CeleryTask
         from ..models.task_execution import TaskExecution
 

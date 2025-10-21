@@ -40,12 +40,12 @@ def check_dependencies():
         return False
 
     try:
-        import celery_sqlalchemy_scheduler  # noqa: F401
+        import sqlalchemy_celery_beat  # noqa: F401
 
-        logger.info("✓ celery-sqlalchemy-scheduler installed")
+        logger.info("✓ sqlalchemy-celery-beat installed")
     except ImportError:
         logger.error(
-            "✗ celery-sqlalchemy-scheduler is not installed. Run: pip install celery-sqlalchemy-scheduler"
+            "✗ sqlalchemy-celery-beat is not installed. Run: pip install sqlalchemy-celery-beat"
         )
         return False
 
@@ -106,7 +106,7 @@ def start_beat():
         logger.info("Starting Celery Beat Scheduler")
         logger.info("=" * 60)
         logger.info("")
-        logger.info("Scheduler: DatabaseScheduler (celery-sqlalchemy-scheduler)")
+        logger.info("Scheduler: DatabaseScheduler (sqlalchemy-celery-beat)")
         logger.info("Database: PostgreSQL")
         logger.info("")
         logger.info("This will:")

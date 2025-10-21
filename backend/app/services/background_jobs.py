@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 try:
     from celery import Celery
-    import pytz
 
     CELERY_AVAILABLE = True
 
@@ -50,7 +49,7 @@ if CELERY_AVAILABLE and celery_app:
         task_serializer="json",
         accept_content=["json"],
         result_serializer="json",
-        timezone=pytz.UTC,
+        timezone="UTC",
         enable_utc=True,
         task_track_started=True,
         task_time_limit=30 * 60,  # 30 minutes
@@ -59,9 +58,8 @@ if CELERY_AVAILABLE and celery_app:
         worker_max_tasks_per_child=1000,
         result_extended=True,  # Store task name and other metadata in results
         # Configure Celery Beat with SQLAlchemy scheduler
-        beat_scheduler="celery_sqlalchemy_scheduler.schedulers:DatabaseScheduler",
+        beat_scheduler="sqlalchemy_celery_beat.schedulers:DatabaseScheduler",
         beat_dburi=db_uri,  # Use the same database as the app with password
-        beat_schema="celerybeat",  # Schema for beat tables (optional)
     )
 
 

@@ -142,16 +142,16 @@ class PeriodicTaskResponse(BaseModel):
 
 
 def get_schedule_tables():
-    """Get schedule tables from celery-sqlalchemy-scheduler."""
+    """Get schedule tables from sqlalchemy-celery-beat."""
     if not CELERY_AVAILABLE:
         raise HTTPException(status_code=503, detail="Celery is not available")
 
-    from celery_sqlalchemy_scheduler.models import (
+    from sqlalchemy_celery_beat.models import (
         PeriodicTask,
         IntervalSchedule as IntervalScheduleModel,
         CrontabSchedule as CrontabScheduleModel,
     )
-    from celery_sqlalchemy_scheduler.session import SessionManager
+    from sqlalchemy_celery_beat.session import SessionManager
 
     return PeriodicTask, IntervalScheduleModel, CrontabScheduleModel, SessionManager
 
@@ -231,22 +231,25 @@ async def list_periodic_tasks(
                     "owner_username": owner.owner_username if owner else None,
                 }
 
-                # Determine schedule type and data
-                if task.crontab:
-                    task_data["schedule_type"] = "crontab"
-                    task_data["crontab"] = {
-                        "minute": task.crontab.minute,
-                        "hour": task.crontab.hour,
-                        "day_of_week": task.crontab.day_of_week,
-                        "day_of_month": task.crontab.day_of_month,
-                        "month_of_year": task.crontab.month_of_year,
-                    }
-                elif task.interval:
-                    task_data["schedule_type"] = "interval"
-                    task_data["interval"] = {
-                        "every": task.interval.every,
-                        "period": task.interval.period,
-                    }
+                # Determine schedule type and data using the new library's API
+                if task.schedule_model:
+                    from sqlalchemy_celery_beat.models import CrontabSchedule, IntervalSchedule
+
+                    if isinstance(task.schedule_model, CrontabSchedule):
+                        task_data["schedule_type"] = "crontab"
+                        task_data["crontab"] = {
+                            "minute": task.schedule_model.minute,
+                            "hour": task.schedule_model.hour,
+                            "day_of_week": task.schedule_model.day_of_week,
+                            "day_of_month": task.schedule_model.day_of_month,
+                            "month_of_year": task.schedule_model.month_of_year,
+                        }
+                    elif isinstance(task.schedule_model, IntervalSchedule):
+                        task_data["schedule_type"] = "interval"
+                        task_data["interval"] = {
+                            "every": task.schedule_model.every,
+                            "period": task.schedule_model.period,
+                        }
 
                 result.append(PeriodicTaskResponse(**task_data))
 
@@ -372,11 +375,8 @@ async def create_periodic_task(
                 kwargs=json.dumps(task_kwargs),
             )
 
-            # Set the schedule
-            if task_data.schedule_type == "crontab":
-                periodic_task.crontab = schedule
-            else:
-                periodic_task.interval = schedule
+            # Set the schedule using the new API
+            periodic_task.schedule_model = schedule
 
             session.add(periodic_task)
             session.commit()
@@ -499,21 +499,24 @@ async def get_periodic_task(
                 "owner_username": owner.owner_username if owner else None,
             }
 
-            if task.crontab:
-                task_data["schedule_type"] = "crontab"
-                task_data["crontab"] = {
-                    "minute": task.crontab.minute,
-                    "hour": task.crontab.hour,
-                    "day_of_week": task.crontab.day_of_week,
-                    "day_of_month": task.crontab.day_of_month,
-                    "month_of_year": task.crontab.month_of_year,
-                }
-            elif task.interval:
-                task_data["schedule_type"] = "interval"
-                task_data["interval"] = {
-                    "every": task.interval.every,
-                    "period": task.interval.period,
-                }
+            if task.schedule_model:
+                from sqlalchemy_celery_beat.models import CrontabSchedule, IntervalSchedule
+
+                if isinstance(task.schedule_model, CrontabSchedule):
+                    task_data["schedule_type"] = "crontab"
+                    task_data["crontab"] = {
+                        "minute": task.schedule_model.minute,
+                        "hour": task.schedule_model.hour,
+                        "day_of_week": task.schedule_model.day_of_week,
+                        "day_of_month": task.schedule_model.day_of_month,
+                        "month_of_year": task.schedule_model.month_of_year,
+                    }
+                elif isinstance(task.schedule_model, IntervalSchedule):
+                    task_data["schedule_type"] = "interval"
+                    task_data["interval"] = {
+                        "every": task.schedule_model.every,
+                        "period": task.schedule_model.period,
+                    }
 
             return PeriodicTaskResponse(**task_data)
         finally:
@@ -630,8 +633,7 @@ async def update_periodic_task(
                         session.add(schedule)
                         session.flush()
 
-                    task.crontab = schedule
-                    task.interval = None
+                    task.schedule_model = schedule
 
                 elif task_update.schedule_type == "interval" and task_update.interval:
                     # Find or create interval schedule
@@ -652,8 +654,7 @@ async def update_periodic_task(
                         session.add(schedule)
                         session.flush()
 
-                    task.interval = schedule
-                    task.crontab = None
+                    task.schedule_model = schedule
 
             session.commit()
             session.refresh(task)
@@ -679,21 +680,24 @@ async def update_periodic_task(
                 "expires": task.expires,
             }
 
-            if task.crontab:
-                response_data["schedule_type"] = "crontab"
-                response_data["crontab"] = {
-                    "minute": task.crontab.minute,
-                    "hour": task.crontab.hour,
-                    "day_of_week": task.crontab.day_of_week,
-                    "day_of_month": task.crontab.day_of_month,
-                    "month_of_year": task.crontab.month_of_year,
-                }
-            elif task.interval:
-                response_data["schedule_type"] = "interval"
-                response_data["interval"] = {
-                    "every": task.interval.every,
-                    "period": task.interval.period,
-                }
+            if task.schedule_model:
+                from sqlalchemy_celery_beat.models import CrontabSchedule, IntervalSchedule
+
+                if isinstance(task.schedule_model, CrontabSchedule):
+                    response_data["schedule_type"] = "crontab"
+                    response_data["crontab"] = {
+                        "minute": task.schedule_model.minute,
+                        "hour": task.schedule_model.hour,
+                        "day_of_week": task.schedule_model.day_of_week,
+                        "day_of_month": task.schedule_model.day_of_month,
+                        "month_of_year": task.schedule_model.month_of_year,
+                    }
+                elif isinstance(task.schedule_model, IntervalSchedule):
+                    response_data["schedule_type"] = "interval"
+                    response_data["interval"] = {
+                        "every": task.schedule_model.every,
+                        "period": task.schedule_model.period,
+                    }
 
             logger.info(f"Updated periodic task: {task.name}")
             return PeriodicTaskResponse(**response_data)

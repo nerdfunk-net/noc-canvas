@@ -568,7 +568,7 @@ const close = () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: flex-start;
@@ -588,14 +588,14 @@ const close = () => {
 }
 
 .modal-container {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   max-width: 1400px;
   width: 95%;
   max-height: 90vh;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #e5e7eb;
   animation: slideUp 0.3s ease-out;
 }
 
@@ -611,31 +611,30 @@ const close = () => {
 }
 
 .modal-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%);
+  background: #f9fafb;
 }
 
 .modal-header h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
-  color: #f1f5f9;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  color: #111827;
 }
 
 .close-btn {
   background: none;
   border: none;
   font-size: 24px;
-  color: #94a3b8;
+  color: #6b7280;
   cursor: pointer;
   padding: 0;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -644,15 +643,15 @@ const close = () => {
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #f1f5f9;
-  transform: rotate(90deg);
+  background: #e5e7eb;
+  color: #111827;
 }
 
 .modal-body {
-  padding: 28px;
+  padding: 24px;
   max-height: 70vh;
   overflow-y: auto;
+  background: #ffffff;
 }
 
 .loading-state,
@@ -662,13 +661,13 @@ const close = () => {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: #cbd5e1;
+  color: #6b7280;
 }
 
 .spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid rgba(59, 130, 246, 0.2);
+  border: 4px solid #e5e7eb;
   border-top-color: #3b82f6;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -678,7 +677,7 @@ const close = () => {
 .spinner-small {
   width: 32px;
   height: 32px;
-  border: 3px solid rgba(59, 130, 246, 0.2);
+  border: 3px solid #e5e7eb;
   border-top-color: #3b82f6;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -692,7 +691,7 @@ const close = () => {
 }
 
 .error-message {
-  color: #f87171;
+  color: #ef4444;
   font-size: 14px;
 }
 
@@ -703,17 +702,17 @@ const close = () => {
 }
 
 .selector-section {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 12px 16px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
 }
 
 .selector-label {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  color: #cbd5e1;
+  color: #374151;
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -721,25 +720,24 @@ const close = () => {
 
 .snapshot-select {
   width: 100%;
-  padding: 8px 12px;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  border-radius: 8px;
-  color: #e2e8f0;
-  font-size: 13px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  color: #111827;
+  font-size: 14px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .snapshot-select:hover {
-  border-color: rgba(59, 130, 246, 0.5);
-  background: rgba(15, 23, 42, 0.9);
+  border-color: #3b82f6;
 }
 
 .snapshot-select:focus {
   outline: none;
   border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .comparison-panel {
@@ -750,18 +748,18 @@ const close = () => {
 
 .command-list {
   flex: 0 0 300px;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
   overflow-y: auto;
 }
 
 .command-list h3 {
-  margin: 0 0 10px 0;
-  font-size: 12px;
+  margin: 0 0 12px 0;
+  font-size: 13px;
   font-weight: 600;
-  color: #cbd5e1;
+  color: #374151;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -773,9 +771,9 @@ const close = () => {
 }
 
 .command-item {
-  padding: 8px 10px;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
@@ -785,24 +783,25 @@ const close = () => {
 }
 
 .command-item:hover {
-  background: rgba(59, 130, 246, 0.2);
-  border-color: rgba(59, 130, 246, 0.3);
+  background: #eff6ff;
+  border-color: #3b82f6;
 }
 
 .command-item.active {
-  background: rgba(59, 130, 246, 0.3);
-  border-color: rgba(59, 130, 246, 0.5);
+  background: #dbeafe;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
 }
 
 .command-icon {
   font-size: 16px;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .command-name {
   flex: 1;
   font-size: 13px;
-  color: #e2e8f0;
+  color: #111827;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
 
@@ -823,9 +822,9 @@ const close = () => {
 
 .diff-view {
   flex: 1;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   padding: 20px;
   overflow-y: auto;
   display: flex;
@@ -842,9 +841,9 @@ const close = () => {
 
 .diff-view h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
-  color: #cbd5e1;
+  color: #111827;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
 
@@ -856,42 +855,41 @@ const close = () => {
 
 .tabs {
   display: flex;
-  gap: 8px;
+  gap: 4px;
+  background: #f3f4f6;
+  padding: 4px;
+  border-radius: 6px;
 }
 
 .tab-btn {
   padding: 6px 16px;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: #94a3b8;
-  font-size: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #6b7280;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .tab-btn:hover {
-  background: rgba(59, 130, 246, 0.2);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #cbd5e1;
+  color: #111827;
 }
 
 .tab-btn.active {
-  background: rgba(59, 130, 246, 0.3);
-  border-color: rgba(59, 130, 246, 0.5);
-  color: #e2e8f0;
+  background: #ffffff;
+  color: #3b82f6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .filter-btn {
-  padding: 6px 12px;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px 14px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
   border-radius: 6px;
-  color: #94a3b8;
-  font-size: 11px;
+  color: #374151;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -899,15 +897,14 @@ const close = () => {
 }
 
 .filter-btn:hover {
-  background: rgba(147, 51, 234, 0.2);
-  border-color: rgba(147, 51, 234, 0.3);
-  color: #cbd5e1;
+  border-color: #3b82f6;
+  color: #3b82f6;
 }
 
 .filter-btn.active {
-  background: rgba(147, 51, 234, 0.3);
-  border-color: rgba(147, 51, 234, 0.5);
-  color: #e2e8f0;
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
 }
 
 .diff-loading {
@@ -916,7 +913,7 @@ const close = () => {
   align-items: center;
   justify-content: center;
   padding: 60px;
-  color: #94a3b8;
+  color: #6b7280;
 }
 
 .diff-content {
@@ -941,38 +938,40 @@ const close = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
-  background: rgba(15, 23, 42, 0.8);
+  padding: 12px 16px;
+  background: #f9fafb;
   border-radius: 8px 8px 0 0;
   border-left: 4px solid;
   margin-bottom: 0;
+  border: 1px solid #e5e7eb;
+  border-bottom: none;
 }
 
 .interface-header.unchanged {
   border-left-color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
+  background: #f0fdf4;
 }
 
 .interface-header.changed {
   border-left-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
+  background: #fffbeb;
 }
 
 .interface-header.added {
   border-left-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
+  background: #eff6ff;
 }
 
 .interface-header.removed {
   border-left-color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  background: #fef2f2;
 }
 
 .interface-name {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-weight: 600;
   font-size: 14px;
-  color: #e2e8f0;
+  color: #111827;
 }
 
 .interface-status {
@@ -982,7 +981,7 @@ const close = () => {
   letter-spacing: 0.5px;
   padding: 4px 10px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: #ffffff;
 }
 
 .interface-header.unchanged .interface-status {
@@ -1011,12 +1010,14 @@ const close = () => {
   border-collapse: collapse;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
 }
 
 .diff-table thead {
   position: sticky;
   top: 0;
-  background: rgba(15, 23, 42, 0.95);
+  background: #f9fafb;
   z-index: 1;
 }
 
@@ -1024,11 +1025,12 @@ const close = () => {
   padding: 10px 12px;
   text-align: left;
   font-weight: 600;
-  color: #cbd5e1;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  color: #374151;
+  border-bottom: 2px solid #e5e7eb;
   text-transform: uppercase;
   font-size: 11px;
   letter-spacing: 0.5px;
+  background: #f9fafb;
 }
 
 .diff-table th:first-child {
@@ -1057,8 +1059,8 @@ const close = () => {
 
 .diff-table td {
   padding: 8px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  color: #e2e8f0;
+  border-bottom: 1px solid #f3f4f6;
+  color: #111827;
   white-space: pre-wrap;
   word-break: break-all;
 }
@@ -1066,9 +1068,9 @@ const close = () => {
 .diff-table .line-number,
 .diff-table .field-name {
   text-align: left;
-  color: #94a3b8;
+  color: #6b7280;
   font-weight: 600;
-  background: rgba(15, 23, 42, 0.5);
+  background: #f9fafb;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
 
@@ -1077,29 +1079,29 @@ const close = () => {
 }
 
 .diff-table tr.equal {
-  background: rgba(16, 185, 129, 0.1);
+  background: #f0fdf4;
   border-left: 3px solid #10b981;
 }
 
 .diff-table tr.different {
-  background: rgba(239, 68, 68, 0.15);
+  background: #fef2f2;
   border-left: 3px solid #ef4444;
 }
 
 .diff-table tr.equal td {
-  color: #a7f3d0;
+  color: #065f46;
 }
 
 .diff-table tr.different td {
-  color: #fca5a5;
+  color: #991b1b;
 }
 
 .diff-table tr.different .baseline-value {
-  background: rgba(239, 68, 68, 0.1);
+  background: #fee2e2;
 }
 
 .diff-table tr.different .snapshot-value {
-  background: rgba(239, 68, 68, 0.15);
+  background: #fecaca;
 }
 
 .no-diff-message {
@@ -1119,11 +1121,12 @@ const close = () => {
 .no-diff-message p {
   font-size: 14px;
   margin: 0;
+  color: #059669;
 }
 
 .diff-display {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 16px;
   overflow-x: auto;
@@ -1133,8 +1136,8 @@ const close = () => {
   margin: 0;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 12px;
-  line-height: 1.5;
-  color: #e2e8f0;
+  line-height: 1.6;
+  color: #111827;
   white-space: pre;
 }
 
@@ -1147,15 +1150,15 @@ const close = () => {
   justify-content: center;
   gap: 16px;
   padding: 60px;
-  color: #94a3b8;
+  color: #6b7280;
   text-align: center;
 }
 
 .no-selection-message {
   min-height: 400px;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
 }
 
 .icon {
@@ -1170,35 +1173,34 @@ const close = () => {
 }
 
 .modal-footer {
-  padding: 20px 28px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
   display: flex;
   justify-content: flex-end;
-  background: rgba(15, 23, 42, 0.4);
+  background: #f9fafb;
 }
 
 .btn {
-  padding: 10px 20px;
-  border-radius: 8px;
+  padding: 10px 24px;
+  border-radius: 6px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   border: none;
   transition: all 0.2s;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .btn-secondary {
-  background: rgba(71, 85, 105, 0.5);
-  color: #cbd5e1;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #3b82f6;
+  color: #ffffff;
+  border: 1px solid #3b82f6;
 }
 
 .btn-secondary:hover {
-  background: rgba(71, 85, 105, 0.7);
+  background: #2563eb;
+  border-color: #2563eb;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 /* Scrollbar styling */
@@ -1212,20 +1214,20 @@ const close = () => {
 .modal-body::-webkit-scrollbar-track,
 .command-list::-webkit-scrollbar-track,
 .diff-view::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.4);
+  background: #f3f4f6;
   border-radius: 4px;
 }
 
 .modal-body::-webkit-scrollbar-thumb,
 .command-list::-webkit-scrollbar-thumb,
 .diff-view::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.6);
+  background: #d1d5db;
   border-radius: 4px;
 }
 
 .modal-body::-webkit-scrollbar-thumb:hover,
 .command-list::-webkit-scrollbar-thumb:hover,
 .diff-view::-webkit-scrollbar-thumb:hover {
-  background: rgba(71, 85, 105, 0.8);
+  background: #9ca3af;
 }
 </style>

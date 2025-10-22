@@ -196,14 +196,14 @@ const close = () => {
 }
 
 .modal-container {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   max-width: 900px;
   width: 90%;
   max-height: 90vh;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #e5e7eb;
   animation: slideUp 0.3s ease-out;
 }
 
@@ -219,27 +219,26 @@ const close = () => {
 }
 
 .modal-header {
-  padding: 24px 28px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%);
+  background: #f9fafb;
 }
 
 .modal-header h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
-  color: #f1f5f9;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  color: #111827;
 }
 
 .close-btn {
   background: none;
   border: none;
-  font-size: 32px;
-  color: #94a3b8;
+  font-size: 28px;
+  color: #6b7280;
   cursor: pointer;
   padding: 0;
   width: 32px;
@@ -247,20 +246,20 @@ const close = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 6px;
   transition: all 0.2s;
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #f1f5f9;
-  transform: rotate(90deg);
+  background: #e5e7eb;
+  color: #111827;
 }
 
 .modal-body {
-  padding: 28px;
+  padding: 24px;
   max-height: 70vh;
   overflow-y: auto;
+  background: #ffffff;
 }
 
 .loading-state,
@@ -270,13 +269,13 @@ const close = () => {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: #cbd5e1;
+  color: #6b7280;
 }
 
 .spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid rgba(59, 130, 246, 0.2);
+  border: 4px solid #e5e7eb;
   border-top-color: #3b82f6;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -290,23 +289,23 @@ const close = () => {
 }
 
 .error-message {
-  color: #f87171;
+  color: #ef4444;
   font-size: 14px;
 }
 
 .snapshot-info {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   padding: 20px;
   margin-bottom: 24px;
 }
 
 .snapshot-info h3 {
   margin: 0 0 16px 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: #111827;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -322,7 +321,7 @@ const close = () => {
   justify-content: space-between;
   align-items: baseline;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .detail-row:last-child {
@@ -331,14 +330,14 @@ const close = () => {
 
 .detail-label {
   font-size: 14px;
-  color: #94a3b8;
+  color: #6b7280;
   font-weight: 500;
   min-width: 100px;
 }
 
 .detail-value {
   font-size: 14px;
-  color: #e2e8f0;
+  color: #111827;
   font-weight: 400;
   text-align: right;
   flex: 1;
@@ -346,89 +345,89 @@ const close = () => {
 }
 
 .output-section {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   overflow: hidden;
 }
 
 .output-tabs {
   display: flex;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(15, 23, 42, 0.4);
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+  gap: 4px;
+  padding: 4px;
 }
 
 .tab-btn {
   flex: 1;
-  padding: 12px 20px;
+  padding: 8px 16px;
   background: transparent;
   border: none;
-  color: #94a3b8;
-  font-size: 14px;
+  border-radius: 4px;
+  color: #6b7280;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .tab-btn:hover {
-  background: rgba(59, 130, 246, 0.1);
-  color: #cbd5e1;
+  color: #111827;
 }
 
 .tab-btn.active {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
-  border-bottom: 2px solid #3b82f6;
+  background: #ffffff;
+  color: #3b82f6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .output-content {
   padding: 20px;
   max-height: 400px;
   overflow: auto;
+  background: #f9fafb;
 }
 
 .output-pre {
   margin: 0;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 12px;
-  line-height: 1.5;
-  color: #e2e8f0;
+  line-height: 1.6;
+  color: #111827;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
 
 .modal-footer {
-  padding: 20px 28px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
   display: flex;
   justify-content: flex-end;
-  background: rgba(15, 23, 42, 0.4);
+  background: #f9fafb;
 }
 
 .btn {
-  padding: 10px 20px;
-  border-radius: 8px;
+  padding: 10px 24px;
+  border-radius: 6px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   border: none;
   transition: all 0.2s;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .btn-secondary {
-  background: rgba(71, 85, 105, 0.5);
-  color: #cbd5e1;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #3b82f6;
+  color: #ffffff;
+  border: 1px solid #3b82f6;
 }
 
 .btn-secondary:hover {
-  background: rgba(71, 85, 105, 0.7);
+  background: #2563eb;
+  border-color: #2563eb;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 /* Scrollbar styling */
@@ -440,18 +439,18 @@ const close = () => {
 
 .modal-body::-webkit-scrollbar-track,
 .output-content::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.4);
+  background: #f3f4f6;
   border-radius: 4px;
 }
 
 .modal-body::-webkit-scrollbar-thumb,
 .output-content::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.6);
+  background: #d1d5db;
   border-radius: 4px;
 }
 
 .modal-body::-webkit-scrollbar-thumb:hover,
 .output-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(71, 85, 105, 0.8);
+  background: #9ca3af;
 }
 </style>

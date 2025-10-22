@@ -1457,17 +1457,18 @@
               </div>
               
               <div v-if="jobStatus.recentJobs && jobStatus.recentJobs.length > 0" class="space-y-3">
-                <div 
-                  v-for="job in jobStatus.recentJobs" 
+                <div
+                  v-for="job in jobStatus.recentJobs"
                   :key="job.id"
                   class="bg-white border border-gray-200 rounded-lg p-4"
                 >
                   <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center">
                       <span class="font-medium text-gray-900">{{ job.name || job.id }}</span>
-                      <span 
+                      <span
                         :class="[
-                          'ml-2 px-2 py-1 text-xs rounded-full',
+                          'ml-2 px-2 py-1 text-xs rounded-full font-semibold',
+                          job.state === 'SUCCESS' && hasErrors(job.result) ? 'bg-yellow-100 text-yellow-800' :
                           job.state === 'SUCCESS' ? 'bg-green-100 text-green-800' :
                           job.state === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
                           job.state === 'STARTED' ? 'bg-blue-100 text-blue-800' :
@@ -1475,19 +1476,79 @@
                           'bg-gray-100 text-gray-800'
                         ]"
                       >
-                        {{ job.state }}
+                        {{ job.state === 'SUCCESS' && hasErrors(job.result) ? 'COMPLETED WITH ERRORS' : job.state }}
                       </span>
                     </div>
                     <span class="text-sm text-gray-500">{{ formatJobTime(job.timestamp) }}</span>
                   </div>
-                  
-                  <div v-if="job.result" class="text-sm text-gray-600 mt-2">
-                    <strong>Result:</strong> {{ JSON.stringify(job.result) }}
+
+                  <div v-if="job.result" class="mt-3">
+                    <button
+                      @click="toggleJobExpansion(job.id)"
+                      class="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-800 transition"
+                    >
+                      <i :class="expandedJobs.has(job.id) ? 'fas fa-chevron-down' : 'fas fa-chevron-right'"></i>
+                      {{ expandedJobs.has(job.id) ? 'Hide Details' : 'Show Details' }}
+                    </button>
+
+                    <div v-if="expandedJobs.has(job.id)" class="mt-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                      <!-- Summary Info -->
+                      <div class="grid grid-cols-2 gap-3 mb-3 text-sm">
+                        <div v-if="job.result.status">
+                          <span class="font-medium text-gray-700">Status:</span>
+                          <span class="ml-1 text-gray-900">{{ job.result.status }}</span>
+                        </div>
+                        <div v-if="job.result.devices_processed !== undefined">
+                          <span class="font-medium text-gray-700">Devices Processed:</span>
+                          <span class="ml-1 text-gray-900">{{ job.result.devices_processed }} / {{ job.result.total_devices || 0 }}</span>
+                        </div>
+                        <div v-if="job.result.total_commands !== undefined">
+                          <span class="font-medium text-gray-700">Commands:</span>
+                          <span class="ml-1 text-gray-900">{{ job.result.total_commands }}</span>
+                        </div>
+                      </div>
+
+                      <!-- Errors Section -->
+                      <div v-if="job.result.errors && job.result.errors.length > 0" class="mt-3">
+                        <h4 class="font-semibold text-red-700 mb-2 flex items-center gap-2">
+                          <i class="fas fa-exclamation-triangle"></i>
+                          Errors ({{ job.result.errors.length }})
+                        </h4>
+                        <div class="space-y-2">
+                          <div
+                            v-for="(error, idx) in job.result.errors"
+                            :key="idx"
+                            class="bg-red-50 border border-red-200 rounded p-3"
+                          >
+                            <div v-if="error.device_name" class="font-medium text-red-900 mb-1">
+                              Device: {{ error.device_name }}
+                            </div>
+                            <div v-if="error.device_id" class="text-xs text-red-600 mb-1">
+                              ID: {{ error.device_id }}
+                            </div>
+                            <div v-if="error.error || error.message" class="text-sm text-red-800">
+                              {{ error.error || error.message }}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Raw Result -->
+                      <details class="mt-3">
+                        <summary class="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900">
+                          Raw Result
+                        </summary>
+                        <pre class="mt-2 text-xs bg-white p-2 rounded border border-gray-300 overflow-x-auto">{{ JSON.stringify(job.result, null, 2) }}</pre>
+                      </details>
+                    </div>
                   </div>
-                  
-                  <div v-if="job.traceback" class="text-sm text-red-600 mt-2 bg-red-50 p-2 rounded">
-                    <strong>Error:</strong>
-                    <pre class="whitespace-pre-wrap text-xs mt-1">{{ job.traceback }}</pre>
+
+                  <div v-if="job.traceback" class="text-sm text-red-600 mt-3 bg-red-50 p-3 rounded border border-red-200">
+                    <strong class="flex items-center gap-2">
+                      <i class="fas fa-times-circle"></i>
+                      Error:
+                    </strong>
+                    <pre class="whitespace-pre-wrap text-xs mt-2">{{ job.traceback }}</pre>
                   </div>
                 </div>
               </div>
@@ -3202,6 +3263,8 @@ const loadingJobStatus = ref(false)
 const submittingTestJob = ref(false)
 const clearingJobs = ref(false)
 let jobStatusInterval: number | null = null
+const expandedJobs = ref(new Set<string>())
+
 const jobStatus = reactive({
   workerActive: false,
   queueSize: 0,
@@ -3220,6 +3283,23 @@ const jobStatus = reactive({
     traceback?: string
   }>
 })
+
+// Helper function to check if job result has errors
+const hasErrors = (result: any): boolean => {
+  if (!result) return false
+  return result.errors && Array.isArray(result.errors) && result.errors.length > 0
+}
+
+// Toggle job expansion
+const toggleJobExpansion = (jobId: string) => {
+  if (expandedJobs.value.has(jobId)) {
+    expandedJobs.value.delete(jobId)
+  } else {
+    expandedJobs.value.add(jobId)
+  }
+  // Trigger reactivity
+  expandedJobs.value = new Set(expandedJobs.value)
+}
 
 const tabs = [
   { id: 'general', name: 'General', icon: 'fas fa-cog' },

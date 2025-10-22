@@ -1450,9 +1450,8 @@ async def get_job_status(
 
                                         # Add result details if available
                                         if result.state == "SUCCESS":
-                                            job_data["result"] = str(result.result)[
-                                                :200
-                                            ]  # Truncate long results
+                                            # Return the full result as is (should be JSON serializable)
+                                            job_data["result"] = result.result
                                         elif result.state == "FAILURE":
                                             job_data["traceback"] = (
                                                 str(result.traceback)[:500]

@@ -257,14 +257,14 @@ const close = () => {
 }
 
 .modal-container {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   max-width: 1200px;
   width: 90%;
   max-height: 90vh;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #e5e7eb;
   animation: slideUp 0.3s ease-out;
 }
 
@@ -280,27 +280,26 @@ const close = () => {
 }
 
 .modal-header {
-  padding: 24px 28px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%);
+  background: #f9fafb;
 }
 
 .modal-header h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
-  color: #f1f5f9;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  color: #111827;
 }
 
 .close-btn {
   background: none;
   border: none;
-  font-size: 32px;
-  color: #94a3b8;
+  font-size: 28px;
+  color: #6b7280;
   cursor: pointer;
   padding: 0;
   width: 32px;
@@ -308,20 +307,20 @@ const close = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 6px;
   transition: all 0.2s;
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #f1f5f9;
-  transform: rotate(90deg);
+  background: #e5e7eb;
+  color: #111827;
 }
 
 .modal-body {
-  padding: 28px;
+  padding: 24px;
   max-height: 70vh;
   overflow-y: auto;
+  background: #ffffff;
 }
 
 .loading-state,
@@ -332,13 +331,13 @@ const close = () => {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: #cbd5e1;
+  color: #6b7280;
 }
 
 .spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid rgba(59, 130, 246, 0.2);
+  border: 4px solid #e5e7eb;
   border-top-color: #3b82f6;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -352,7 +351,7 @@ const close = () => {
 }
 
 .error-message {
-  color: #f87171;
+  color: #ef4444;
   font-size: 14px;
 }
 
@@ -365,10 +364,13 @@ table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 thead {
-  background: rgba(15, 23, 42, 0.6);
+  background: #f9fafb;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -379,10 +381,10 @@ th {
   text-align: left;
   font-size: 12px;
   font-weight: 600;
-  color: #94a3b8;
+  color: #374151;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 2px solid rgba(59, 130, 246, 0.3);
+  border-bottom: 2px solid #e5e7eb;
 }
 
 .expand-col {
@@ -395,29 +397,29 @@ th {
 }
 
 .group-row {
-  background: rgba(59, 130, 246, 0.15);
+  background: #eff6ff;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .group-row:hover {
-  background: rgba(59, 130, 246, 0.25);
+  background: #dbeafe;
 }
 
 .command-row {
-  background: rgba(15, 23, 42, 0.3);
-  border-left: 3px solid rgba(59, 130, 246, 0.5);
+  background: #f9fafb;
+  border-left: 3px solid #3b82f6;
 }
 
 .command-row:hover {
-  background: rgba(15, 23, 42, 0.5);
+  background: #f3f4f6;
 }
 
 td {
   padding: 12px 16px;
   font-size: 13px;
-  color: #e2e8f0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: #111827;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .sub-cell {
@@ -431,7 +433,7 @@ td {
 }
 
 .expand-icon {
-  color: #60a5fa;
+  color: #3b82f6;
   font-size: 14px;
   display: inline-block;
   transition: transform 0.2s;
@@ -439,7 +441,7 @@ td {
 
 .date-cell {
   font-size: 12px;
-  color: #cbd5e1;
+  color: #6b7280;
   white-space: nowrap;
 }
 
@@ -451,8 +453,8 @@ td {
 
 .badge {
   display: inline-block;
-  background: rgba(59, 130, 246, 0.3);
-  color: #60a5fa;
+  background: #dbeafe;
+  color: #3b82f6;
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 11px;
@@ -462,24 +464,24 @@ td {
 
 .command-list {
   font-size: 11px;
-  color: #94a3b8;
+  color: #6b7280;
   line-height: 1.4;
 }
 
 .command-cell {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  color: #60a5fa;
+  color: #3b82f6;
   font-weight: 500;
 }
 
 .command-icon {
   margin-right: 6px;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .notes-cell {
   font-size: 12px;
-  color: #94a3b8;
+  color: #6b7280;
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -507,58 +509,59 @@ td {
 }
 
 .action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .view-btn {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
+  background: #3b82f6;
+  color: #ffffff;
 }
 
 .view-btn:hover {
-  background: rgba(59, 130, 246, 0.4);
+  background: #2563eb;
 }
 
 .delete-btn {
-  background: rgba(239, 68, 68, 0.2);
-  color: #f87171;
+  background: #ffffff;
+  color: #ef4444;
+  border: 1px solid #fecaca;
 }
 
 .delete-btn:hover {
-  background: rgba(239, 68, 68, 0.4);
+  background: #fef2f2;
+  border-color: #ef4444;
 }
 
 .modal-footer {
-  padding: 20px 28px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
   display: flex;
   justify-content: flex-end;
-  background: rgba(15, 23, 42, 0.4);
+  background: #f9fafb;
 }
 
 .btn {
-  padding: 10px 20px;
-  border-radius: 8px;
+  padding: 10px 24px;
+  border-radius: 6px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   border: none;
   transition: all 0.2s;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .btn-secondary {
-  background: rgba(71, 85, 105, 0.5);
-  color: #cbd5e1;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #3b82f6;
+  color: #ffffff;
+  border: 1px solid #3b82f6;
 }
 
 .btn-secondary:hover {
-  background: rgba(71, 85, 105, 0.7);
+  background: #2563eb;
+  border-color: #2563eb;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 /* Scrollbar styling */
@@ -567,16 +570,16 @@ td {
 }
 
 .modal-body::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.4);
+  background: #f3f4f6;
   border-radius: 4px;
 }
 
 .modal-body::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.6);
+  background: #d1d5db;
   border-radius: 4px;
 }
 
 .modal-body::-webkit-scrollbar-thumb:hover {
-  background: rgba(71, 85, 105, 0.8);
+  background: #9ca3af;
 }
 </style>
